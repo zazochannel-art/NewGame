@@ -9,6 +9,8 @@ Built on Windows 11 with **UE 5.8.4** and Visual Studio 2026 (MSVC 14.52): **Dev
 | `error C4458`: local `OldPawn` hides `AController::OldPawn` (`LIPlayerController.cpp`) | renamed to `ExistingPawn` |
 | `LNK2019 FUniqueNetIdWrapper::ToString` (`ULISaveSubsystem::GetPlayerKey`) | added `CoreOnline` to the module's private dependencies |
 | Project pointed at UE 5.5 | `EngineAssociation` set to `5.8` |
+| Terrain rendered white in PIE (the engine debug `VertexColorMaterial` is unlit and blows out) | terrain split into one mesh section per surface colour, each with a tinted `BasicShapeMaterial` instance |
+| Noon washed out (auto exposure off, default EV) | unbound post process with manual exposure, `ExposureCompensation = -3`; `MoonIntensity` raised to 2.5 lux to match |
 
 Headless smoke run (`-game -nullrhi`, ~4 min): the item registry loads (9 items, 4 recipes), the island generates in ~80 ms (219 actors, crash site placed), the character spawns with generated bindings, and autosave writes `LostIsland_Slot0`. The game module logged no errors and nothing crashed. Milestones 1–9 still need the in-editor PIE checklists below.
 
