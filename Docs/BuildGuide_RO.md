@@ -12,7 +12,7 @@
 ```
 git clone https://github.com/zazochannel-art/NewGame.git
 cd NewGame
-git checkout claude/eloquent-shannon-2c65vt
+git checkout claude/lost-island-prototype-hcf1rv
 ```
 
 ## 3. Generează și compilează
