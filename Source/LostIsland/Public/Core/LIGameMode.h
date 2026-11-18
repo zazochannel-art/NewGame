@@ -7,6 +7,7 @@
 #include "LIGameMode.generated.h"
 
 class ALIInteractableActor;
+class ALIResourceNode;
 
 /**
  * ALIGameMode
@@ -36,6 +37,14 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Prototype", meta = (EditCondition = "bSpawnPrototypeTestActors"))
 	TSubclassOf<ALIInteractableActor> PrototypeTestActorClass;
 
+	/** Resource nodes placed in a ring around the PlayerStart for gathering tests. */
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Prototype", meta = (EditCondition = "bSpawnPrototypeTestActors"))
+	TArray<TSubclassOf<ALIResourceNode>> PrototypeResourceClasses;
+
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Prototype", meta = (EditCondition = "bSpawnPrototypeTestActors", ClampMin = "0"))
+	int32 PrototypeNodesPerClass = 3;
+
 private:
 	void SpawnPrototypeTestActors();
+	AActor* SpawnOnGround(TSubclassOf<AActor> Class, const FVector& Location, const FRotator& Rotation, float GroundOffset, bool bDeferred = false);
 };

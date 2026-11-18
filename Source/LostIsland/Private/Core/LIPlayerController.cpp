@@ -7,6 +7,7 @@
 #include "Engine/World.h"
 #include "GameFramework/GameModeBase.h"
 #include "Survival/LISurvivalComponent.h"
+#include "Inventory/LIInventoryComponent.h"
 
 void ALIPlayerController::BeginPlay()
 {
@@ -24,6 +25,8 @@ void ALIPlayerController::BeginPlay()
 void ALIPlayerController::LISetStat(const FString& StatName, float Value) { ServerDebugSetStat(StatName, Value); }
 void ALIPlayerController::LIDamage(float Amount) { ServerDebugDamage(Amount); }
 void ALIPlayerController::LIRevive() { ServerDebugRevive(); }
+void ALIPlayerController::LIGive(const FString& ItemId, int32 Quantity) { ServerDebugGive(ItemId, Quantity); }
+void ALIPlayerController::LIClearInventory() { ServerDebugClearInventory(); }
 
 // --- Debug commands (server) ---
 
@@ -71,6 +74,27 @@ void ALIPlayerController::ServerDebugRevive_Implementation()
 	if (AGameModeBase* GameMode = GetWorld()->GetAuthGameMode())
 	{
 		GameMode->RestartPlayer(this);
+	}
+#endif
+}
+
+void ALIPlayerController::ServerDebugGive_Implementation(const FString& ItemId, int32 Quantity)
+{
+#if !UE_BUILD_SHIPPING
+	if (const ALICharacter* LICharacter = Cast<ALICharacter>(GetPawn()))
+	{
+		const int32 Added = LICharacter->GetInventoryComponent()->AddItem(FName(*ItemId), Quantity);
+		UE_LOG(LogLostIsland, Log, TEXT("LIGive: added %d/%d %s."), Added, Quantity, *ItemId);
+	}
+#endif
+}
+
+void ALIPlayerController::ServerDebugClearInventory_Implementation()
+{
+#if !UE_BUILD_SHIPPING
+	if (const ALICharacter* LICharacter = Cast<ALICharacter>(GetPawn()))
+	{
+		LICharacter->GetInventoryComponent()->ClearInventory();
 	}
 #endif
 }

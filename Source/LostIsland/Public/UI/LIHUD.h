@@ -26,6 +26,15 @@ protected:
 	void DrawInteractionPrompt(const class ALICharacter* Character, float CenterX, float CenterY);
 	void DrawSurvivalBars(const class ALICharacter* Character);
 	void DrawBar(float X, float Y, float Percent, const FLinearColor& Color, const FString& Label);
+	void DrawInventoryPanel(const class ALICharacter* Character);
+	void DrawInventoryNotices(const class ALICharacter* Character);
+
+	/** Inventory grid layout. */
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|HUD")
+	int32 InventoryColumns = 5;
+
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|HUD")
+	float InventorySlotSize = 72.f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|HUD")
 	FLinearColor HealthColor = FLinearColor(0.80f, 0.15f, 0.12f, 1.f);

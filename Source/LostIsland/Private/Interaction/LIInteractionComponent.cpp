@@ -189,12 +189,19 @@ void ULIInteractionComponent::PerformInteract(AActor* Target)
 {
 	check(GetOwnerRole() == ROLE_Authority);
 
+	const double Now = GetWorld()->GetTimeSeconds();
+	if (Now - LastServerInteractTime < MinInteractInterval)
+	{
+		return;
+	}
+
 	if (!CanInteractWith(Target, ServerDistanceTolerance))
 	{
 		UE_LOG(LogLostIsland, Verbose, TEXT("Interaction with %s rejected by server validation."), *GetNameSafe(Target));
 		return;
 	}
 
+	LastServerInteractTime = Now;
 	ILIInteractable::Execute_Interact(Target, GetOwnerPawn());
 	OnInteracted.Broadcast(Target);
 }

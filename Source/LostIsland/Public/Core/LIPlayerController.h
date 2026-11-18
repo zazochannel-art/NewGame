@@ -16,6 +16,8 @@
  *     LISetStat <Health|Hunger|Thirst|Stamina> <Value>
  *     LIDamage <Amount>
  *     LIRevive
+ *     LIGive <ItemId> <Quantity>
+ *     LIClearInventory
  */
 UCLASS()
 class LOSTISLAND_API ALIPlayerController : public APlayerController
@@ -23,6 +25,19 @@ class LOSTISLAND_API ALIPlayerController : public APlayerController
 	GENERATED_BODY()
 
 public:
+	/** Show/hide the inventory panel (HUD reads IsInventoryOpen). */
+	UFUNCTION(BlueprintCallable, Category = "LostIsland|UI")
+	void ToggleInventoryUI() { bInventoryOpen = !bInventoryOpen; }
+
+	UFUNCTION(BlueprintPure, Category = "LostIsland|UI")
+	bool IsInventoryOpen() const { return bInventoryOpen; }
+
+	UFUNCTION(Exec)
+	void LIGive(const FString& ItemId, int32 Quantity);
+
+	UFUNCTION(Exec)
+	void LIClearInventory();
+
 	UFUNCTION(Exec)
 	void LISetStat(const FString& StatName, float Value);
 
@@ -44,4 +59,12 @@ private:
 
 	UFUNCTION(Server, Reliable)
 	void ServerDebugRevive();
+
+	UFUNCTION(Server, Reliable)
+	void ServerDebugGive(const FString& ItemId, int32 Quantity);
+
+	UFUNCTION(Server, Reliable)
+	void ServerDebugClearInventory();
+
+	bool bInventoryOpen = false;
 };

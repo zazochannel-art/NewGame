@@ -18,8 +18,8 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 |---|---|---|
 | 1 | Third Person character: movement, camera, jump, sprint, interaction foundation, anim-instance base | **Code written; awaiting first compile** |
 | 2 | Survival component: health, hunger, thirst, stamina (timer-driven, configurable, replicated) | **Code written; awaiting first compile.** See [Systems/Survival.md](Systems/Survival.md) |
-| 3 | Resource nodes: wood, stone and fiber; gathering through `ILIInteractable` | Planned |
-| 4 | Inventory component: item definitions (Data Assets), IDs, stacks, add/remove, UMG UI | Planned |
+| 3 | Resource nodes: wood, stone and fiber; gathering through `ILIInteractable` | **Code written; awaiting first compile.** See [Systems/Resources.md](Systems/Resources.md) |
+| 4 | Inventory component: item definitions (Data Assets), IDs, stacks, add/remove, basic UI | **Code written; awaiting first compile.** See [Systems/Inventory.md](Systems/Inventory.md) |
 | 5 | Procedural island: seeded heightmap (beach, forest, hills), instanced trees and rocks, resource spawn points | Planned |
 | 6 | SaveGame: player transform, survival values, inventory, world seed | Planned |
 
@@ -66,6 +66,18 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] `LISetStat Hunger 100` + `LISetStat Thirst 100`: HP slowly regenerates.
 - [ ] `LIDamage 200`: "YOU DIED", the character stops moving and interacting. `LIRevive` respawns it with fresh stats.
 - [ ] Co-op (2 players): the client sees its own bars update correctly, and exhaustion stops sprinting on the client too.
+
+## 4c. Milestone 3 + 4 test checklist
+
+- [ ] On Play, 3 trees (tall cylinders), 3 rocks (spheres) and 3 bushes (cones) appear around the player.
+- [ ] Looking at a tree shows `[E] Chop Tree (6/6)`. E adds 2–3 Wood, `+N Wood` appears, and stamina drops by 6.
+- [ ] Spamming E doesn't gather faster than about one hit every 0.4 s.
+- [ ] After 6 hits the tree disappears (it returns after 10 min; set `RespawnTime` lower to test this).
+- [ ] With stamina below the hit cost the prompt disappears, then comes back once stamina regenerates.
+- [ ] Tab opens the inventory: Wood, Stone and Fiber stacks with quantities. Wood stacks up to 50 per slot.
+- [ ] `LIGive Wood 2000` fills the inventory. After that, gathering shows `Inventory full` and spends no stamina.
+- [ ] `LIClearInventory` empties the inventory.
+- [ ] Co-op: the client gathers, sees its own inventory, and the tree disappears for both players.
 
 ## 5. Known limitations and follow-ups
 

@@ -4,6 +4,8 @@
 
 #include "Interaction/LIInteractionComponent.h"
 #include "Survival/LISurvivalComponent.h"
+#include "Inventory/LIInventoryComponent.h"
+#include "Core/LIPlayerController.h"
 #include "LostIsland.h"
 
 #include "Camera/CameraComponent.h"
@@ -63,6 +65,7 @@ ALICharacter::ALICharacter()
 
 	InteractionComponent = CreateDefaultSubobject<ULIInteractionComponent>(TEXT("Interaction"));
 	SurvivalComponent = CreateDefaultSubobject<ULISurvivalComponent>(TEXT("Survival"));
+	InventoryComponent = CreateDefaultSubobject<ULIInventoryComponent>(TEXT("Inventory"));
 
 	// Standard UE mannequin alignment for when a skeletal mesh is assigned.
 	GetMesh()->SetRelativeLocationAndRotation(FVector(0.f, 0.f, -96.f), FRotator(0.f, -90.f, 0.f));
@@ -182,6 +185,10 @@ void ALICharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	{
 		EIC->BindAction(InteractAction, ETriggerEvent::Started, this, &ALICharacter::Interact);
 	}
+	if (InventoryAction)
+	{
+		EIC->BindAction(InventoryAction, ETriggerEvent::Started, this, &ALICharacter::ToggleInventory);
+	}
 }
 
 void ALICharacter::EnsureDefaultInput()
@@ -199,6 +206,7 @@ void ALICharacter::EnsureDefaultInput()
 	if (!SprintAction)   { SprintAction   = MakeAction(TEXT("IA_Sprint_Runtime"),   EInputActionValueType::Boolean); }
 	if (!InteractAction) { InteractAction = MakeAction(TEXT("IA_Interact_Runtime"), EInputActionValueType::Boolean); }
 	if (!ZoomAction)     { ZoomAction     = MakeAction(TEXT("IA_Zoom_Runtime"),     EInputActionValueType::Axis1D); }
+	if (!InventoryAction) { InventoryAction = MakeAction(TEXT("IA_Inventory_Runtime"), EInputActionValueType::Boolean); }
 
 	if (DefaultMappingContext)
 	{
@@ -253,6 +261,9 @@ void ALICharacter::EnsureDefaultInput()
 	IMC->MapKey(InteractAction, EKeys::Gamepad_FaceButton_Left);
 
 	IMC->MapKey(ZoomAction, EKeys::MouseWheelAxis);
+
+	IMC->MapKey(InventoryAction, EKeys::Tab);
+	IMC->MapKey(InventoryAction, EKeys::Gamepad_Special_Right);
 
 	DefaultMappingContext = IMC;
 
@@ -326,6 +337,14 @@ void ALICharacter::Interact()
 	}
 
 	InteractionComponent->TryInteract();
+}
+
+void ALICharacter::ToggleInventory()
+{
+	if (ALIPlayerController* PC = Cast<ALIPlayerController>(Controller))
+	{
+		PC->ToggleInventoryUI();
+	}
 }
 
 bool ALICharacter::CanSprint_Implementation() const

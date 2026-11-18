@@ -124,6 +124,11 @@ void ULISurvivalComponent::ModifyStat(ELISurvivalStat Stat, float Delta)
 		return;
 	}
 
+	if (Stat == ELISurvivalStat::Stamina && Delta < 0.f)
+	{
+		TimeSinceStaminaDrain = 0.f; // spending stamina (gathering, attacks) delays regeneration
+	}
+
 	SetStatInternal(Stat, GetStatValue(Stat) + Delta);
 }
 

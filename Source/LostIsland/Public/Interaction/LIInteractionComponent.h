@@ -83,6 +83,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Interaction", meta = (ClampMin = "0.0", Units = "cm"))
 	float ServerDistanceTolerance = 100.f;
 
+	/** Minimum seconds between interactions, enforced on the server (anti-spam / gather pacing). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Interaction", meta = (ClampMin = "0.0", Units = "s"))
+	float MinInteractInterval = 0.4f;
+
 	/** Draw the focus sweep in the world (development builds only). */
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Interaction|Debug")
 	bool bDrawDebugTrace = false;
@@ -102,6 +106,7 @@ private:
 	APawn* GetOwnerPawn() const;
 
 	FTimerHandle ScanTimerHandle;
+	double LastServerInteractTime = -1000.0;
 	TWeakObjectPtr<AActor> FocusedActor;
 	FText FocusedPrompt;
 };

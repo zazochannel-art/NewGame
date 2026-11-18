@@ -11,6 +11,7 @@ class UInputAction;
 class UInputMappingContext;
 class ULIInteractionComponent;
 class ULISurvivalComponent;
+class ULIInventoryComponent;
 class USpringArmComponent;
 class UStaticMeshComponent;
 struct FInputActionValue;
@@ -31,6 +32,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FLIOnSprintStateChanged, bool, bIsSp
  *     WASD / Left stick     Move           Mouse / Right stick   Look
  *     Space / Face bottom   Jump           Left Shift / L3       Sprint (hold)
  *     E / Face left         Interact       Mouse wheel           Camera zoom
+ *     Tab / Special right   Inventory
  *
  * Visuals: assign a Skeletal Mesh + Anim Blueprint (parented to ULIAnimInstance)
  * in a Blueprint subclass. Until then a placeholder capsule-sized cylinder is shown.
@@ -74,6 +76,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Survival")
 	ULISurvivalComponent* GetSurvivalComponent() const { return SurvivalComponent; }
 
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Inventory")
+	ULIInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
+
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Survival")
 	bool IsDead() const;
 
@@ -97,6 +102,7 @@ protected:
 	void StartSprint();
 	void StopSprint();
 	void Interact();
+	void ToggleInventory();
 
 	// ---- Components ----
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
@@ -110,6 +116,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULISurvivalComponent> SurvivalComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<ULIInventoryComponent> InventoryComponent;
 
 	/** Blueprint hook for death presentation (ragdoll, camera, UI). Runs on all machines. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "LostIsland|Survival", meta = (DisplayName = "On Died"))
@@ -140,6 +149,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
 	TObjectPtr<UInputAction> ZoomAction;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
+	TObjectPtr<UInputAction> InventoryAction;
 
 	// ---- Movement tuning ----
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Movement", meta = (ClampMin = "0.0", Units = "cm/s"))

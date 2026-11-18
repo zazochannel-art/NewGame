@@ -5,7 +5,7 @@ Windows PC / Steam · Unreal Engine 5 · C++ with Blueprint configuration · sin
 
 ## Status
 
-**Milestone 1 (character + interaction) and Milestone 2 (survival: health, hunger, thirst, stamina).** The code is written. It has **not been compiled yet**; see [Docs/DevelopmentPlan.md](Docs/DevelopmentPlan.md).
+**Milestones 1–4: character + interaction, survival (health/hunger/thirst/stamina), resource gathering, inventory.** The code is written. It has **not been compiled yet**; see [Docs/DevelopmentPlan.md](Docs/DevelopmentPlan.md).
 
 ## Getting started (Windows)
 
@@ -28,6 +28,7 @@ The project contains no `.uasset` content yet. It starts in the engine's Basic t
 | Sprint   | Hold Left Shift  | L3               |
 | Interact | E                | X / Square       |
 | Zoom     | Mouse wheel      | —                |
+| Inventory| Tab              | Menu             |
 
 ## Layout
 
@@ -39,6 +40,9 @@ Source/LostIsland/
   Public|Private/Character/   ALICharacter, ULIAnimInstance
   Public|Private/Interaction/ ILIInteractable, ULIInteractionComponent, ALIInteractableActor
   Public|Private/Survival/    ULISurvivalComponent, survival types
+  Public|Private/Items/       ULIItemDefinition, ULIItemRegistrySubsystem, item types
+  Public|Private/Inventory/   ULIInventoryComponent
+  Public|Private/Resources/   ALIResourceNode + Tree / Rock / FiberBush presets
   Public|Private/UI/          ALIHUD (prototype canvas HUD: bars + prompt)
 Docs/                         Development plan and per-system documentation
 ```
