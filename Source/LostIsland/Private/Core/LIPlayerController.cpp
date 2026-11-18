@@ -9,6 +9,7 @@
 #include "Survival/LISurvivalComponent.h"
 #include "Inventory/LIInventoryComponent.h"
 #include "Core/LIGameMode.h"
+#include "Save/LISaveSubsystem.h"
 
 void ALIPlayerController::BeginPlay()
 {
@@ -18,6 +19,62 @@ void ALIPlayerController::BeginPlay()
 	{
 		SetInputMode(FInputModeGameOnly());
 		SetShowMouseCursor(false);
+	}
+}
+
+// --- HUD messages ---
+
+void ALIPlayerController::ClientShowMessage_Implementation(const FText& Message)
+{
+	HudMessage = Message;
+	HudMessageExpireTime = GetWorld()->GetTimeSeconds() + 2.5;
+}
+
+FText ALIPlayerController::GetHudMessage() const
+{
+	return GetWorld() && GetWorld()->GetTimeSeconds() < HudMessageExpireTime ? HudMessage : FText::GetEmpty();
+}
+
+// --- Save commands (host only: in co-op the host owns the world save) ---
+
+void ALIPlayerController::LISave() { ServerSaveGame(); }
+void ALIPlayerController::LILoad() { ServerLoadGame(); }
+void ALIPlayerController::LINewGame() { ServerNewGame(); }
+
+void ALIPlayerController::ServerSaveGame_Implementation()
+{
+	if (!IsLocalController())
+	{
+		return; // only the host may save the shared world
+	}
+	if (ULISaveSubsystem* SaveSubsystem = ULISaveSubsystem::Get(this))
+	{
+		SaveSubsystem->SaveCurrentGame();
+	}
+}
+
+void ALIPlayerController::ServerLoadGame_Implementation()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+	ULISaveSubsystem* SaveSubsystem = ULISaveSubsystem::Get(this);
+	if (SaveSubsystem && !SaveSubsystem->LoadAndRestart())
+	{
+		ClientShowMessage(NSLOCTEXT("LISave", "NoSave", "No save found"));
+	}
+}
+
+void ALIPlayerController::ServerNewGame_Implementation()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+	if (ULISaveSubsystem* SaveSubsystem = ULISaveSubsystem::Get(this))
+	{
+		SaveSubsystem->NewGameAndRestart();
 	}
 }
 

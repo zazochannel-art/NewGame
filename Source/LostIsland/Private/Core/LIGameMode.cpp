@@ -7,6 +7,8 @@
 #include "Interaction/LIInteractableActor.h"
 #include "Resources/LIResourceNode.h"
 #include "World/LIIslandGenerator.h"
+#include "Save/LISaveGame.h"
+#include "Save/LISaveSubsystem.h"
 #include "LostIsland.h"
 #include "UI/LIHUD.h"
 
@@ -15,6 +17,7 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerStart.h"
 #include "Kismet/GameplayStatics.h"
+#include "TimerManager.h"
 
 #define LOCTEXT_NAMESPACE "LIGameMode"
 
@@ -37,6 +40,12 @@ void ALIGameMode::InitGame(const FString& MapName, const FString& Options, FStri
 	{
 		UrlSeed = FCString::Atoi(*SeedOption);
 	}
+
+	// Decide now (before the island and the first pawn exist) whether this session continues a save.
+	if (ULISaveSubsystem* SaveSubsystem = ULISaveSubsystem::Get(this))
+	{
+		SaveSubsystem->PrepareForNewMap(Options);
+	}
 }
 
 void ALIGameMode::StartPlay()
@@ -50,6 +59,36 @@ void ALIGameMode::StartPlay()
 	{
 		SpawnPrototypeTestActors();
 	}
+
+	if (AutosaveInterval > 0.f)
+	{
+		GetWorldTimerManager().SetTimer(AutosaveTimerHandle, this, &ALIGameMode::Autosave, AutosaveInterval, true);
+	}
+}
+
+void ALIGameMode::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	GetWorldTimerManager().ClearTimer(AutosaveTimerHandle);
+	Super::EndPlay(EndPlayReason);
+}
+
+void ALIGameMode::Autosave()
+{
+	if (ULISaveSubsystem* SaveSubsystem = ULISaveSubsystem::Get(this))
+	{
+		SaveSubsystem->SaveCurrentGame();
+	}
+}
+
+void ALIGameMode::FinishRestartPlayer(AController* NewPlayer, const FRotator& StartRotation)
+{
+	Super::FinishRestartPlayer(NewPlayer, StartRotation);
+
+	// First spawn of a player in a continued game: restore position, stats and inventory.
+	if (ULISaveSubsystem* SaveSubsystem = ULISaveSubsystem::Get(this))
+	{
+		SaveSubsystem->ApplyToPlayer(NewPlayer);
+	}
 }
 
 int32 ALIGameMode::ChooseIslandSeed() const
@@ -57,6 +96,14 @@ int32 ALIGameMode::ChooseIslandSeed() const
 	if (UrlSeed != 0)
 	{
 		return UrlSeed;
+	}
+	if (const ULISaveSubsystem* SaveSubsystem = ULISaveSubsystem::Get(this))
+	{
+		const ULISaveGame* Save = SaveSubsystem->GetPendingSave();
+		if (Save && Save->WorldSeed != 0)
+		{
+			return Save->WorldSeed;
+		}
 	}
 	if (IslandSeed != 0)
 	{

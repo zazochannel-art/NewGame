@@ -36,6 +36,18 @@ void ALIHUD::DrawHUD()
 	DrawInventoryNotices(Character);
 
 	const ALIPlayerController* PC = Cast<ALIPlayerController>(GetOwningPlayerController());
+	if (PC)
+	{
+		const FText Message = PC->GetHudMessage();
+		if (!Message.IsEmpty())
+		{
+			UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+			const FString Text = Message.ToString();
+			float W = 0.f, H = 0.f;
+			GetTextSize(Text, W, H, Font, 1.f);
+			DrawText(Text, PromptColor, Canvas->ClipX - W - 24.f, 24.f, Font, 1.f);
+		}
+	}
 	if (PC && PC->IsInventoryOpen())
 	{
 		DrawInventoryPanel(Character);

@@ -34,7 +34,11 @@ void ULISurvivalComponent::BeginPlay()
 
 	if (GetOwnerRole() == ROLE_Authority)
 	{
-		ResetStats();
+		// The first local player can spawn (and receive saved stats) before world BeginPlay.
+		if (!bStatsInitialized)
+		{
+			ResetStats();
+		}
 
 		const float FirstDelay = FMath::FRandRange(0.f, UpdateInterval); // spread players across frames
 		GetWorld()->GetTimerManager().SetTimer(UpdateTimerHandle, this, &ULISurvivalComponent::UpdateSurvival,
@@ -140,6 +144,7 @@ void ULISurvivalComponent::SetStatValue(ELISurvivalStat Stat, float NewValue)
 	}
 
 	SetStatInternal(Stat, NewValue);
+	bStatsInitialized = true;
 
 	if (Stat == ELISurvivalStat::Health && Health <= 0.f)
 	{
@@ -183,6 +188,7 @@ void ULISurvivalComponent::ResetStats()
 
 	SetExhausted(false);
 	TimeSinceStaminaDrain = StaminaRegenDelay;
+	bStatsInitialized = true;
 
 	if (bWasDead && !UpdateTimerHandle.IsValid() && GetWorld())
 	{

@@ -205,5 +205,8 @@ private:
 
 	bool bIsSprinting = false;
 	float TimeSinceStaminaDrain = 0.f;
+
+	/** True once stats were set (ResetStats or a save load), so BeginPlay doesn't overwrite loaded values. */
+	bool bStatsInitialized = false;
 	FTimerHandle UpdateTimerHandle;
 };

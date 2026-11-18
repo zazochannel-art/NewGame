@@ -33,6 +33,8 @@ public:
 	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
 	virtual void StartPlay() override;
 	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
+	virtual void FinishRestartPlayer(AController* NewPlayer, const FRotator& StartRotation) override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Island")
 	ALIIslandGenerator* GetIsland() const { return Island; }
@@ -52,6 +54,10 @@ protected:
 	/** Fixed world seed. 0 = random each new game. Overridden by the "?Seed=123" URL option. */
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Island", meta = (EditCondition = "bGenerateIsland"))
 	int32 IslandSeed = 0;
+
+	/** Seconds between automatic saves (server). 0 disables autosave. */
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Save", meta = (ClampMin = "0.0", Units = "s"))
+	float AutosaveInterval = 300.f;
 
 	/** Spawn the test crates / resource ring. Always on when the island is disabled. */
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Prototype")
@@ -82,6 +88,9 @@ private:
 
 	/** Seed from the "?Seed=" URL option (0 = none). */
 	int32 UrlSeed = 0;
+
+	FTimerHandle AutosaveTimerHandle;
+	void Autosave();
 
 	void SpawnPrototypeTestActors();
 	AActor* SpawnOnGround(TSubclassOf<AActor> Class, const FVector& Location, const FRotator& Rotation, float GroundOffset, bool bDeferred = false);

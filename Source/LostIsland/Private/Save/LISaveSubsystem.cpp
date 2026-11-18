@@ -1,0 +1,288 @@
+// Copyright LOST ISLAND Team. All Rights Reserved.
+
+#include "Save/LISaveSubsystem.h"
+
+#include "Save/LISaveGame.h"
+#include "Character/LICharacter.h"
+#include "Core/LIGameMode.h"
+#include "Core/LIPlayerController.h"
+#include "Inventory/LIInventoryComponent.h"
+#include "LostIsland.h"
+#include "Survival/LISurvivalComponent.h"
+#include "World/LIIslandGenerator.h"
+
+#include "Engine/Engine.h"
+#include "Engine/GameInstance.h"
+#include "Engine/World.h"
+#include "GameFramework/PlayerState.h"
+#include "Kismet/GameplayStatics.h"
+
+#define LOCTEXT_NAMESPACE "LISave"
+
+ULISaveSubsystem* ULISaveSubsystem::Get(const UObject* WorldContextObject)
+{
+	const UWorld* World = GEngine ? GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::ReturnNull) : nullptr;
+	const UGameInstance* GameInstance = World ? World->GetGameInstance() : nullptr;
+	return GameInstance ? GameInstance->GetSubsystem<ULISaveSubsystem>() : nullptr;
+}
+
+bool ULISaveSubsystem::HasSaveGame() const
+{
+	return UGameplayStatics::DoesSaveGameExist(SlotName, 0);
+}
+
+ULISaveGame* ULISaveSubsystem::LoadFromDisk() const
+{
+	if (!HasSaveGame())
+	{
+		return nullptr;
+	}
+
+	ULISaveGame* Save = Cast<ULISaveGame>(UGameplayStatics::LoadGameFromSlot(SlotName, 0));
+	if (!Save)
+	{
+		UE_LOG(LogLostIsland, Warning, TEXT("Save slot '%s' exists but could not be read as ULISaveGame."), *SlotName);
+		return nullptr;
+	}
+
+	if (Save->SaveVersion > ULISaveGame::CurrentVersion)
+	{
+		UE_LOG(LogLostIsland, Warning, TEXT("Save '%s' is from a newer game version (%d > %d); ignoring."),
+			*SlotName, Save->SaveVersion, ULISaveGame::CurrentVersion);
+		return nullptr;
+	}
+	// Future: migrate Save->SaveVersion < CurrentVersion here.
+
+	return Save;
+}
+
+// ---------------------------------------------------------------------------
+// Map start
+// ---------------------------------------------------------------------------
+
+void ULISaveSubsystem::PrepareForNewMap(const FString& Options)
+{
+	AppliedPlayerKeys.Reset();
+
+	const bool bUrlNewGame = UGameplayStatics::HasOption(Options, TEXT("NewGame"))
+		|| !UGameplayStatics::ParseOption(Options, TEXT("Seed")).IsEmpty();
+
+	switch (PendingIntent)
+	{
+	case EPendingIntent::Load:
+		// PendingSave was already loaded by LoadAndRestart.
+		break;
+	case EPendingIntent::NewGame:
+		PendingSave = nullptr;
+		break;
+	case EPendingIntent::None:
+	default:
+		PendingSave = (!bUrlNewGame && bLoadSaveOnStart) ? LoadFromDisk() : nullptr;
+		break;
+	}
+	PendingIntent = EPendingIntent::None;
+
+	if (PendingSave)
+	{
+		UE_LOG(LogLostIsland, Log, TEXT("Continuing save '%s' (seed %d, %d player(s), saved %s)."),
+			*SlotName, PendingSave->WorldSeed, PendingSave->Players.Num(), *PendingSave->SavedAt.ToString());
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Save
+// ---------------------------------------------------------------------------
+
+FString ULISaveSubsystem::GetPlayerKey(const AController* Controller)
+{
+	if (!Controller)
+	{
+		return FString();
+	}
+
+	if (Controller->IsLocalController())
+	{
+		return TEXT("Host");
+	}
+
+	const APlayerState* PlayerState = Controller->GetPlayerState<APlayerState>();
+	if (PlayerState && PlayerState->GetUniqueId().IsValid())
+	{
+		return PlayerState->GetUniqueId().ToString();
+	}
+	return PlayerState ? PlayerState->GetPlayerName() : Controller->GetName();
+}
+
+void ULISaveSubsystem::CapturePlayer(const ALICharacter* Character, FLIPlayerSaveData& OutData)
+{
+	OutData.Location = Character->GetActorLocation();
+	OutData.Rotation = Character->GetController() ? Character->GetController()->GetControlRotation() : Character->GetActorRotation();
+
+	if (const ULISurvivalComponent* Survival = Character->GetSurvivalComponent())
+	{
+		OutData.Health  = Survival->GetStatValue(ELISurvivalStat::Health);
+		OutData.Hunger  = Survival->GetStatValue(ELISurvivalStat::Hunger);
+		OutData.Thirst  = Survival->GetStatValue(ELISurvivalStat::Thirst);
+		OutData.Stamina = Survival->GetStatValue(ELISurvivalStat::Stamina);
+	}
+
+	if (const ULIInventoryComponent* Inventory = Character->GetInventoryComponent())
+	{
+		OutData.InventorySlots = Inventory->GetSlots();
+	}
+}
+
+bool ULISaveSubsystem::SaveCurrentGame()
+{
+	UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr;
+	const ALIGameMode* GameMode = World ? World->GetAuthGameMode<ALIGameMode>() : nullptr;
+	if (!GameMode)
+	{
+		UE_LOG(LogLostIsland, Warning, TEXT("SaveCurrentGame: only the server can save."));
+		return false;
+	}
+
+	ULISaveGame* Save = Cast<ULISaveGame>(UGameplayStatics::CreateSaveGameObject(ULISaveGame::StaticClass()));
+	Save->SaveVersion = ULISaveGame::CurrentVersion;
+	Save->SavedAt = FDateTime::Now();
+	Save->WorldSeed = GameMode->GetIsland() ? GameMode->GetIsland()->GetSeed() : 0;
+
+	// Keep entries of players who are offline right now (co-op), replace the rest.
+	if (PendingSave)
+	{
+		Save->Players = PendingSave->Players;
+	}
+
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+	{
+		const APlayerController* PC = It->Get();
+		const ALICharacter* Character = PC ? Cast<ALICharacter>(PC->GetPawn()) : nullptr;
+		if (!Character || Character->IsDead())
+		{
+			continue; // dead players keep their previous saved state
+		}
+
+		const FString Key = GetPlayerKey(PC);
+		FLIPlayerSaveData* Data = Save->Players.FindByPredicate([&Key](const FLIPlayerSaveData& D) { return D.PlayerKey == Key; });
+		if (!Data)
+		{
+			Data = &Save->Players.AddDefaulted_GetRef();
+			Data->PlayerKey = Key;
+		}
+		CapturePlayer(Character, *Data);
+	}
+
+	// Keep this object as the session's reference save, so later saves merge with it.
+	PendingSave = Save;
+
+	const FString Slot = SlotName;
+	FAsyncSaveGameToSlotDelegate OnSaved;
+	OnSaved.BindLambda([Slot](const FString&, int32, bool bSuccess)
+	{
+		UE_LOG(LogLostIsland, Log, TEXT("Save '%s' %s."), *Slot, bSuccess ? TEXT("written") : TEXT("FAILED"));
+	});
+	UGameplayStatics::AsyncSaveGameToSlot(Save, SlotName, 0, OnSaved);
+
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+	{
+		if (ALIPlayerController* PC = Cast<ALIPlayerController>(It->Get()))
+		{
+			PC->ClientShowMessage(LOCTEXT("Saved", "Game saved"));
+		}
+	}
+	return true;
+}
+
+// ---------------------------------------------------------------------------
+// Load / new game
+// ---------------------------------------------------------------------------
+
+void ULISaveSubsystem::ApplyToPlayer(AController* Controller)
+{
+	ALICharacter* Character = Controller ? Cast<ALICharacter>(Controller->GetPawn()) : nullptr;
+	if (!PendingSave || !Character)
+	{
+		return;
+	}
+
+	const FString Key = GetPlayerKey(Controller);
+	if (AppliedPlayerKeys.Contains(Key))
+	{
+		return; // respawn after death: start fresh, don't restore the old save
+	}
+
+	const FLIPlayerSaveData* Data = PendingSave->FindPlayer(Key);
+	if (!Data)
+	{
+		return; // new co-op player joining a saved world
+	}
+	AppliedPlayerKeys.Add(Key);
+
+	Character->TeleportTo(Data->Location, FRotator(0.f, Data->Rotation.Yaw, 0.f), false, true);
+	Controller->SetControlRotation(Data->Rotation);
+
+	if (ULISurvivalComponent* Survival = Character->GetSurvivalComponent())
+	{
+		// A save never stores a dead player, but guard against corrupt data.
+		Survival->SetStatValue(ELISurvivalStat::Health,  FMath::Max(Data->Health, 1.f));
+		Survival->SetStatValue(ELISurvivalStat::Hunger,  Data->Hunger);
+		Survival->SetStatValue(ELISurvivalStat::Thirst,  Data->Thirst);
+		Survival->SetStatValue(ELISurvivalStat::Stamina, Data->Stamina);
+	}
+
+	if (ULIInventoryComponent* Inventory = Character->GetInventoryComponent())
+	{
+		Inventory->SetSlots(Data->InventorySlots);
+	}
+
+	UE_LOG(LogLostIsland, Log, TEXT("Restored saved state for player '%s'."), *Key);
+}
+
+bool ULISaveSubsystem::LoadAndRestart()
+{
+	ULISaveGame* Save = LoadFromDisk();
+	if (!Save)
+	{
+		UE_LOG(LogLostIsland, Warning, TEXT("No valid save in slot '%s'."), *SlotName);
+		return false;
+	}
+
+	PendingSave = Save;
+	PendingIntent = EPendingIntent::Load;
+	RestartLevel();
+	return true;
+}
+
+void ULISaveSubsystem::NewGameAndRestart()
+{
+	if (HasSaveGame())
+	{
+		UGameplayStatics::DeleteGameInSlot(SlotName, 0);
+	}
+	PendingSave = nullptr;
+	PendingIntent = EPendingIntent::NewGame;
+	RestartLevel();
+}
+
+void ULISaveSubsystem::RestartLevel()
+{
+	UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr;
+	if (!World)
+	{
+		return;
+	}
+
+	if (World->GetNetMode() == NM_Standalone)
+	{
+		if (APlayerController* PC = World->GetFirstPlayerController())
+		{
+			PC->RestartLevel();
+			return;
+		}
+	}
+
+	// Listen server: bring connected clients along.
+	World->ServerTravel(TEXT("?Restart"));
+}
+
+#undef LOCTEXT_NAMESPACE

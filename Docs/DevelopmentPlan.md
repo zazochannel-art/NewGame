@@ -21,7 +21,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 3 | Resource nodes: wood, stone and fiber; gathering through `ILIInteractable` | **Code written; awaiting first compile.** See [Systems/Resources.md](Systems/Resources.md) |
 | 4 | Inventory component: item definitions (Data Assets), IDs, stacks, add/remove, basic UI | **Code written; awaiting first compile.** See [Systems/Inventory.md](Systems/Inventory.md) |
 | 5 | Procedural island: seeded terrain (beach, meadow, forest, hills), water, environment, resource spawn points | **Code written; awaiting first compile.** See [Systems/Island.md](Systems/Island.md) |
-| 6 | SaveGame: player transform, survival values, inventory, world seed | Planned |
+| 6 | SaveGame: player transform, survival values, inventory, world seed | **Code written; awaiting first compile.** See [Systems/Save.md](Systems/Save.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -90,6 +90,16 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] `?Seed=42` in the URL gives the same island as the command above.
 - [ ] Co-op: the client sees the same terrain and the same resources as the host.
 - [ ] Measure the generation time (log) and FPS on the target PC.
+
+## 4e. Milestone 6 test checklist
+
+- [ ] Gather a few resources, walk somewhere, note your health, food and water. Press F5: "Game saved" appears top-right, and the log shows `Save 'LostIsland_Slot0' written`.
+- [ ] Walk somewhere else, use `LIClearInventory`. Press F9: the level reloads with the same island, you're back at the save point, and your stats and inventory are restored.
+- [ ] Stop PIE and start it again: the game automatically continues the save (same island and position).
+- [ ] `LIDamage 200` then `LIRevive`: you respawn on the beach with fresh stats, not the save's.
+- [ ] `LINewGame`: a new random island and an empty inventory. F9 shows "No save found".
+- [ ] `?Seed=5` or `?NewGame` in the URL ignores the existing save.
+- [ ] Co-op: a client can't save. The host's save includes the client; when the client reconnects to the loaded world, their state comes back.
 
 ## 5. Known limitations and follow-ups
 

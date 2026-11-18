@@ -19,6 +19,8 @@
  *     LIGive <ItemId> <Quantity>
  *     LIClearInventory
  *     LIRegenerateIsland <Seed>      (0 = random)
+ *
+ * Save commands (all builds):  LISave, LILoad, LINewGame   (also F5 / F9 on the character)
  */
 UCLASS()
 class LOSTISLAND_API ALIPlayerController : public APlayerController
@@ -32,6 +34,22 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "LostIsland|UI")
 	bool IsInventoryOpen() const { return bInventoryOpen; }
+
+	/** Server -> owning client: short HUD message ("Game saved"). */
+	UFUNCTION(Client, Unreliable)
+	void ClientShowMessage(const FText& Message);
+
+	/** Current HUD message, empty when expired. */
+	FText GetHudMessage() const;
+
+	UFUNCTION(Exec, BlueprintCallable, Category = "LostIsland|Save")
+	void LISave();
+
+	UFUNCTION(Exec, BlueprintCallable, Category = "LostIsland|Save")
+	void LILoad();
+
+	UFUNCTION(Exec, BlueprintCallable, Category = "LostIsland|Save")
+	void LINewGame();
 
 	UFUNCTION(Exec)
 	void LIGive(const FString& ItemId, int32 Quantity);
@@ -73,5 +91,17 @@ private:
 	UFUNCTION(Server, Reliable)
 	void ServerDebugRegenerateIsland(int32 Seed);
 
+	UFUNCTION(Server, Reliable)
+	void ServerSaveGame();
+
+	UFUNCTION(Server, Reliable)
+	void ServerLoadGame();
+
+	UFUNCTION(Server, Reliable)
+	void ServerNewGame();
+
 	bool bInventoryOpen = false;
+
+	FText HudMessage;
+	double HudMessageExpireTime = 0.0;
 };

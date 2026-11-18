@@ -189,6 +189,14 @@ void ALICharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	{
 		EIC->BindAction(InventoryAction, ETriggerEvent::Started, this, &ALICharacter::ToggleInventory);
 	}
+	if (QuickSaveAction)
+	{
+		EIC->BindAction(QuickSaveAction, ETriggerEvent::Started, this, &ALICharacter::QuickSave);
+	}
+	if (QuickLoadAction)
+	{
+		EIC->BindAction(QuickLoadAction, ETriggerEvent::Started, this, &ALICharacter::QuickLoad);
+	}
 }
 
 void ALICharacter::EnsureDefaultInput()
@@ -207,6 +215,8 @@ void ALICharacter::EnsureDefaultInput()
 	if (!InteractAction) { InteractAction = MakeAction(TEXT("IA_Interact_Runtime"), EInputActionValueType::Boolean); }
 	if (!ZoomAction)     { ZoomAction     = MakeAction(TEXT("IA_Zoom_Runtime"),     EInputActionValueType::Axis1D); }
 	if (!InventoryAction) { InventoryAction = MakeAction(TEXT("IA_Inventory_Runtime"), EInputActionValueType::Boolean); }
+	if (!QuickSaveAction) { QuickSaveAction = MakeAction(TEXT("IA_QuickSave_Runtime"), EInputActionValueType::Boolean); }
+	if (!QuickLoadAction) { QuickLoadAction = MakeAction(TEXT("IA_QuickLoad_Runtime"), EInputActionValueType::Boolean); }
 
 	if (DefaultMappingContext)
 	{
@@ -264,6 +274,9 @@ void ALICharacter::EnsureDefaultInput()
 
 	IMC->MapKey(InventoryAction, EKeys::Tab);
 	IMC->MapKey(InventoryAction, EKeys::Gamepad_Special_Right);
+
+	IMC->MapKey(QuickSaveAction, EKeys::F5);
+	IMC->MapKey(QuickLoadAction, EKeys::F9);
 
 	DefaultMappingContext = IMC;
 
@@ -344,6 +357,22 @@ void ALICharacter::ToggleInventory()
 	if (ALIPlayerController* PC = Cast<ALIPlayerController>(Controller))
 	{
 		PC->ToggleInventoryUI();
+	}
+}
+
+void ALICharacter::QuickSave()
+{
+	if (ALIPlayerController* PC = Cast<ALIPlayerController>(Controller))
+	{
+		PC->LISave();
+	}
+}
+
+void ALICharacter::QuickLoad()
+{
+	if (ALIPlayerController* PC = Cast<ALIPlayerController>(Controller))
+	{
+		PC->LILoad();
 	}
 }
 
