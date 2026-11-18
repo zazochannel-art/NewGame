@@ -1,9 +1,23 @@
 # LOST ISLAND: Development Plan
 
-## Pending review notes (to check on the first compile)
+## First compile (2026-11-18)
 
-- `ILIInteractable` declares default `_Implementation` bodies in the interface. This is a common pattern, but if UHT/MSVC complain, move the defaults into the implementing classes.
-- `LIItems::*` are `inline const FName` globals in a header. If there's a static-initialisation problem, replace them with functions (`static FName Wood() { return TEXT("Wood"); }`).
+Built on Windows 11 with **UE 5.8.4** and Visual Studio 2026 (MSVC 14.52): **Development Editor | Win64 succeeds**.
+
+| Problem | Fix |
+|---|---|
+| `error C4458`: local `OldPawn` hides `AController::OldPawn` (`LIPlayerController.cpp`) | renamed to `ExistingPawn` |
+| `LNK2019 FUniqueNetIdWrapper::ToString` (`ULISaveSubsystem::GetPlayerKey`) | added `CoreOnline` to the module's private dependencies |
+| Project pointed at UE 5.5 | `EngineAssociation` set to `5.8` |
+| Terrain rendered white in PIE (the engine debug `VertexColorMaterial` is unlit and blows out) | terrain split into one mesh section per surface colour, each with a tinted `BasicShapeMaterial` instance |
+| Noon washed out (auto exposure off, default EV) | unbound post process with manual exposure, `ExposureCompensation = -3`; `MoonIntensity` raised to 2.5 lux to match |
+
+Headless smoke run (`-game -nullrhi`, ~4 min): the item registry loads (9 items, 4 recipes), the island generates in ~80 ms (219 actors, crash site placed), the character spawns with generated bindings, and autosave writes `LostIsland_Slot0`. The game module logged no errors and nothing crashed. Milestones 1–9 still need the in-editor PIE checklists below.
+
+Build environment notes:
+- Windows **Smart App Control** blocks the DLLs that UBT compiles locally (`0x800711C7`). It must be off to build C++.
+- A project path with non-ASCII characters (e.g. `Рабочий стол`) breaks MSVC's PCH path (`C1083`). Keep the project in an ASCII path outside OneDrive, e.g. `C:\Dev\NewGame`.
+- The interface default `_Implementation` bodies and the `LIItems::*` inline `FName` globals compiled without problems.
 
 ## 1. Project inspection (2026-11-18)
 
@@ -13,7 +27,7 @@
 | Unreal project | **None existed.** No `.uproject`, no `Source/`, no `Config/`, no `Content/`. |
 | Engine version | Not determinable from the repo. **Targeting UE 5.5.** You can change `EngineAssociation` in `LostIsland.uproject`; the target files use `BuildSettingsVersion.Latest` and `EngineIncludeOrderVersion.Latest`, so other 5.x versions should work as well. |
 | Existing Third Person character / GameMode | None. |
-| Compilation status | **Not compiled.** The development container has no Unreal Engine or MSVC toolchain. The first build has to happen on a Windows machine with UE 5.5 installed. |
+| Compilation status | Compiled on 2026-11-18 with UE 5.8; see "First compile" above. |
 
 Because nothing existed, Milestone 1 creates a minimal C++ project. It does not replace any template. If a local Third Person template project exists that was never pushed, push it and these classes can be merged into it. All new classes are prefixed `LI` and live in the `LostIsland` module, so they won't collide with template classes.
 
@@ -21,16 +35,16 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 
 | # | Milestone | Status |
 |---|---|---|
-| 1 | Third Person character: movement, camera, jump, sprint, interaction foundation, anim-instance base | **Code written; awaiting first compile** |
-| 2 | Survival component: health, hunger, thirst, stamina (timer-driven, configurable, replicated) | **Code written; awaiting first compile.** See [Systems/Survival.md](Systems/Survival.md) |
-| 3 | Resource nodes: wood, stone and fiber; gathering through `ILIInteractable` | **Code written; awaiting first compile.** See [Systems/Resources.md](Systems/Resources.md) |
-| 4 | Inventory component: item definitions (Data Assets), IDs, stacks, add/remove, basic UI | **Code written; awaiting first compile.** See [Systems/Inventory.md](Systems/Inventory.md) |
-| 5 | Procedural island: seeded terrain (beach, meadow, forest, hills), water, environment, resource spawn points | **Code written; awaiting first compile.** See [Systems/Island.md](Systems/Island.md) |
-| 6 | SaveGame: player transform, survival values, inventory, world seed | **Code written; awaiting first compile.** See [Systems/Save.md](Systems/Save.md) |
-| 7 | Food and water: consumables, berry bushes, fresh-water springs, eat key | **Code written; awaiting first compile.** See [Systems/FoodWater.md](Systems/FoodWater.md) |
-| 8 | Crafting and tools: recipes, stone axe and pickaxe, bandage, durability | **Code written; awaiting first compile.** See [Systems/Crafting.md](Systems/Crafting.md) |
-| 8b | Plane wreck: seed-placed landmark, searchable loot, Scrap Metal | **Code written; awaiting first compile.** See [Systems/CrashSite.md](Systems/CrashSite.md) |
-| 9 | Day/night cycle, cold at night, placeable campfire with fuel, save v2 (v3: wreck and resources) | **Code written; awaiting first compile.** See [Systems/DayNight.md](Systems/DayNight.md) |
+| 1 | Third Person character: movement, camera, jump, sprint, interaction foundation, anim-instance base | **Compiles; awaiting PIE test** |
+| 2 | Survival component: health, hunger, thirst, stamina (timer-driven, configurable, replicated) | **Compiles; awaiting PIE test.** See [Systems/Survival.md](Systems/Survival.md) |
+| 3 | Resource nodes: wood, stone and fiber; gathering through `ILIInteractable` | **Compiles; awaiting PIE test.** See [Systems/Resources.md](Systems/Resources.md) |
+| 4 | Inventory component: item definitions (Data Assets), IDs, stacks, add/remove, basic UI | **Compiles; awaiting PIE test.** See [Systems/Inventory.md](Systems/Inventory.md) |
+| 5 | Procedural island: seeded terrain (beach, meadow, forest, hills), water, environment, resource spawn points | **Compiles; awaiting PIE test.** See [Systems/Island.md](Systems/Island.md) |
+| 6 | SaveGame: player transform, survival values, inventory, world seed | **Compiles; awaiting PIE test.** See [Systems/Save.md](Systems/Save.md) |
+| 7 | Food and water: consumables, berry bushes, fresh-water springs, eat key | **Compiles; awaiting PIE test.** See [Systems/FoodWater.md](Systems/FoodWater.md) |
+| 8 | Crafting and tools: recipes, stone axe and pickaxe, bandage, durability | **Compiles; awaiting PIE test.** See [Systems/Crafting.md](Systems/Crafting.md) |
+| 8b | Plane wreck: seed-placed landmark, searchable loot, Scrap Metal | **Compiles; awaiting PIE test.** See [Systems/CrashSite.md](Systems/CrashSite.md) |
+| 9 | Day/night cycle, cold at night, placeable campfire with fuel, save v2 (v3: wreck and resources) | **Compiles; awaiting PIE test.** See [Systems/DayNight.md](Systems/DayNight.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 

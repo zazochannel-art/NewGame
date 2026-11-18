@@ -129,10 +129,10 @@ void ALIPlayerController::ServerDebugRevive_Implementation()
 {
 #if !UE_BUILD_SHIPPING
 	// Prototype revive: destroy the dead pawn and let the GameMode spawn a fresh one.
-	if (APawn* OldPawn = GetPawn())
+	if (APawn* ExistingPawn = GetPawn())
 	{
 		UnPossess();
-		OldPawn->Destroy();
+		ExistingPawn->Destroy();
 	}
 	if (AGameModeBase* GameMode = GetWorld()->GetAuthGameMode())
 	{

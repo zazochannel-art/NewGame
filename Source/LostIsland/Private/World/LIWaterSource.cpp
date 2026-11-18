@@ -2,6 +2,7 @@
 
 #include "World/LIWaterSource.h"
 
+#include "LostIsland.h"
 #include "Survival/LISurvivalComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
@@ -40,14 +41,7 @@ void ALIWaterSource::BeginPlay()
 	Super::BeginPlay();
 
 	// Tint the placeholder (engine BasicShapeMaterial exposes "Color"). Only a few springs exist.
-	if (UMaterialInterface* BaseMaterial = Mesh->GetMaterial(0))
-	{
-		UMaterialInstanceDynamic* MID = Mesh->CreateDynamicMaterialInstance(0, BaseMaterial);
-		if (MID)
-		{
-			MID->SetVectorParameterValue(TEXT("Color"), WaterColor);
-		}
-	}
+	LITintPlaceholder(Mesh, WaterColor);
 }
 
 bool ALIWaterSource::CanInteract_Implementation(APawn* InstigatorPawn) const

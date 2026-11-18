@@ -9,6 +9,7 @@
 
 #include "Components/DirectionalLightComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
+#include "Components/PostProcessComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
 #include "Components/SkyLightComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -48,14 +49,12 @@ ALIIslandGenerator::ALIIslandGenerator()
 		WaterMesh->SetStaticMesh(PlaneMesh.Object);
 	}
 
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> VertexColorMat(TEXT("/Engine/EngineDebugMaterials/VertexColorMaterial.VertexColorMaterial"));
-	if (VertexColorMat.Succeeded())
-	{
-		TerrainMaterial = VertexColorMat.Object;
-	}
+	// The engine's debug VertexColorMaterial is unlit and renders blown-out white, so the terrain uses the lit
+	// BasicShapeMaterial with one tinted instance per colour section (see BuildTerrain).
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> BasicShapeMat(TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
 	if (BasicShapeMat.Succeeded())
 	{
+		TerrainMaterial = BasicShapeMat.Object;
 		WaterMaterial = BasicShapeMat.Object;
 	}
 
@@ -76,6 +75,10 @@ ALIIslandGenerator::ALIIslandGenerator()
 
 	HeightFog = CreateDefaultSubobject<UExponentialHeightFogComponent>(TEXT("HeightFog"));
 	HeightFog->SetupAttachment(TerrainMesh);
+
+	PostProcess = CreateDefaultSubobject<UPostProcessComponent>(TEXT("PostProcess"));
+	PostProcess->SetupAttachment(TerrainMesh);
+	PostProcess->bUnbound = true;
 
 	// --- Default resource rules (hard difficulty: resources are spread out) ---
 	FLIResourceSpawnRule Trees;
@@ -323,18 +326,42 @@ void ALIIslandGenerator::BuildTerrain()
 	};
 
 	// Flat shading: every triangle has its own 3 vertices and a face normal.
-	const int32 NumTriangles = N * N * 2;
-	TArray<FVector> Vertices;
-	TArray<int32> Triangles;
-	TArray<FVector> Normals;
-	TArray<FVector2D> UVs;
-	TArray<FLinearColor> Colors;
-	TArray<FProcMeshTangent> Tangents;
-	Vertices.Reserve(NumTriangles * 3);
-	Triangles.Reserve(NumTriangles * 3);
-	Normals.Reserve(NumTriangles * 3);
-	UVs.Reserve(NumTriangles * 3);
-	Colors.Reserve(NumTriangles * 3);
+	// Faces are grouped into one mesh section per (approximate) surface colour so a plain lit material
+	// can be tinted per section.
+	struct FTerrainSection
+	{
+		FLinearColor Color;
+		TArray<FVector> Vertices;
+		TArray<int32> Triangles;
+		TArray<FVector> Normals;
+		TArray<FVector2D> UVs;
+		TArray<FLinearColor> Colors;
+	};
+	TArray<FTerrainSection> Sections;
+	const int32 SectionLimit = FMath::Max(1, MaxTerrainSections);
+
+	auto FindSection = [&](const FLinearColor& Color) -> FTerrainSection&
+	{
+		int32 Best = INDEX_NONE;
+		float BestDist = TNumericLimits<float>::Max();
+		for (int32 Index = 0; Index < Sections.Num(); ++Index)
+		{
+			const FLinearColor& C = Sections[Index].Color;
+			const float Dist = FMath::Max3(FMath::Abs(C.R - Color.R), FMath::Abs(C.G - Color.G), FMath::Abs(C.B - Color.B));
+			if (Dist < BestDist)
+			{
+				BestDist = Dist;
+				Best = Index;
+			}
+		}
+		if (Best != INDEX_NONE && (BestDist <= TerrainColorTolerance || Sections.Num() >= SectionLimit))
+		{
+			return Sections[Best];
+		}
+		FTerrainSection& NewSection = Sections.AddDefaulted_GetRef();
+		NewSection.Color = Color;
+		return NewSection;
+	};
 
 	auto AddTriangle = [&](FVector A, FVector B, FVector C)
 	{
@@ -355,14 +382,15 @@ void ALIIslandGenerator::BuildTerrain()
 
 		const FVector Centroid = (A + B + C) / 3.f;
 		const FLinearColor Color = GetSurfaceColor(FVector2D(Centroid.X, Centroid.Y), FaceNormal.Z);
+		FTerrainSection& Section = FindSection(Color);
 
 		for (const FVector& V : { A, B, C })
 		{
-			Triangles.Add(Vertices.Num());
-			Vertices.Add(V);
-			Normals.Add(FaceNormal);
-			UVs.Add(FVector2D(V.X, V.Y) / 1000.f);
-			Colors.Add(Color);
+			Section.Triangles.Add(Section.Vertices.Num());
+			Section.Vertices.Add(V);
+			Section.Normals.Add(FaceNormal);
+			Section.UVs.Add(FVector2D(V.X, V.Y) / 1000.f);
+			Section.Colors.Add(Color);
 		}
 	};
 
@@ -390,12 +418,20 @@ void ALIIslandGenerator::BuildTerrain()
 	}
 
 	TerrainMesh->ClearAllMeshSections();
-	TerrainMesh->CreateMeshSection_LinearColor(0, Vertices, Triangles, Normals, UVs, Colors, Tangents,
-		/*bCreateCollision*/ true, /*bSRGBConversion*/ true);
-	if (TerrainMaterial)
+	const TArray<FProcMeshTangent> NoTangents;
+	for (int32 Index = 0; Index < Sections.Num(); ++Index)
 	{
-		TerrainMesh->SetMaterial(0, TerrainMaterial);
+		FTerrainSection& Section = Sections[Index];
+		TerrainMesh->CreateMeshSection_LinearColor(Index, Section.Vertices, Section.Triangles, Section.Normals,
+			Section.UVs, Section.Colors, NoTangents, /*bCreateCollision*/ true, /*bSRGBConversion*/ true);
+		if (TerrainMaterial)
+		{
+			UMaterialInstanceDynamic* SectionMID = UMaterialInstanceDynamic::Create(TerrainMaterial, this);
+			SectionMID->SetVectorParameterValue(TEXT("Color"), Section.Color); // BasicShapeMaterial exposes "Color"
+			TerrainMesh->SetMaterial(Index, SectionMID);
+		}
 	}
+	UE_LOG(LogLostIsland, Verbose, TEXT("Terrain built with %d colour sections."), Sections.Num());
 
 	// Water: engine plane is 100x100 cm; cover well past the island so the horizon reads as ocean.
 	const float WaterSize = Half * 2.f * 4.f;
@@ -429,6 +465,17 @@ void ALIIslandGenerator::SetupEnvironment()
 	SkyAtmosphere->SetVisibility(bUseOwnEnvironment);
 	SkyLight->SetVisibility(bUseOwnEnvironment);
 	HeightFog->SetVisibility(bUseOwnEnvironment);
+
+	// Manual exposure: the project disables auto exposure, and with the default EV the 10 lux sun washes
+	// the low-poly colours out to white. A fixed compensation keeps day bright and night dark.
+	PostProcess->bEnabled = bUseOwnEnvironment;
+	FPostProcessSettings& Settings = PostProcess->Settings;
+	Settings.bOverride_AutoExposureMethod = true;
+	Settings.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
+	Settings.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
+	Settings.AutoExposureApplyPhysicalCameraExposure = false;
+	Settings.bOverride_AutoExposureBias = true;
+	Settings.AutoExposureBias = ExposureCompensation;
 }
 
 // ---------------------------------------------------------------------------

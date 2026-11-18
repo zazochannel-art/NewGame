@@ -13,6 +13,7 @@ class UMaterialInterface;
 class UProceduralMeshComponent;
 class USkyAtmosphereComponent;
 class USkyLightComponent;
+class UPostProcessComponent;
 class UStaticMeshComponent;
 
 UENUM(BlueprintType)
@@ -165,6 +166,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TObjectPtr<UExponentialHeightFogComponent> HeightFog;
 
+	/** Unbound post process: fixed manual exposure so the scene is not blown out at noon (see ExposureCompensation). */
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	TObjectPtr<UPostProcessComponent> PostProcess;
+
 	// ---------------- Shape ----------------
 	/** Cells per side. 128 x 128 cells -> ~98k flat-shaded vertices. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Shape", meta = (ClampMin = "16", ClampMax = "256"))
@@ -267,9 +272,21 @@ protected:
 	float OtherTypeClearance = 350.f;
 
 	// ---------------- Rendering / environment ----------------
-	/** Material for the terrain. Should use Vertex Color as base colour. Defaults to the engine vertex-colour material. */
+	/**
+	 * Lit material for the terrain. The terrain is split into one mesh section per surface colour, and each section
+	 * gets a dynamic instance of this material with its "Color" parameter set (defaults to BasicShapeMaterial).
+	 * Vertex colours are still written, so a custom material may use Vertex Color instead and ignore "Color".
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Rendering")
 	TObjectPtr<UMaterialInterface> TerrainMaterial;
+
+	/** Faces whose colours differ by less than this share a mesh section (fewer sections = fewer draw calls). */
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering", meta = (ClampMin = "0.0", ClampMax = "0.5"))
+	float TerrainColorTolerance = 0.035f;
+
+	/** Upper bound on terrain mesh sections; past it, faces join the closest existing colour. */
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering", meta = (ClampMin = "1", ClampMax = "64"))
+	int32 MaxTerrainSections = 24;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Rendering")
 	TObjectPtr<UMaterialInterface> WaterMaterial;
@@ -286,7 +303,11 @@ protected:
 
 	/** Moonlight is a dim, cool directional light so nights are dark but playable. */
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight", meta = (Units = "lux"))
-	float MoonIntensity = 0.35f;
+	float MoonIntensity = 2.5f;
+
+	/** Manual exposure compensation (EV) for the generated environment. Lower = darker. Tuned for SunIntensity 10 lux. */
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight")
+	float ExposureCompensation = -3.f;
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight")
 	FLinearColor NoonColor = FLinearColor(1.f, 0.96f, 0.88f);

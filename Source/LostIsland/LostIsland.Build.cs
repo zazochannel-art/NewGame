@@ -21,7 +21,8 @@ public class LostIsland : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"AnimGraphRuntime",        // UKismetAnimationLibrary (ULIAnimInstance)
-			"ProceduralMeshComponent"  // island terrain (ALIIslandGenerator)
+			"ProceduralMeshComponent", // island terrain (ALIIslandGenerator)
+			"CoreOnline"               // FUniqueNetIdWrapper::ToString (ULISaveSubsystem player keys)
 		});
 	}
 }
