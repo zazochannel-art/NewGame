@@ -42,7 +42,73 @@ void ULIInventoryComponent::BeginPlay()
 int32 ULIInventoryComponent::GetMaxStack(FName ItemId) const
 {
 	const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
-	return Registry ? Registry->GetMaxStackSize(ItemId) : 0;
+	const int32 MaxStack = Registry ? Registry->GetMaxStackSize(ItemId) : 0;
+	// Items with durability are individual objects: never stack them.
+	return (MaxStack > 0 && GetMaxDurability(ItemId) > 0) ? 1 : MaxStack;
+}
+
+int32 ULIInventoryComponent::GetMaxDurability(FName ItemId) const
+{
+	const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
+	const ULIItemDefinition* Def = Registry ? Registry->FindItem(ItemId) : nullptr;
+	return Def ? FMath::Max(0, Def->MaxDurability) : 0;
+}
+
+int32 ULIInventoryComponent::FindBestToolSlot(ELIToolType ToolType) const
+{
+	if (ToolType == ELIToolType::None)
+	{
+		return INDEX_NONE;
+	}
+	const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
+	if (!Registry)
+	{
+		return INDEX_NONE;
+	}
+
+	int32 BestIndex = INDEX_NONE;
+	float BestMultiplier = 0.f;
+	for (int32 Index = 0; Index < Slots.Num(); ++Index)
+	{
+		const FLIInventorySlot& Slot = Slots[Index];
+		const ULIItemDefinition* Def = Slot.IsEmpty() ? nullptr : Registry->FindItem(Slot.ItemId);
+		if (Def && Def->ToolType == ToolType && Def->ToolYieldMultiplier > BestMultiplier)
+		{
+			BestMultiplier = Def->ToolYieldMultiplier;
+			BestIndex = Index;
+		}
+	}
+	return BestIndex;
+}
+
+void ULIInventoryComponent::ConsumeToolDurability(int32 SlotIndex)
+{
+	if (GetOwnerRole() != ROLE_Authority || !Slots.IsValidIndex(SlotIndex) || Slots[SlotIndex].IsEmpty())
+	{
+		return;
+	}
+
+	FLIInventorySlot& Slot = Slots[SlotIndex];
+	if (GetMaxDurability(Slot.ItemId) <= 0)
+	{
+		return; // indestructible
+	}
+
+	Slot.Durability = FMath::Max(0, Slot.Durability - 1);
+	if (Slot.Durability == 0)
+	{
+		const FName Broken = Slot.ItemId;
+		Slot.Clear();
+		ClientNotifyToolBroke(Broken);
+	}
+	NotifyChanged();
+}
+
+void ULIInventoryComponent::ClientNotifyToolBroke_Implementation(FName ItemId)
+{
+	const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
+	const FText Name = Registry ? Registry->GetDisplayName(ItemId) : FText::FromName(ItemId);
+	PushNotice(FText::Format(LOCTEXT("Broke", "{0} broke!"), Name), true);
 }
 
 int32 ULIInventoryComponent::GetItemCount(FName ItemId) const
@@ -96,6 +162,7 @@ FName ULIInventoryComponent::FindBestConsumable() const
 
 	const float HungerDeficit = Survival->GetStatMax(ELISurvivalStat::Hunger) - Survival->GetStatValue(ELISurvivalStat::Hunger);
 	const float ThirstDeficit = Survival->GetStatMax(ELISurvivalStat::Thirst) - Survival->GetStatValue(ELISurvivalStat::Thirst);
+	const float HealthDeficit = Survival->GetStatMax(ELISurvivalStat::Health) - Survival->GetStatValue(ELISurvivalStat::Health);
 
 	FName BestId = NAME_None;
 	float BestScore = 0.f;
@@ -112,7 +179,8 @@ FName ULIInventoryComponent::FindBestConsumable() const
 		}
 
 		// Only count the part of each value that is actually needed (no reward for over-eating).
-		const float Score = FMath::Min(Def->FoodValue, HungerDeficit) + FMath::Min(Def->WaterValue, ThirstDeficit);
+		const float Score = FMath::Min(Def->FoodValue, HungerDeficit) + FMath::Min(Def->WaterValue, ThirstDeficit)
+			+ FMath::Min(FMath::Max(Def->HealthValue, 0.f), HealthDeficit);
 		if (Score > BestScore + KINDA_SMALL_NUMBER)
 		{
 			BestScore = Score;
@@ -227,6 +295,7 @@ int32 ULIInventoryComponent::AddItem(FName ItemId, int32 Quantity)
 			const int32 ToAdd = FMath::Min(Remaining, MaxStack);
 			Slot.ItemId = ItemId;
 			Slot.Quantity = ToAdd;
+			Slot.Durability = GetMaxDurability(ItemId);
 			Remaining -= ToAdd;
 		}
 	}
@@ -311,6 +380,11 @@ void ULIInventoryComponent::SetSlots(const TArray<FLIInventorySlot>& NewSlots)
 		}
 		Slots[Index].ItemId = Source.ItemId;
 		Slots[Index].Quantity = FMath::Clamp(Source.Quantity, 1, MaxStack);
+		const int32 MaxDurability = GetMaxDurability(Source.ItemId);
+		// Older saves have no durability (0): treat as a fresh tool.
+		Slots[Index].Durability = MaxDurability > 0
+			? (Source.Durability > 0 ? FMath::Min(Source.Durability, MaxDurability) : MaxDurability)
+			: 0;
 	}
 
 	NotifyChanged();

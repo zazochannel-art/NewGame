@@ -3,6 +3,7 @@
 #include "Resources/LIResourceNode.h"
 
 #include "Inventory/LIInventoryComponent.h"
+#include "Items/LIItemDefinition.h"
 #include "Items/LIItemRegistrySubsystem.h"
 #include "Items/LIItemTypes.h"
 #include "LostIsland.h"
@@ -72,12 +73,42 @@ bool ALIResourceNode::CanInteract_Implementation(APawn* InstigatorPawn) const
 	// Stamina replicates to the owner, so this check also works for client-side focus.
 	if (const ULISurvivalComponent* Survival = InstigatorPawn->FindComponentByClass<ULISurvivalComponent>())
 	{
-		if (Survival->IsDead() || Survival->GetStatValue(ELISurvivalStat::Stamina) < StaminaCostPerHit)
+		if (Survival->IsDead() || Survival->GetStatValue(ELISurvivalStat::Stamina) < GetStaminaCostFor(InstigatorPawn))
 		{
 			return false;
 		}
 	}
 	return true;
+}
+
+const ULIItemDefinition* ALIResourceNode::FindToolFor(const APawn* Gatherer, int32* OutSlotIndex) const
+{
+	if (OutSlotIndex)
+	{
+		*OutSlotIndex = INDEX_NONE;
+	}
+	const ULIInventoryComponent* Inventory = Gatherer ? Gatherer->FindComponentByClass<ULIInventoryComponent>() : nullptr;
+	const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
+	if (!Inventory || !Registry || EffectiveTool == ELIToolType::None)
+	{
+		return nullptr;
+	}
+	const int32 SlotIndex = Inventory->FindBestToolSlot(EffectiveTool);
+	if (SlotIndex == INDEX_NONE)
+	{
+		return nullptr;
+	}
+	if (OutSlotIndex)
+	{
+		*OutSlotIndex = SlotIndex;
+	}
+	return Registry->FindItem(Inventory->GetSlots()[SlotIndex].ItemId);
+}
+
+float ALIResourceNode::GetStaminaCostFor(const APawn* Gatherer) const
+{
+	const ULIItemDefinition* Tool = FindToolFor(Gatherer, nullptr);
+	return StaminaCostPerHit * (Tool ? Tool->ToolStaminaMultiplier : 1.f);
 }
 
 void ALIResourceNode::Interact_Implementation(APawn* InstigatorPawn)
@@ -93,16 +124,24 @@ void ALIResourceNode::Interact_Implementation(APawn* InstigatorPawn)
 		return;
 	}
 
-	const int32 Yield = FMath::RandRange(MinYield, MaxYield);
+	int32 ToolSlot = INDEX_NONE;
+	const ULIItemDefinition* Tool = FindToolFor(InstigatorPawn, &ToolSlot);
+	const float YieldMultiplier = Tool ? Tool->ToolYieldMultiplier : 1.f;
+
+	const int32 Yield = FMath::Max(1, FMath::RoundToInt(FMath::RandRange(MinYield, MaxYield) * YieldMultiplier));
 	const int32 Added = Inventory->AddItem(ResourceItemId, Yield);
 	if (Added <= 0)
 	{
-		return; // Inventory full: no stamina spent, node untouched.
+		return; // Inventory full: no stamina spent, node untouched, tool not worn.
 	}
 
 	if (ULISurvivalComponent* Survival = InstigatorPawn->FindComponentByClass<ULISurvivalComponent>())
 	{
-		Survival->ModifyStat(ELISurvivalStat::Stamina, -StaminaCostPerHit);
+		Survival->ModifyStat(ELISurvivalStat::Stamina, -StaminaCostPerHit * (Tool ? Tool->ToolStaminaMultiplier : 1.f));
+	}
+	if (Tool)
+	{
+		Inventory->ConsumeToolDurability(ToolSlot);
 	}
 
 	RemainingHits = FMath::Max(0, RemainingHits - 1);
@@ -116,7 +155,12 @@ void ALIResourceNode::Interact_Implementation(APawn* InstigatorPawn)
 
 FText ALIResourceNode::GetInteractionPrompt_Implementation(APawn* InstigatorPawn) const
 {
-	return FText::Format(LOCTEXT("PromptFormat", "{0}  ({1}/{2})"), PromptText, FText::AsNumber(RemainingHits), FText::AsNumber(HitsToDeplete));
+	const FText Base = FText::Format(LOCTEXT("PromptFormat", "{0}  ({1}/{2})"), PromptText, FText::AsNumber(RemainingHits), FText::AsNumber(HitsToDeplete));
+	if (const ULIItemDefinition* Tool = FindToolFor(InstigatorPawn, nullptr))
+	{
+		return FText::Format(LOCTEXT("PromptWithTool", "{0}  with {1}"), Base, Tool->DisplayName);
+	}
+	return Base;
 }
 
 void ALIResourceNode::OnFocusBegin_Implementation(APawn* InstigatorPawn)
@@ -174,6 +218,7 @@ ALITreeNode::ALITreeNode()
 	Mesh->SetRelativeLocation(FVector(0.f, 0.f, 200.f));  // origin at the base
 
 	ResourceItemId = LIItems::Wood;
+	EffectiveTool = ELIToolType::Axe;
 	MinYield = 2;
 	MaxYield = 3;
 	HitsToDeplete = 6;
@@ -193,6 +238,7 @@ ALIRockNode::ALIRockNode()
 	Mesh->SetRelativeLocation(FVector(0.f, 0.f, 35.f));
 
 	ResourceItemId = LIItems::Stone;
+	EffectiveTool = ELIToolType::Pickaxe;
 	MinYield = 1;
 	MaxYield = 2;
 	HitsToDeplete = 8;

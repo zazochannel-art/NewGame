@@ -3,7 +3,9 @@
 #include "Items/LIItemRegistrySubsystem.h"
 
 #include "Items/LIItemDefinition.h"
+#include "Crafting/LIRecipeDefinition.h"
 #include "LostIsland.h"
+#include "Algo/Sort.h"
 #include "Engine/AssetManager.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
@@ -17,8 +19,11 @@ void ULIItemRegistrySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 	RegisterBuiltInItems();
 	LoadItemAssets();
+	RegisterBuiltInRecipes();
+	LoadRecipeAssets();
+	RebuildSortedRecipes();
 
-	UE_LOG(LogLostIsland, Log, TEXT("Item registry ready: %d item types."), Items.Num());
+	UE_LOG(LogLostIsland, Log, TEXT("Item registry ready: %d item types, %d recipes."), Items.Num(), Recipes.Num());
 }
 
 ULIItemRegistrySubsystem* ULIItemRegistrySubsystem::Get(const UObject* WorldContextObject)
@@ -47,6 +52,9 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 		{ LIItems::Stone,   LOCTEXT("Stone",   "Stone"),   LOCTEXT("StoneDesc",   "Heavy chunks of island rock."),               40, ELIItemCategory::Resource, 0.f,  0.f },
 		{ LIItems::Fiber,   LOCTEXT("Fiber",   "Fiber"),   LOCTEXT("FiberDesc",   "Plant fibres for rope and bindings."),        80, ELIItemCategory::Resource, 0.f,  0.f },
 		{ LIItems::Berries, LOCTEXT("Berries", "Berries"), LOCTEXT("BerriesDesc", "Tart wild berries. A little food, a little water."), 20, ELIItemCategory::Food, 8.f, 2.f },
+		{ LIItems::FiberBandage, LOCTEXT("FiberBandage", "Fiber Bandage"), LOCTEXT("FiberBandageDesc", "Crude plant-fibre wrap. Stops some bleeding."), 10, ELIItemCategory::Misc, 0.f, 0.f },
+		{ LIItems::StoneAxe, LOCTEXT("StoneAxe", "Stone Axe"), LOCTEXT("StoneAxeDesc", "Sharp stone lashed to a branch. Fells trees faster."), 1, ELIItemCategory::Tool, 0.f, 0.f },
+		{ LIItems::StonePickaxe, LOCTEXT("StonePickaxe", "Stone Pickaxe"), LOCTEXT("StonePickaxeDesc", "Heavy pointed stone on a haft. Breaks rock faster."), 1, ELIItemCategory::Tool, 0.f, 0.f },
 	};
 
 	for (const FBuiltIn& BuiltIn : BuiltIns)
@@ -61,6 +69,99 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 		Def->WaterValue = BuiltIn.Water;
 		RegisterItem(Def);
 	}
+
+	// Extra properties that don't fit the table above.
+	if (ULIItemDefinition* Bandage = FindItem(LIItems::FiberBandage))
+	{
+		Bandage->HealthValue = 15.f;
+	}
+	if (ULIItemDefinition* Axe = FindItem(LIItems::StoneAxe))
+	{
+		Axe->ToolType = ELIToolType::Axe;
+		Axe->MaxDurability = 40;
+	}
+	if (ULIItemDefinition* Pickaxe = FindItem(LIItems::StonePickaxe))
+	{
+		Pickaxe->ToolType = ELIToolType::Pickaxe;
+		Pickaxe->MaxDurability = 40;
+	}
+}
+
+void ULIItemRegistrySubsystem::RegisterBuiltInRecipes()
+{
+	struct FBuiltInRecipe
+	{
+		FName Id;
+		TArray<FLIItemQuantity> Ingredients;
+		FLIItemQuantity Output;
+		int32 SortOrder;
+	};
+
+	const FBuiltInRecipe BuiltIns[] =
+	{
+		{ LIItems::StoneAxe,     { { LIItems::Wood, 3 }, { LIItems::Stone, 2 }, { LIItems::Fiber, 4 } }, { LIItems::StoneAxe, 1 },     10 },
+		{ LIItems::StonePickaxe, { { LIItems::Wood, 3 }, { LIItems::Stone, 4 }, { LIItems::Fiber, 4 } }, { LIItems::StonePickaxe, 1 }, 20 },
+		{ LIItems::FiberBandage, { { LIItems::Fiber, 6 } },                                              { LIItems::FiberBandage, 1 }, 30 },
+	};
+
+	for (const FBuiltInRecipe& BuiltIn : BuiltIns)
+	{
+		ULIRecipeDefinition* Recipe = NewObject<ULIRecipeDefinition>(this, NAME_None, RF_Transient);
+		Recipe->RecipeId = BuiltIn.Id;
+		Recipe->Ingredients = BuiltIn.Ingredients;
+		Recipe->Output = BuiltIn.Output;
+		Recipe->SortOrder = BuiltIn.SortOrder;
+		RegisterRecipe(Recipe);
+	}
+}
+
+void ULIItemRegistrySubsystem::LoadRecipeAssets()
+{
+	UAssetManager* AssetManager = UAssetManager::GetIfInitialized();
+	if (!AssetManager)
+	{
+		return;
+	}
+
+	TArray<FPrimaryAssetId> AssetIds;
+	AssetManager->GetPrimaryAssetIdList(ULIRecipeDefinition::PrimaryAssetType, AssetIds);
+	for (const FPrimaryAssetId& AssetId : AssetIds)
+	{
+		if (ULIRecipeDefinition* Recipe = Cast<ULIRecipeDefinition>(AssetManager->GetPrimaryAssetPath(AssetId).TryLoad()))
+		{
+			RegisterRecipe(Recipe);
+		}
+	}
+}
+
+void ULIItemRegistrySubsystem::RegisterRecipe(ULIRecipeDefinition* Recipe)
+{
+	if (!Recipe || Recipe->RecipeId.IsNone() || Recipe->Output.ItemId.IsNone())
+	{
+		UE_LOG(LogLostIsland, Warning, TEXT("Ignoring recipe with no RecipeId or output: %s"), *GetNameSafe(Recipe));
+		return;
+	}
+	Recipes.Add(Recipe->RecipeId, Recipe);
+	RebuildSortedRecipes();
+}
+
+void ULIItemRegistrySubsystem::RebuildSortedRecipes()
+{
+	SortedRecipes.Reset();
+	for (const TPair<FName, TObjectPtr<ULIRecipeDefinition>>& Pair : Recipes)
+	{
+		SortedRecipes.Add(Pair.Value);
+	}
+	Algo::Sort(SortedRecipes, [](const TObjectPtr<ULIRecipeDefinition>& A, const TObjectPtr<ULIRecipeDefinition>& B)
+	{
+		return A->SortOrder != B->SortOrder ? A->SortOrder < B->SortOrder : A->RecipeId.LexicalLess(B->RecipeId);
+	});
+}
+
+ULIRecipeDefinition* ULIItemRegistrySubsystem::FindRecipe(FName RecipeId) const
+{
+	const TObjectPtr<ULIRecipeDefinition>* Found = Recipes.Find(RecipeId);
+	return Found ? Found->Get() : nullptr;
 }
 
 void ULIItemRegistrySubsystem::LoadItemAssets()

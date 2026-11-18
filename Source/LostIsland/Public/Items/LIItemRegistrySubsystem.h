@@ -7,6 +7,7 @@
 #include "LIItemRegistrySubsystem.generated.h"
 
 class ULIItemDefinition;
+class ULIRecipeDefinition;
 
 /**
  * ULIItemRegistrySubsystem
@@ -14,7 +15,7 @@ class ULIItemDefinition;
  * Lookup table ItemId -> ULIItemDefinition, available on server and clients.
  * On startup it registers the built-in items (Wood, Stone, Fiber), then loads
  * every "LIItem" primary asset found by the Asset Manager. Assets override
- * built-ins with the same ItemId.
+ * built-ins with the same ItemId. Recipes ("LIRecipe") are handled the same way.
  */
 UCLASS()
 class LOSTISLAND_API ULIItemRegistrySubsystem : public UGameInstanceSubsystem
@@ -44,10 +45,30 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LostIsland|Items")
 	void RegisterItem(ULIItemDefinition* Definition);
 
+	// ---- Recipes ----
+
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Crafting")
+	ULIRecipeDefinition* FindRecipe(FName RecipeId) const;
+
+	/** All recipes, sorted by SortOrder then RecipeId (stable order for UI and number keys). */
+	const TArray<TObjectPtr<ULIRecipeDefinition>>& GetRecipes() const { return SortedRecipes; }
+
+	UFUNCTION(BlueprintCallable, Category = "LostIsland|Crafting")
+	void RegisterRecipe(ULIRecipeDefinition* Recipe);
+
 private:
 	void RegisterBuiltInItems();
+	void RegisterBuiltInRecipes();
 	void LoadItemAssets();
+	void LoadRecipeAssets();
+	void RebuildSortedRecipes();
 
 	UPROPERTY(Transient)
 	TMap<FName, TObjectPtr<ULIItemDefinition>> Items;
+
+	UPROPERTY(Transient)
+	TMap<FName, TObjectPtr<ULIRecipeDefinition>> Recipes;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<ULIRecipeDefinition>> SortedRecipes;
 };

@@ -28,6 +28,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 5 | Procedural island: seeded terrain (beach, meadow, forest, hills), water, environment, resource spawn points | **Code written; awaiting first compile.** See [Systems/Island.md](Systems/Island.md) |
 | 6 | SaveGame: player transform, survival values, inventory, world seed | **Code written; awaiting first compile.** See [Systems/Save.md](Systems/Save.md) |
 | 7 | Food and water: consumables, berry bushes, fresh-water springs, eat key | **Code written; awaiting first compile.** See [Systems/FoodWater.md](Systems/FoodWater.md) |
+| 8 | Crafting and tools: recipes, stone axe and pickaxe, bandage, durability | **Code written; awaiting first compile.** See [Systems/Crafting.md](Systems/Crafting.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -115,6 +116,18 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] F eats one berry (+8 food, +2 water) and shows `Consumed Berries`. At full hunger and thirst the hint disappears and F does nothing.
 - [ ] Balance: play 20–30 min without commands. Can you survive by drinking and eating? Note what you felt (too easy or too hard).
 - [ ] Co-op: the client drinks and eats correctly, and the berry count updates.
+
+## 4g. Milestone 8 test checklist
+
+- [ ] Tab: a CRAFTING panel appears to the right of the inventory with 3 recipes. Missing ingredients are red.
+- [ ] `LIGive Wood 10`, `LIGive Stone 10`, `LIGive Fiber 20`. Press 1 with the inventory open: Stone Axe appears in its own slot with a full green bar, and the ingredients are consumed exactly.
+- [ ] With the inventory closed, 1 does nothing.
+- [ ] Chop a tree with the axe: the prompt says `with Stone Axe`, you get 4–6 wood per hit, stamina drops by ~3.6, and the bar shrinks.
+- [ ] `LIGive StoneAxe 1` twice: two axes in separate slots.
+- [ ] After 40 hits: `Stone Axe broke!` and the slot empties.
+- [ ] `LIDamage 30`, craft a bandage (3): `[F] Use Fiber Bandage` appears, and F gives +15 HP.
+- [ ] F5, then F9: the axe keeps its remaining durability.
+- [ ] Co-op: the client crafts and uses tools correctly.
 
 ## 5. Known limitations and follow-ups
 

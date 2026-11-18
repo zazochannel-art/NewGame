@@ -5,6 +5,7 @@
 #include "Interaction/LIInteractionComponent.h"
 #include "Survival/LISurvivalComponent.h"
 #include "Inventory/LIInventoryComponent.h"
+#include "Crafting/LICraftingComponent.h"
 #include "Core/LIPlayerController.h"
 #include "LostIsland.h"
 
@@ -66,6 +67,7 @@ ALICharacter::ALICharacter()
 	InteractionComponent = CreateDefaultSubobject<ULIInteractionComponent>(TEXT("Interaction"));
 	SurvivalComponent = CreateDefaultSubobject<ULISurvivalComponent>(TEXT("Survival"));
 	InventoryComponent = CreateDefaultSubobject<ULIInventoryComponent>(TEXT("Inventory"));
+	CraftingComponent = CreateDefaultSubobject<ULICraftingComponent>(TEXT("Crafting"));
 
 	// Standard UE mannequin alignment for when a skeletal mesh is assigned.
 	GetMesh()->SetRelativeLocationAndRotation(FVector(0.f, 0.f, -96.f), FRotator(0.f, -90.f, 0.f));
@@ -193,6 +195,13 @@ void ALICharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	{
 		EIC->BindAction(ConsumeAction, ETriggerEvent::Started, this, &ALICharacter::Consume);
 	}
+	for (UInputAction* CraftAction : CraftSlotActions)
+	{
+		if (CraftAction)
+		{
+			EIC->BindAction(CraftAction, ETriggerEvent::Started, this, &ALICharacter::CraftSlot);
+		}
+	}
 	if (QuickSaveAction)
 	{
 		EIC->BindAction(QuickSaveAction, ETriggerEvent::Started, this, &ALICharacter::QuickSave);
@@ -220,6 +229,16 @@ void ALICharacter::EnsureDefaultInput()
 	if (!ZoomAction)     { ZoomAction     = MakeAction(TEXT("IA_Zoom_Runtime"),     EInputActionValueType::Axis1D); }
 	if (!InventoryAction) { InventoryAction = MakeAction(TEXT("IA_Inventory_Runtime"), EInputActionValueType::Boolean); }
 	if (!ConsumeAction)   { ConsumeAction   = MakeAction(TEXT("IA_Consume_Runtime"),   EInputActionValueType::Boolean); }
+
+	const bool bGenerateCraftActions = CraftSlotActions.Num() == 0;
+	if (bGenerateCraftActions)
+	{
+		for (int32 Index = 0; Index < 9; ++Index)
+		{
+			const FString Name = FString::Printf(TEXT("IA_Craft%d_Runtime"), Index + 1);
+			CraftSlotActions.Add(MakeAction(*Name, EInputActionValueType::Boolean));
+		}
+	}
 	if (!QuickSaveAction) { QuickSaveAction = MakeAction(TEXT("IA_QuickSave_Runtime"), EInputActionValueType::Boolean); }
 	if (!QuickLoadAction) { QuickLoadAction = MakeAction(TEXT("IA_QuickLoad_Runtime"), EInputActionValueType::Boolean); }
 
@@ -279,6 +298,15 @@ void ALICharacter::EnsureDefaultInput()
 
 	IMC->MapKey(InventoryAction, EKeys::Tab);
 	IMC->MapKey(InventoryAction, EKeys::Gamepad_Special_Right);
+
+	const FKey NumberKeys[] = { EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five, EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine };
+	for (int32 Index = 0; Index < CraftSlotActions.Num() && Index < static_cast<int32>(UE_ARRAY_COUNT(NumberKeys)); ++Index)
+	{
+		if (CraftSlotActions[Index])
+		{
+			IMC->MapKey(CraftSlotActions[Index], NumberKeys[Index]);
+		}
+	}
 
 	IMC->MapKey(ConsumeAction, EKeys::F);
 	IMC->MapKey(ConsumeAction, EKeys::Gamepad_DPad_Up);
@@ -373,6 +401,21 @@ void ALICharacter::Consume()
 	if (!IsDead())
 	{
 		InventoryComponent->RequestConsumeBest();
+	}
+}
+
+void ALICharacter::CraftSlot(const FInputActionInstance& Instance)
+{
+	// Crafting only from the inventory screen, so number keys stay free for a future hotbar.
+	const ALIPlayerController* PC = Cast<ALIPlayerController>(Controller);
+	if (!PC || !PC->IsInventoryOpen() || IsDead())
+	{
+		return;
+	}
+	const int32 Index = CraftSlotActions.IndexOfByKey(Instance.GetSourceAction());
+	if (Index != INDEX_NONE)
+	{
+		CraftingComponent->RequestCraftByIndex(Index);
 	}
 }
 

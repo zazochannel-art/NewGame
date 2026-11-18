@@ -28,6 +28,7 @@ protected:
 	void DrawBar(float X, float Y, float Percent, const FLinearColor& Color, const FString& Label);
 	void DrawInventoryPanel(const class ALICharacter* Character);
 	void DrawInventoryNotices(const class ALICharacter* Character);
+	void DrawCraftingPanel(const class ALICharacter* Character, float X, float Y, float Height);
 
 	/** Inventory grid layout. */
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|HUD")

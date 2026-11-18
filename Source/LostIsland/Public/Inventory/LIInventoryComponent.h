@@ -71,6 +71,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Inventory")
 	FName FindBestConsumable() const;
 
+	/**
+	 * Best tool of ToolType in the inventory (highest yield multiplier). Returns the slot index or INDEX_NONE.
+	 * Server and owning client.
+	 */
+	int32 FindBestToolSlot(ELIToolType ToolType) const;
+
+	/** Server: spend one use of the tool in SlotIndex; breaks (removes) it at 0 and notifies the owner. */
+	void ConsumeToolDurability(int32 SlotIndex);
+
 	/** Owning client or server: eat/drink the best consumable (validated on the server). */
 	UFUNCTION(BlueprintCallable, Category = "LostIsland|Inventory")
 	void RequestConsumeBest();
@@ -122,6 +131,7 @@ protected:
 
 private:
 	int32 GetMaxStack(FName ItemId) const;
+	int32 GetMaxDurability(FName ItemId) const;
 	void NotifyChanged();
 	void PushNotice(const FText& Text, bool bIsWarning);
 
@@ -130,6 +140,9 @@ private:
 
 	UFUNCTION(Client, Unreliable)
 	void ClientNotifyConsumed(FName ItemId);
+
+	UFUNCTION(Client, Unreliable)
+	void ClientNotifyToolBroke(FName ItemId);
 
 	UFUNCTION(Client, Unreliable)
 	void ClientNotifyItemAdded(FName ItemId, int32 Quantity);

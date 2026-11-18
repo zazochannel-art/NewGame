@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Interaction/LIInteractable.h"
+#include "Items/LIItemTypes.h"
 #include "LIResourceNode.generated.h"
 
 class UStaticMeshComponent;
@@ -91,6 +92,16 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Resource")
 	FText PromptText;
+
+	/** Tool that speeds up gathering here (yield x, stamina x, and it wears down). None = bare hands only. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Resource")
+	ELIToolType EffectiveTool = ELIToolType::None;
+
+	/** Best matching tool the gatherer carries (and its slot), or null. */
+	const class ULIItemDefinition* FindToolFor(const APawn* Gatherer, int32* OutSlotIndex) const;
+
+	/** Stamina this gatherer would spend per hit (reduced by a matching tool). */
+	float GetStaminaCostFor(const APawn* Gatherer) const;
 
 private:
 	void Deplete();

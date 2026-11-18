@@ -7,6 +7,9 @@
 #include "Survival/LISurvivalComponent.h"
 #include "Inventory/LIInventoryComponent.h"
 #include "Items/LIItemRegistrySubsystem.h"
+#include "Items/LIItemDefinition.h"
+#include "Crafting/LICraftingComponent.h"
+#include "Crafting/LIRecipeDefinition.h"
 #include "Core/LIPlayerController.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
@@ -74,7 +77,7 @@ void ALIHUD::DrawHUD()
 		{
 			const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
 			const FString Name = Registry ? Registry->GetDisplayName(Best).ToString() : Best.ToString();
-			const FString Hint = FString::Printf(TEXT("[F] Eat %s (x%d)"), *Name, Inventory->GetItemCount(Best));
+			const FString Hint = FString::Printf(TEXT("[F] Use %s (x%d)"), *Name, Inventory->GetItemCount(Best));
 			UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
 			float W = 0.f, H = 0.f;
 			GetTextSize(Hint, W, H, Font, 1.f);
@@ -178,11 +181,80 @@ void ALIHUD::DrawInventoryPanel(const ALICharacter* Character)
 		const FString Name = Registry ? Registry->GetDisplayName(Slot.ItemId).ToString() : Slot.ItemId.ToString();
 		DrawText(Name, FLinearColor::White, X + 5.f, Y + 5.f, SmallFont, 1.f);
 
-		const FString Qty = FString::Printf(TEXT("x%d"), Slot.Quantity);
-		float W = 0.f, H = 0.f;
-		GetTextSize(Qty, W, H, SmallFont, 1.f);
-		DrawText(Qty, PromptColor, X + InventorySlotSize - W - 5.f, Y + InventorySlotSize - H - 4.f, SmallFont, 1.f);
+		const ULIItemDefinition* Def = Registry ? Registry->FindItem(Slot.ItemId) : nullptr;
+		if (Def && Def->MaxDurability > 0)
+		{
+			// Durability bar instead of a quantity for tools.
+			const float Pct = FMath::Clamp(static_cast<float>(Slot.Durability) / Def->MaxDurability, 0.f, 1.f);
+			const FLinearColor BarColor = Pct > 0.3f ? StaminaColor : HealthColor;
+			DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.5f), X + 5.f, Y + InventorySlotSize - 10.f, InventorySlotSize - 10.f, 5.f);
+			DrawRect(BarColor, X + 5.f, Y + InventorySlotSize - 10.f, (InventorySlotSize - 10.f) * Pct, 5.f);
+		}
+		else
+		{
+			const FString Qty = FString::Printf(TEXT("x%d"), Slot.Quantity);
+			float W = 0.f, H = 0.f;
+			GetTextSize(Qty, W, H, SmallFont, 1.f);
+			DrawText(Qty, PromptColor, X + InventorySlotSize - W - 5.f, Y + InventorySlotSize - H - 4.f, SmallFont, 1.f);
+		}
 	}
+
+	DrawCraftingPanel(Character, PanelX + PanelW + 12.f, PanelY, PanelH);
+}
+
+void ALIHUD::DrawCraftingPanel(const ALICharacter* Character, float X, float Y, float Height)
+{
+	const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
+	const ULICraftingComponent* Crafting = Character->GetCraftingComponent();
+	const ULIInventoryComponent* Inventory = Character->GetInventoryComponent();
+	if (!Registry || !Crafting || !Inventory)
+	{
+		return;
+	}
+
+	UFont* SmallFont = GEngine ? GEngine->GetSmallFont() : nullptr;
+	UFont* MediumFont = GEngine ? GEngine->GetMediumFont() : nullptr;
+	const float Width = 300.f;
+	const float Padding = 14.f;
+	const float RowHeight = 40.f;
+
+	DrawRect(FLinearColor(0.05f, 0.04f, 0.03f, 0.85f), X, Y, Width, Height);
+	DrawText(LOCTEXT("CraftingTitle", "CRAFTING").ToString(), PromptColor, X + Padding, Y + 8.f, MediumFont, 1.f);
+
+	const TArray<TObjectPtr<ULIRecipeDefinition>>& Recipes = Registry->GetRecipes();
+	float RowY = Y + 40.f;
+	for (int32 Index = 0; Index < Recipes.Num() && Index < 9; ++Index)
+	{
+		const ULIRecipeDefinition* Recipe = Recipes[Index];
+		if (!Recipe || RowY + RowHeight > Y + Height)
+		{
+			break;
+		}
+
+		const bool bCanCraft = Crafting->CanCraft(Recipe->RecipeId);
+		const FString Name = !Recipe->DisplayName.IsEmpty()
+			? Recipe->DisplayName.ToString()
+			: Registry->GetDisplayName(Recipe->Output.ItemId).ToString();
+		DrawText(FString::Printf(TEXT("[%d] %s"), Index + 1, *Name), bCanCraft ? FLinearColor::White : FLinearColor(0.6f, 0.6f, 0.6f, 1.f),
+			X + Padding, RowY, SmallFont, 1.f);
+
+		// Ingredients: "3/3 Wood  1/2 Stone" (red when missing).
+		float IngredientX = X + Padding + 18.f;
+		for (const FLIItemQuantity& Ingredient : Recipe->Ingredients)
+		{
+			const int32 Have = Inventory->GetItemCount(Ingredient.ItemId);
+			const FString Text = FString::Printf(TEXT("%d/%d %s  "), FMath::Min(Have, Ingredient.Quantity), Ingredient.Quantity,
+				*Registry->GetDisplayName(Ingredient.ItemId).ToString());
+			float W = 0.f, H = 0.f;
+			GetTextSize(Text, W, H, SmallFont, 1.f);
+			DrawText(Text, Have >= Ingredient.Quantity ? StaminaColor : HealthColor, IngredientX, RowY + 16.f, SmallFont, 1.f);
+			IngredientX += W;
+		}
+		RowY += RowHeight;
+	}
+
+	DrawText(LOCTEXT("CraftHint", "Press the number to craft").ToString(), FLinearColor(0.7f, 0.7f, 0.7f, 1.f),
+		X + Padding, Y + Height - 22.f, SmallFont, 1.f);
 }
 
 void ALIHUD::DrawInventoryNotices(const ALICharacter* Character)

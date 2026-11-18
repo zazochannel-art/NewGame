@@ -12,6 +12,7 @@ class UInputMappingContext;
 class ULIInteractionComponent;
 class ULISurvivalComponent;
 class ULIInventoryComponent;
+class ULICraftingComponent;
 class USpringArmComponent;
 class UStaticMeshComponent;
 struct FInputActionValue;
@@ -33,7 +34,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FLIOnSprintStateChanged, bool, bIsSp
  *     Space / Face bottom   Jump           Left Shift / L3       Sprint (hold)
  *     E / Face left         Interact       Mouse wheel           Camera zoom
  *     Tab / Special right   Inventory      F5 / F9               Quick save / load
- *     F / D-pad up          Eat / drink best consumable
+ *     F / D-pad up          Eat / drink / heal (best consumable)
+ *     1..9 (inventory open) Craft recipe N
  *
  * Visuals: assign a Skeletal Mesh + Anim Blueprint (parented to ULIAnimInstance)
  * in a Blueprint subclass. Until then a placeholder capsule-sized cylinder is shown.
@@ -80,6 +82,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Inventory")
 	ULIInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
 
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Crafting")
+	ULICraftingComponent* GetCraftingComponent() const { return CraftingComponent; }
+
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Survival")
 	bool IsDead() const;
 
@@ -105,6 +110,7 @@ protected:
 	void Interact();
 	void ToggleInventory();
 	void Consume();
+	void CraftSlot(const struct FInputActionInstance& Instance);
 	void QuickSave();
 	void QuickLoad();
 
@@ -123,6 +129,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULIInventoryComponent> InventoryComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<ULICraftingComponent> CraftingComponent;
 
 	/** Blueprint hook for death presentation (ragdoll, camera, UI). Runs on all machines. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "LostIsland|Survival", meta = (DisplayName = "On Died"))
@@ -159,6 +168,10 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
 	TObjectPtr<UInputAction> ConsumeAction;
+
+	/** Number keys 1..9 while the inventory is open: craft recipe N. One action per key (index = array position). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
+	TArray<TObjectPtr<UInputAction>> CraftSlotActions;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
 	TObjectPtr<UInputAction> QuickSaveAction;

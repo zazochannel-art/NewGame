@@ -61,6 +61,23 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Item")
 	bool IsConsumable() const { return FoodValue > 0.f || WaterValue > 0.f || HealthValue != 0.f; }
 
+	// ---- Tool (picked automatically from the inventory when gathering) ----
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Tool")
+	ELIToolType ToolType = ELIToolType::None;
+
+	/** Yield multiplier on matching resource nodes. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Tool", meta = (ClampMin = "1.0", EditCondition = "ToolType != ELIToolType::None"))
+	float ToolYieldMultiplier = 2.f;
+
+	/** Stamina cost multiplier on matching resource nodes (lower = less tiring). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Tool", meta = (ClampMin = "0.0", ClampMax = "1.0", EditCondition = "ToolType != ELIToolType::None"))
+	float ToolStaminaMultiplier = 0.6f;
+
+	/** Uses before the item breaks. 0 = never breaks. Items with durability always stack to 1. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Tool", meta = (ClampMin = "0"))
+	int32 MaxDurability = 0;
+
 	/** UI icon (loaded on demand by UI). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item")
 	TSoftObjectPtr<UTexture2D> Icon;

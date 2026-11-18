@@ -5,7 +5,7 @@ Windows PC / Steam · Unreal Engine 5 · C++ with Blueprint configuration · sin
 
 ## Status
 
-**Milestones 1–7: character + interaction, survival (health/hunger/thirst/stamina), resource gathering, inventory, procedural island, save system, food and water.** The code is written. It has **not been compiled yet**; see [Docs/DevelopmentPlan.md](Docs/DevelopmentPlan.md).
+**Milestones 1–8: character + interaction, survival (health/hunger/thirst/stamina), resource gathering, inventory, procedural island, save system, food and water, crafting and tools.** The code is written. It has **not been compiled yet**; see [Docs/DevelopmentPlan.md](Docs/DevelopmentPlan.md).
 
 ## Getting started (Windows)
 
@@ -29,7 +29,8 @@ The project contains no `.uasset` content yet. It starts in the empty engine map
 | Interact | E                | X / Square       |
 | Zoom     | Mouse wheel      | —                |
 | Inventory| Tab              | Menu             |
-| Eat / drink | F             | D-pad up         |
+| Eat / drink / heal | F      | D-pad up         |
+| Craft (inventory open) | 1–9 | —            |
 | Save / Load | F5 / F9       | —                |
 
 ## Layout
@@ -44,6 +45,7 @@ Source/LostIsland/
   Public|Private/Survival/    ULISurvivalComponent, survival types
   Public|Private/Items/       ULIItemDefinition, ULIItemRegistrySubsystem, item types
   Public|Private/Inventory/   ULIInventoryComponent
+  Public|Private/Crafting/    ULIRecipeDefinition, ULICraftingComponent
   Public|Private/Resources/   ALIResourceNode + Tree / Rock / FiberBush presets
   Public|Private/World/       ALIIslandGenerator (procedural island)
   Public|Private/Save/        ULISaveGame, ULISaveSubsystem
