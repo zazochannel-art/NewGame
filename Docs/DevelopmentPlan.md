@@ -1,5 +1,10 @@
 # LOST ISLAND: Development Plan
 
+## Pending review notes (to check on the first compile)
+
+- `ILIInteractable` declares default `_Implementation` bodies in the interface. This is a common pattern, but if UHT/MSVC complain, move the defaults into the implementing classes.
+- `LIItems::*` are `inline const FName` globals in a header. If there's a static-initialisation problem, replace them with functions (`static FName Wood() { return TEXT("Wood"); }`).
+
 ## 1. Project inspection (2026-11-18)
 
 | Item | Finding |
@@ -22,6 +27,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 4 | Inventory component: item definitions (Data Assets), IDs, stacks, add/remove, basic UI | **Code written; awaiting first compile.** See [Systems/Inventory.md](Systems/Inventory.md) |
 | 5 | Procedural island: seeded terrain (beach, meadow, forest, hills), water, environment, resource spawn points | **Code written; awaiting first compile.** See [Systems/Island.md](Systems/Island.md) |
 | 6 | SaveGame: player transform, survival values, inventory, world seed | **Code written; awaiting first compile.** See [Systems/Save.md](Systems/Save.md) |
+| 7 | Food and water: consumables, berry bushes, fresh-water springs, eat key | **Code written; awaiting first compile.** See [Systems/FoodWater.md](Systems/FoodWater.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -100,6 +106,15 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] `LINewGame`: a new random island and an empty inventory. F9 shows "No save found".
 - [ ] `?Seed=5` or `?NewGame` in the URL ignores the existing save.
 - [ ] Co-op: a client can't save. The host's save includes the client; when the client reconnects to the loaded world, their state comes back.
+
+## 4f. Milestone 7 test checklist
+
+- [ ] The island has red spheres (berry bushes) and flat blue discs (springs). There are about 5 springs, far apart.
+- [ ] `LISetStat Thirst 40` and go to a spring: `[E] Drink Fresh Water`. Each press adds +15. At full thirst the prompt disappears.
+- [ ] Pick berries: `+N Berries`. With hunger below max, `[F] Eat Berries (xN)` appears at the bottom.
+- [ ] F eats one berry (+8 food, +2 water) and shows `Consumed Berries`. At full hunger and thirst the hint disappears and F does nothing.
+- [ ] Balance: play 20–30 min without commands. Can you survive by drinking and eating? Note what you felt (too easy or too hard).
+- [ ] Co-op: the client drinks and eats correctly, and the berry count updates.
 
 ## 5. Known limitations and follow-ups
 

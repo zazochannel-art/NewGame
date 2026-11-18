@@ -220,4 +220,25 @@ ALIFiberBushNode::ALIFiberBushNode()
 	PromptText = LOCTEXT("GatherFiber", "Gather Fiber");
 }
 
+ALIBerryBushNode::ALIBerryBushNode()
+{
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> ShapeMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	if (ShapeMesh.Succeeded())
+	{
+		Mesh->SetStaticMesh(ShapeMesh.Object);
+	}
+	Mesh->SetRelativeScale3D(FVector(0.9f, 0.9f, 0.7f));
+	Mesh->SetRelativeLocation(FVector(0.f, 0.f, 35.f));
+
+	// Hard difficulty: ~18 bushes x ~3 berries per 15 min ~= 430 food vs ~37 needed per player,
+	// but bushes are spread out, so travel time (and its hunger/thirst cost) is the real price.
+	ResourceItemId = LIItems::Berries;
+	MinYield = 1;
+	MaxYield = 2;
+	HitsToDeplete = 2;
+	RespawnTime = 900.f;
+	StaminaCostPerHit = 1.f;
+	PromptText = LOCTEXT("PickBerries", "Pick Berries");
+}
+
 #undef LOCTEXT_NAMESPACE

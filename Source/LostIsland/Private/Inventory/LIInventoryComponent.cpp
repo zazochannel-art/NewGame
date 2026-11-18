@@ -2,7 +2,9 @@
 
 #include "Inventory/LIInventoryComponent.h"
 
+#include "Items/LIItemDefinition.h"
 #include "Items/LIItemRegistrySubsystem.h"
+#include "Survival/LISurvivalComponent.h"
 #include "LostIsland.h"
 #include "Engine/World.h"
 #include "Net/UnrealNetwork.h"
@@ -77,6 +79,105 @@ int32 ULIInventoryComponent::GetRoomFor(FName ItemId) const
 		}
 	}
 	return Room;
+}
+
+// ---------------------------------------------------------------------------
+// Consumables
+// ---------------------------------------------------------------------------
+
+FName ULIInventoryComponent::FindBestConsumable() const
+{
+	const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
+	const ULISurvivalComponent* Survival = GetOwner() ? GetOwner()->FindComponentByClass<ULISurvivalComponent>() : nullptr;
+	if (!Registry || !Survival || Survival->IsDead())
+	{
+		return NAME_None;
+	}
+
+	const float HungerDeficit = Survival->GetStatMax(ELISurvivalStat::Hunger) - Survival->GetStatValue(ELISurvivalStat::Hunger);
+	const float ThirstDeficit = Survival->GetStatMax(ELISurvivalStat::Thirst) - Survival->GetStatValue(ELISurvivalStat::Thirst);
+
+	FName BestId = NAME_None;
+	float BestScore = 0.f;
+	for (const FLIInventorySlot& Slot : Slots)
+	{
+		if (Slot.IsEmpty() || Slot.ItemId == BestId)
+		{
+			continue;
+		}
+		const ULIItemDefinition* Def = Registry->FindItem(Slot.ItemId);
+		if (!Def || !Def->IsConsumable())
+		{
+			continue;
+		}
+
+		// Only count the part of each value that is actually needed (no reward for over-eating).
+		const float Score = FMath::Min(Def->FoodValue, HungerDeficit) + FMath::Min(Def->WaterValue, ThirstDeficit);
+		if (Score > BestScore + KINDA_SMALL_NUMBER)
+		{
+			BestScore = Score;
+			BestId = Slot.ItemId;
+		}
+	}
+
+	// Require a meaningful benefit so a nearly-full player doesn't waste food.
+	return BestScore >= 1.f ? BestId : NAME_None;
+}
+
+void ULIInventoryComponent::RequestConsumeBest()
+{
+	if (GetOwnerRole() == ROLE_Authority)
+	{
+		ServerConsumeBest_Implementation();
+	}
+	else
+	{
+		ServerConsumeBest();
+	}
+}
+
+void ULIInventoryComponent::ServerConsumeBest_Implementation()
+{
+	const FName ItemId = FindBestConsumable();
+	if (!ItemId.IsNone())
+	{
+		ConsumeItem(ItemId);
+	}
+}
+
+bool ULIInventoryComponent::ConsumeItem(FName ItemId)
+{
+	if (GetOwnerRole() != ROLE_Authority)
+	{
+		return false;
+	}
+
+	const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
+	const ULIItemDefinition* Def = Registry ? Registry->FindItem(ItemId) : nullptr;
+	ULISurvivalComponent* Survival = GetOwner() ? GetOwner()->FindComponentByClass<ULISurvivalComponent>() : nullptr;
+	if (!Def || !Def->IsConsumable() || !Survival || Survival->IsDead())
+	{
+		return false;
+	}
+
+	if (!RemoveItem(ItemId, 1))
+	{
+		return false;
+	}
+
+	Survival->ModifyStat(ELISurvivalStat::Hunger, Def->FoodValue);
+	Survival->ModifyStat(ELISurvivalStat::Thirst, Def->WaterValue);
+	Survival->ModifyStat(ELISurvivalStat::Health, Def->HealthValue);
+
+	ClientNotifyConsumed(ItemId);
+	return true;
+}
+
+void ULIInventoryComponent::ClientNotifyConsumed_Implementation(FName ItemId)
+{
+	const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
+	const FText Name = Registry ? Registry->GetDisplayName(ItemId) : FText::FromName(ItemId);
+	PushNotice(FText::Format(LOCTEXT("Consumed", "Consumed {0}"), Name), false);
 }
 
 // ---------------------------------------------------------------------------

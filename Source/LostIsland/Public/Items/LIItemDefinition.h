@@ -44,6 +44,23 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item", meta = (ClampMin = "1"))
 	int32 MaxStackSize = 50;
 
+	// ---- Consumable effects (applied once per item consumed) ----
+
+	/** Hunger restored. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Consumable", meta = (ClampMin = "0.0"))
+	float FoodValue = 0.f;
+
+	/** Thirst restored. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Consumable", meta = (ClampMin = "0.0"))
+	float WaterValue = 0.f;
+
+	/** Health restored (negative = harmful, e.g. raw meat later). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Consumable")
+	float HealthValue = 0.f;
+
+	UFUNCTION(BlueprintPure, Category = "Item")
+	bool IsConsumable() const { return FoodValue > 0.f || WaterValue > 0.f || HealthValue != 0.f; }
+
 	/** UI icon (loaded on demand by UI). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item")
 	TSoftObjectPtr<UTexture2D> Icon;

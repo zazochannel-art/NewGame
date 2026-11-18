@@ -65,6 +65,22 @@ void ALIHUD::DrawHUD()
 
 	DrawRect(CrosshairColor, CenterX - 2.f, CenterY - 2.f, 4.f, 4.f);
 	DrawInteractionPrompt(Character, CenterX, CenterY);
+
+	// "[F] Eat Berries (x4)" when something in the inventory would help.
+	if (const ULIInventoryComponent* Inventory = Character->GetInventoryComponent())
+	{
+		const FName Best = Inventory->FindBestConsumable();
+		if (!Best.IsNone())
+		{
+			const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
+			const FString Name = Registry ? Registry->GetDisplayName(Best).ToString() : Best.ToString();
+			const FString Hint = FString::Printf(TEXT("[F] Eat %s (x%d)"), *Name, Inventory->GetItemCount(Best));
+			UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
+			float W = 0.f, H = 0.f;
+			GetTextSize(Hint, W, H, Font, 1.f);
+			DrawText(Hint, PromptColor, CenterX - W * 0.5f, Canvas->ClipY - 48.f, Font, 1.f);
+		}
+	}
 }
 
 void ALIHUD::DrawInteractionPrompt(const ALICharacter* Character, float CenterX, float CenterY)

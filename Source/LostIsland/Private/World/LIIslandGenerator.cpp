@@ -4,6 +4,7 @@
 
 #include "LostIsland.h"
 #include "Resources/LIResourceNode.h"
+#include "World/LIWaterSource.h"
 
 #include "Components/DirectionalLightComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
@@ -97,7 +98,23 @@ ALIIslandGenerator::ALIIslandGenerator()
 	Bushes.MinSpacing = 450.f;
 	Bushes.MinNormalZ = 0.8f;
 
-	SpawnRules = { Trees, Rocks, Bushes };
+	FLIResourceSpawnRule Berries;
+	Berries.NodeClass = ALIBerryBushNode::StaticClass();
+	Berries.AllowedBiomes = { ELIIslandBiome::Forest, ELIIslandBiome::Meadow };
+	Berries.Count = 18;
+	Berries.MinSpacing = 900.f;
+	Berries.MinNormalZ = 0.85f;
+
+	// Few, far-apart springs: water is the hardest need on this island.
+	FLIResourceSpawnRule Springs;
+	Springs.NodeClass = ALIWaterSource::StaticClass();
+	Springs.AllowedBiomes = { ELIIslandBiome::Meadow, ELIIslandBiome::Forest, ELIIslandBiome::Hills };
+	Springs.Count = 5;
+	Springs.MinSpacing = 6000.f;
+	Springs.MinNormalZ = 0.93f;
+
+	// Order matters: springs first so their wide spacing is guaranteed, then sparse food, then the rest.
+	SpawnRules = { Springs, Berries, Trees, Rocks, Bushes };
 }
 
 void ALIIslandGenerator::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -442,10 +459,12 @@ void ALIIslandGenerator::BuildSpawnPoints()
 				continue;
 			}
 
+			// Same-type points use the rule's spacing; other types only need a small clearance.
 			bool bTooClose = false;
 			for (const FLIResourceSpawnPoint& Existing : SpawnPoints)
 			{
-				if (FVector2D::DistSquared(FVector2D(Existing.Location.X, Existing.Location.Y), XY) < MinSpacingSq)
+				const float RequiredSq = Existing.NodeClass == Rule.NodeClass ? MinSpacingSq : FMath::Square(OtherTypeClearance);
+				if (FVector2D::DistSquared(FVector2D(Existing.Location.X, Existing.Location.Y), XY) < RequiredSq)
 				{
 					bTooClose = true;
 					break;
@@ -490,7 +509,7 @@ void ALIIslandGenerator::SpawnResourceNodes()
 	{
 		const FVector WorldLocation = ActorTransform.TransformPosition(Point.Location);
 		const FRotator WorldRotation = ActorTransform.TransformRotation(Point.Rotation.Quaternion()).Rotator();
-		if (ALIResourceNode* Node = World->SpawnActor<ALIResourceNode>(Point.NodeClass, WorldLocation, WorldRotation, Params))
+		if (AActor* Node = World->SpawnActor<AActor>(Point.NodeClass, WorldLocation, WorldRotation, Params))
 		{
 			SpawnedNodes.Add(Node);
 		}

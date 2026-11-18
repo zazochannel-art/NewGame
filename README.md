@@ -5,7 +5,7 @@ Windows PC / Steam · Unreal Engine 5 · C++ with Blueprint configuration · sin
 
 ## Status
 
-**Milestones 1–6 (first prototype): character + interaction, survival (health/hunger/thirst/stamina), resource gathering, inventory, procedural island, save system.** The code is written. It has **not been compiled yet**; see [Docs/DevelopmentPlan.md](Docs/DevelopmentPlan.md).
+**Milestones 1–7: character + interaction, survival (health/hunger/thirst/stamina), resource gathering, inventory, procedural island, save system, food and water.** The code is written. It has **not been compiled yet**; see [Docs/DevelopmentPlan.md](Docs/DevelopmentPlan.md).
 
 ## Getting started (Windows)
 
@@ -29,6 +29,7 @@ The project contains no `.uasset` content yet. It starts in the empty engine map
 | Interact | E                | X / Square       |
 | Zoom     | Mouse wheel      | —                |
 | Inventory| Tab              | Menu             |
+| Eat / drink | F             | D-pad up         |
 | Save / Load | F5 / F9       | —                |
 
 ## Layout

@@ -64,6 +64,21 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Inventory")
 	int32 GetRoomFor(FName ItemId) const;
 
+	/**
+	 * Picks the consumable that best covers the owner's current hunger/thirst deficit.
+	 * Works on the owning client (for the HUD hint) and on the server. NAME_None if nothing useful.
+	 */
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Inventory")
+	FName FindBestConsumable() const;
+
+	/** Owning client or server: eat/drink the best consumable (validated on the server). */
+	UFUNCTION(BlueprintCallable, Category = "LostIsland|Inventory")
+	void RequestConsumeBest();
+
+	/** Server: consume one ItemId, applying its food/water/health values. Returns true on success. */
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "LostIsland|Inventory")
+	bool ConsumeItem(FName ItemId);
+
 	// ---------------- Mutation (server only) ----------------
 
 	/** Adds up to Quantity. Returns how many were actually added (the rest did not fit). */
@@ -109,6 +124,12 @@ private:
 	int32 GetMaxStack(FName ItemId) const;
 	void NotifyChanged();
 	void PushNotice(const FText& Text, bool bIsWarning);
+
+	UFUNCTION(Server, Reliable)
+	void ServerConsumeBest();
+
+	UFUNCTION(Client, Unreliable)
+	void ClientNotifyConsumed(FName ItemId);
 
 	UFUNCTION(Client, Unreliable)
 	void ClientNotifyItemAdded(FName ItemId, int32 Quantity);

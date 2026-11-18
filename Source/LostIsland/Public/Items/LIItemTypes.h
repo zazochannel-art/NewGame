@@ -11,6 +11,7 @@ namespace LIItems
 	inline const FName Wood(TEXT("Wood"));
 	inline const FName Stone(TEXT("Stone"));
 	inline const FName Fiber(TEXT("Fiber"));
+	inline const FName Berries(TEXT("Berries"));
 }
 
 UENUM(BlueprintType)

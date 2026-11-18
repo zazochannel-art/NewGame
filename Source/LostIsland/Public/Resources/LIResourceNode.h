@@ -23,7 +23,7 @@ class UStaticMeshComponent;
  * Actor origin = base of the object (the mesh is offset upward), so placement
  * and procedural spawning can put the origin directly on the ground.
  *
- * Presets: ALITreeNode (Wood), ALIRockNode (Stone), ALIFiberBushNode (Fiber).
+ * Presets: ALITreeNode (Wood), ALIRockNode (Stone), ALIFiberBushNode (Fiber), ALIBerryBushNode (Berries).
  */
 UCLASS(Blueprintable)
 class LOSTISLAND_API ALIResourceNode : public AActor, public ILIInteractable
@@ -125,6 +125,15 @@ class LOSTISLAND_API ALIRockNode : public ALIResourceNode
 	GENERATED_BODY()
 public:
 	ALIRockNode();
+};
+
+/** Berry bush -> Berries (food). */
+UCLASS()
+class LOSTISLAND_API ALIBerryBushNode : public ALIResourceNode
+{
+	GENERATED_BODY()
+public:
+	ALIBerryBushNode();
 };
 
 /** Bush -> Fiber. */

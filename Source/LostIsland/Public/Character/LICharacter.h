@@ -33,6 +33,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FLIOnSprintStateChanged, bool, bIsSp
  *     Space / Face bottom   Jump           Left Shift / L3       Sprint (hold)
  *     E / Face left         Interact       Mouse wheel           Camera zoom
  *     Tab / Special right   Inventory      F5 / F9               Quick save / load
+ *     F / D-pad up          Eat / drink best consumable
  *
  * Visuals: assign a Skeletal Mesh + Anim Blueprint (parented to ULIAnimInstance)
  * in a Blueprint subclass. Until then a placeholder capsule-sized cylinder is shown.
@@ -103,6 +104,7 @@ protected:
 	void StopSprint();
 	void Interact();
 	void ToggleInventory();
+	void Consume();
 	void QuickSave();
 	void QuickLoad();
 
@@ -154,6 +156,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
 	TObjectPtr<UInputAction> InventoryAction;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
+	TObjectPtr<UInputAction> ConsumeAction;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
 	TObjectPtr<UInputAction> QuickSaveAction;

@@ -41,17 +41,17 @@ struct LOSTISLAND_API FLIResourceSpawnPoint
 	ELIIslandBiome Biome = ELIIslandBiome::Meadow;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Island")
-	TSubclassOf<ALIResourceNode> NodeClass;
+	TSubclassOf<AActor> NodeClass;
 };
 
-/** Placement rule for one resource node type. */
+/** Placement rule for one spawnable type (resource nodes, water sources...). Origin of the spawned actor = ground. */
 USTRUCT(BlueprintType)
 struct LOSTISLAND_API FLIResourceSpawnRule
 {
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Island")
-	TSubclassOf<ALIResourceNode> NodeClass;
+	TSubclassOf<AActor> NodeClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Island")
 	TArray<ELIIslandBiome> AllowedBiomes;
@@ -221,6 +221,10 @@ protected:
 	// ---------------- Resources ----------------
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Resources")
 	TArray<FLIResourceSpawnRule> SpawnRules;
+
+	/** Minimum distance between spawn points of different types. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Resources", meta = (ClampMin = "0.0", Units = "cm"))
+	float OtherTypeClearance = 350.f;
 
 	// ---------------- Rendering / environment ----------------
 	/** Material for the terrain. Should use Vertex Color as base colour. Defaults to the engine vertex-colour material. */

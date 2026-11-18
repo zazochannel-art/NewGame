@@ -36,13 +36,17 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 		FText Name;
 		FText Description;
 		int32 MaxStack;
+		ELIItemCategory Category;
+		float Food;
+		float Water;
 	};
 
 	const FBuiltIn BuiltIns[] =
 	{
-		{ LIItems::Wood,  LOCTEXT("Wood",  "Wood"),  LOCTEXT("WoodDesc",  "Rough logs. The backbone of every shelter."), 50 },
-		{ LIItems::Stone, LOCTEXT("Stone", "Stone"), LOCTEXT("StoneDesc", "Heavy chunks of island rock."),               40 },
-		{ LIItems::Fiber, LOCTEXT("Fiber", "Fiber"), LOCTEXT("FiberDesc", "Plant fibres for rope and bindings."),        80 },
+		{ LIItems::Wood,    LOCTEXT("Wood",    "Wood"),    LOCTEXT("WoodDesc",    "Rough logs. The backbone of every shelter."), 50, ELIItemCategory::Resource, 0.f,  0.f },
+		{ LIItems::Stone,   LOCTEXT("Stone",   "Stone"),   LOCTEXT("StoneDesc",   "Heavy chunks of island rock."),               40, ELIItemCategory::Resource, 0.f,  0.f },
+		{ LIItems::Fiber,   LOCTEXT("Fiber",   "Fiber"),   LOCTEXT("FiberDesc",   "Plant fibres for rope and bindings."),        80, ELIItemCategory::Resource, 0.f,  0.f },
+		{ LIItems::Berries, LOCTEXT("Berries", "Berries"), LOCTEXT("BerriesDesc", "Tart wild berries. A little food, a little water."), 20, ELIItemCategory::Food, 8.f, 2.f },
 	};
 
 	for (const FBuiltIn& BuiltIn : BuiltIns)
@@ -51,8 +55,10 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 		Def->ItemId = BuiltIn.Id;
 		Def->DisplayName = BuiltIn.Name;
 		Def->Description = BuiltIn.Description;
-		Def->Category = ELIItemCategory::Resource;
+		Def->Category = BuiltIn.Category;
 		Def->MaxStackSize = BuiltIn.MaxStack;
+		Def->FoodValue = BuiltIn.Food;
+		Def->WaterValue = BuiltIn.Water;
 		RegisterItem(Def);
 	}
 }
