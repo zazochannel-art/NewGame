@@ -13,6 +13,7 @@
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "GameFramework/Pawn.h"
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
@@ -45,6 +46,12 @@ void ALIResourceNode::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 void ALIResourceNode::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Cosmetic, every machine: untinted placeholder shapes read as near-black under the island's exposure.
+	if (PlaceholderColor.A > 0.f)
+	{
+		LITintPlaceholder(Mesh, PlaceholderColor);
+	}
 
 	if (HasAuthority())
 	{
@@ -255,6 +262,7 @@ ALITreeNode::ALITreeNode()
 	RespawnTime = 600.f;
 	StaminaCostPerHit = 6.f;
 	PromptText = LOCTEXT("ChopTree", "Chop Tree");
+	PlaceholderColor = FLinearColor(0.32f, 0.20f, 0.10f, 1.f); // bark brown
 }
 
 ALIRockNode::ALIRockNode()
@@ -275,6 +283,7 @@ ALIRockNode::ALIRockNode()
 	RespawnTime = 900.f;
 	StaminaCostPerHit = 8.f;
 	PromptText = LOCTEXT("MineRock", "Mine Rock");
+	PlaceholderColor = FLinearColor(0.60f, 0.58f, 0.55f, 1.f); // grey stone
 }
 
 ALIFiberBushNode::ALIFiberBushNode()
@@ -294,6 +303,7 @@ ALIFiberBushNode::ALIFiberBushNode()
 	RespawnTime = 300.f;
 	StaminaCostPerHit = 2.f;
 	PromptText = LOCTEXT("GatherFiber", "Gather Fiber");
+	PlaceholderColor = FLinearColor(0.55f, 0.62f, 0.25f, 1.f); // dry grass
 }
 
 ALIBerryBushNode::ALIBerryBushNode()
@@ -315,6 +325,7 @@ ALIBerryBushNode::ALIBerryBushNode()
 	RespawnTime = 900.f;
 	StaminaCostPerHit = 1.f;
 	PromptText = LOCTEXT("PickBerries", "Pick Berries");
+	PlaceholderColor = FLinearColor(0.70f, 0.08f, 0.10f, 1.f); // berry red
 }
 
 #undef LOCTEXT_NAMESPACE

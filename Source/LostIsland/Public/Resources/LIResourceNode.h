@@ -79,6 +79,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UStaticMeshComponent> Mesh;
 
+	/** Tint for the placeholder shape (sets the "Color" parameter of the engine BasicShapeMaterial). Alpha 0 = don't tint. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Resource")
+	FLinearColor PlaceholderColor = FLinearColor(0.f, 0.f, 0.f, 0.f);
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Resource")
 	FName ResourceItemId = NAME_None;
 

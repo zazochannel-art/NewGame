@@ -109,13 +109,7 @@ void ALICrashSite::BeginPlay()
 	// Tint the placeholder parts (engine BasicShapeMaterial exposes "Color"). One-time, ~13 MIDs.
 	auto Tint = [](UStaticMeshComponent* Part, const FLinearColor& Color)
 	{
-		if (Part && Part->GetMaterial(0))
-		{
-			if (UMaterialInstanceDynamic* MID = Part->CreateDynamicMaterialInstance(0, Part->GetMaterial(0)))
-			{
-				MID->SetVectorParameterValue(TEXT("Color"), Color);
-			}
-		}
+		LITintPlaceholder(Part, Color);
 	};
 	Tint(Fuselage, HullColor);
 	Tint(Nose, StripeColor);

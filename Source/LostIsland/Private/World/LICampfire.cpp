@@ -2,6 +2,7 @@
 
 #include "World/LICampfire.h"
 
+#include "LostIsland.h"
 #include "Inventory/LIInventoryComponent.h"
 #include "Items/LIItemTypes.h"
 #include "Components/PointLightComponent.h"
@@ -71,13 +72,7 @@ void ALICampfire::BeginPlay()
 
 	auto Tint = [](UStaticMeshComponent* Part, const FLinearColor& Color)
 	{
-		if (Part && Part->GetMaterial(0))
-		{
-			if (UMaterialInstanceDynamic* MID = Part->CreateDynamicMaterialInstance(0, Part->GetMaterial(0)))
-			{
-				MID->SetVectorParameterValue(TEXT("Color"), Color);
-			}
-		}
+		LITintPlaceholder(Part, Color);
 	};
 	Tint(StoneRing, FLinearColor(0.35f, 0.33f, 0.3f));
 	Tint(Logs, FLinearColor(0.3f, 0.18f, 0.08f));
