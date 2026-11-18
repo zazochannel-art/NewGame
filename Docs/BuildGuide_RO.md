@@ -12,7 +12,7 @@
 ```
 git clone https://github.com/zazochannel-art/NewGame.git
 cd NewGame
-git checkout claude/lost-island-prototype-hcf1rv
+git checkout claude/eloquent-shannon-2c65vt
 ```
 
 ## 3. Generează și compilează
@@ -32,5 +32,5 @@ git checkout claude/lost-island-prototype-hcf1rv
 1. Deschide `LostIsland.uproject` și apasă **Play**.
 2. Spune-mi ce vezi și urmează listele de teste din `Docs/DevelopmentPlan.md` (secțiunile 4–4i).
 3. Probleme cunoscute care se rezolvă din setări:
-   - Vezi doar apă și cazi prin insulă: setează `bFlipWinding = true` (explicat în `Docs/Systems/Island.md`).
+   - Vezi doar apă și cazi prin insulă: orientarea triunghiurilor a fost corectată, dar dacă tot se întâmplă, setează `bFlipWinding = true` (explicat în `Docs/Systems/Island.md`) și spune-mi.
    - Consola (pentru comenzile `LI...`): tasta **`** sau **~**.

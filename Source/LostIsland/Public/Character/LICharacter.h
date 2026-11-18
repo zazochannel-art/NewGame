@@ -214,6 +214,17 @@ private:
 	UFUNCTION(Server, Reliable)
 	void ServerSetSprinting(bool bNewSprinting);
 
+	/**
+	 * Server -> owning client: the server rejected a predicted sprint change. Needed because the
+	 * replicated bIsSprinting does not change (and so never replicates) when the server simply
+	 * keeps its old value, which would leave the client running at the wrong speed.
+	 */
+	UFUNCTION(Client, Reliable)
+	void ClientCorrectSprinting(bool bServerSprinting);
+
+	/** Applies a sprint state locally without sending an RPC (replication / correction paths). */
+	void ApplySprintStateLocal(bool bNewSprinting);
+
 	UFUNCTION()
 	void OnRep_IsSprinting();
 

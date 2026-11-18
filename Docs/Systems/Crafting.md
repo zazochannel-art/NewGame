@@ -39,7 +39,7 @@ New fields on `ULIItemDefinition`:
 
 ## Interface (Tab)
 - The inventory shows a **durability bar** on tools (red below 30%).
-- A **CRAFTING** panel to the right: `[1] Stone Axe` plus the ingredients (`3/3 Wood` in green, `1/2 Stone` in red).
+- A **CRAFTING** panel to the right: `[1] Campfire`, `[2] Stone Axe`, ... (sorted by `SortOrder`) plus the ingredients (`3/3 Wood` in green, `1/2 Stone` in red).
 - **Keys 1–9 only craft while the inventory is open**, so they stay free for a future hotbar.
 
 ## Balance (hard difficulty)

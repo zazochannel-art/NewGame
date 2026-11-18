@@ -57,12 +57,40 @@ struct LOSTISLAND_API FLIStructureSaveData
 	float Fuel = 0.f;
 };
 
+/** A resource node that is not in its fresh state (v3). Nodes at full hits are not stored. */
+USTRUCT(BlueprintType)
+struct LOSTISLAND_API FLIResourceNodeSaveData
+{
+	GENERATED_BODY()
+
+	/** Index into ALIIslandGenerator::GetSpawnedNodes() (deterministic for the world seed). */
+	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
+	int32 Index = INDEX_NONE;
+
+	/** Class name, to detect a mismatch if the generator's spawn rules changed between versions. */
+	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
+	FName ClassName;
+
+	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
+	int32 RemainingHits = 0;
+
+	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
+	bool bDepleted = false;
+
+	/** Seconds until regrowth for a depleted node; -1 = none pending. */
+	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
+	float RespawnSecondsRemaining = -1.f;
+};
+
 /**
  * ULISaveGame
  *
  * v1: world seed + per-player position, survival stats and inventory.
  * v2: + world clock (day, hour) and placed structures (campfires). v1 saves load with
  *     default time (day 1, 08:00) and no structures.
+ * v3: + crash-site searches left and gathered/depleted resource nodes, so saving and
+ *     loading no longer refills the world (no loot duplication). v1/v2 saves load with
+ *     a fresh wreck and fresh nodes.
  * Bump CurrentVersion and handle older SaveVersion values in ULISaveSubsystem when
  * the format changes.
  */
@@ -72,7 +100,7 @@ class LOSTISLAND_API ULISaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	static constexpr int32 CurrentVersion = 2;
+	static constexpr int32 CurrentVersion = 3;
 
 	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
 	int32 SaveVersion = CurrentVersion;
@@ -95,6 +123,14 @@ public:
 
 	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
 	TArray<FLIStructureSaveData> Structures;
+
+	// ---- v3 ----
+	/** Searches left at the wreck; -1 = not stored (fresh wreck). */
+	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
+	int32 CrashSiteSearchesLeft = -1;
+
+	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
+	TArray<FLIResourceNodeSaveData> ResourceNodes;
 
 	const FLIPlayerSaveData* FindPlayer(const FString& Key) const
 	{

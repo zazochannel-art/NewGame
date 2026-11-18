@@ -69,6 +69,10 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Crafting", meta = (ClampMin = "50.0", Units = "cm"))
 	float PlaceDistance = 220.f;
 
+	/** Radius of the free space a placed item needs (the campfire ring is 120 cm wide). */
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Crafting", meta = (ClampMin = "10.0", Units = "cm"))
+	float PlaceClearanceRadius = 60.f;
+
 	UFUNCTION(Client, Unreliable)
 	void ClientNotifyCrafted(FName OutputItemId, int32 Quantity);
 };

@@ -191,6 +191,36 @@ void ALIResourceNode::Respawn()
 	ApplyDepletedState();
 }
 
+float ALIResourceNode::GetRespawnTimeRemaining() const
+{
+	const UWorld* World = GetWorld();
+	return World && World->GetTimerManager().IsTimerActive(RespawnTimerHandle)
+		? World->GetTimerManager().GetTimerRemaining(RespawnTimerHandle)
+		: -1.f;
+}
+
+void ALIResourceNode::RestoreSavedState(int32 InRemainingHits, bool bInDepleted, float RespawnSecondsRemaining)
+{
+	UWorld* World = GetWorld();
+	if (!HasAuthority() || !World)
+	{
+		return;
+	}
+
+	World->GetTimerManager().ClearTimer(RespawnTimerHandle);
+	RemainingHits = FMath::Clamp(InRemainingHits, 0, HitsToDeplete);
+	bDepleted = bInDepleted || RemainingHits == 0;
+
+	if (bDepleted && RespawnTime > 0.f)
+	{
+		// Unknown countdown (-1) falls back to a full respawn time.
+		const float Delay = RespawnSecondsRemaining >= 0.f ? FMath::Min(RespawnSecondsRemaining, RespawnTime) : RespawnTime;
+		World->GetTimerManager().SetTimer(RespawnTimerHandle, this, &ALIResourceNode::Respawn, FMath::Max(0.1f, Delay), false);
+	}
+	ApplyDepletedState();
+	ForceNetUpdate();
+}
+
 void ALIResourceNode::OnRep_Depleted()
 {
 	ApplyDepletedState();

@@ -121,6 +121,12 @@ public:
 
 	const TArray<FLIResourceSpawnPoint>& GetSpawnPoints() const { return SpawnPoints; }
 
+	/**
+	 * Server: actors spawned for this seed (crash site first, then resource nodes in spawn-point order).
+	 * The order is deterministic for a seed, so saves can refer to nodes by index.
+	 */
+	const TArray<TObjectPtr<AActor>>& GetSpawnedNodes() const { return SpawnedNodes; }
+
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Island")
 	bool HasCrashSite() const { return bHasCrashSite; }
 
@@ -129,10 +135,11 @@ public:
 	FTransform GetCrashSiteTransform() const;
 
 	/**
-	 * Local (all machines): place the sun or moon for this hour (0..24). Called by ALIGameState.
+	 * Local (all machines): place the sun or moon for this hour (0..24). Called by ALIGameState
+	 * with its night window, so the sun sets when night starts and rises when it ends.
 	 * No effect when the level provides its own lighting.
 	 */
-	void ApplyTimeOfDay(float Hours);
+	void ApplyTimeOfDay(float Hours, float SunriseHours = 6.f, float SunsetHours = 18.f);
 
 	/** Half the width of the generated grid (cm). */
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Island")
@@ -202,7 +209,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Shape", meta = (ClampMin = "0.0", ClampMax = "0.5"))
 	float CoastNoiseStrength = 0.2f;
 
-	/** Flip triangle winding if the terrain renders inside-out with your engine version. */
+	/** Debug: flip triangle winding. Leave off; the generator already emits Unreal's front-face order. */
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Shape")
 	bool bFlipWinding = false;
 

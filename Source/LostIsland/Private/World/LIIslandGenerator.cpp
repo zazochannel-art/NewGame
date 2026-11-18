@@ -338,13 +338,16 @@ void ALIIslandGenerator::BuildTerrain()
 
 	auto AddTriangle = [&](FVector A, FVector B, FVector C)
 	{
-		FVector FaceNormal = FVector::CrossProduct(B - A, C - A);
-		if (FaceNormal.Z < 0.f)
+		// Unreal treats a triangle as front-facing when CrossProduct(B - A, C - A) points AWAY from
+		// the viewer (same convention as UKismetProceduralMeshLibrary::GenerateBoxMesh). The terrain
+		// must face up, so order the vertices so that cross product points down.
+		FVector Cross = FVector::CrossProduct(B - A, C - A);
+		if (Cross.Z > 0.f)
 		{
 			Swap(B, C);
-			FaceNormal = -FaceNormal;
+			Cross = -Cross;
 		}
-		FaceNormal.Normalize();
+		const FVector FaceNormal = (-Cross).GetSafeNormal(); // upward face normal for lighting
 		if (bFlipWinding)
 		{
 			Swap(B, C);
@@ -432,30 +435,33 @@ void ALIIslandGenerator::SetupEnvironment()
 // Resources (server)
 // ---------------------------------------------------------------------------
 
-void ALIIslandGenerator::ApplyTimeOfDay(float Hours)
+void ALIIslandGenerator::ApplyTimeOfDay(float Hours, float SunriseHours, float SunsetHours)
 {
 	if (!bOwnEnvironmentActive || !Sun)
 	{
 		return;
 	}
 
-	// Sun elevation: 0 deg at 06:00, 90 at noon, 180 at 18:00. Outside that, the moon takes over (opposite side).
-	const float SunElevation = (Hours - 6.f) / 12.f * 180.f;
-	const bool bSunUp = SunElevation > -4.f && SunElevation < 184.f; // a few degrees of twilight
+	// The sun crosses the sky (0 -> 180 deg) between sunrise and sunset; the moon crosses it during
+	// the rest of the day. Sunrise/sunset come from the game state's night window, so it gets dark
+	// exactly when gameplay "night" (cold) begins.
+	const float DayLength = FMath::Clamp(FMath::Fmod(SunsetHours - SunriseHours + 24.f, 24.f), 1.f, 23.f);
+	const float SinceSunrise = FMath::Fmod(Hours - SunriseHours + 48.f, 24.f);
+	const bool bSunUp = SinceSunrise < DayLength;
 
 	float Elevation;
 	float Intensity;
 	FLinearColor Color;
 	if (bSunUp)
 	{
-		Elevation = FMath::Clamp(SunElevation, 2.f, 178.f);
+		Elevation = FMath::Clamp(SinceSunrise / DayLength * 180.f, 2.f, 178.f);
 		const float Height01 = FMath::Sin(FMath::DegreesToRadians(Elevation)); // 0 at horizon, 1 at noon
 		Intensity = SunIntensity * FMath::Clamp(Height01 * 1.5f, 0.05f, 1.f);
 		Color = FLinearColor::LerpUsingHSV(SunsetColor, NoonColor, FMath::Clamp(Height01 * 2.f, 0.f, 1.f));
 	}
 	else
 	{
-		const float MoonElevation = FMath::Fmod(SunElevation + 360.f, 360.f) - 180.f;
+		const float MoonElevation = (SinceSunrise - DayLength) / (24.f - DayLength) * 180.f;
 		Elevation = FMath::Clamp(MoonElevation, 10.f, 170.f);
 		Intensity = MoonIntensity;
 		Color = MoonColor;

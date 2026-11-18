@@ -68,6 +68,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|CrashSite")
 	int32 GetSearchesLeft() const { return SearchesLeft; }
 
+	/** Server (save loading): restore how many searches are left. */
+	void SetSearchesLeft(int32 NewSearchesLeft);
+
 protected:
 	virtual void BeginPlay() override;
 

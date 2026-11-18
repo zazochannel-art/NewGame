@@ -39,17 +39,17 @@ void ALIGameMode::InitGame(const FString& MapName, const FString& Options, FStri
 {
 	Super::InitGame(MapName, Options, ErrorMessage);
 
-	const FString SeedOption = UGameplayStatics::ParseOption(Options, TEXT("Seed"));
-	if (!SeedOption.IsEmpty())
-	{
-		UrlSeed = FCString::Atoi(*SeedOption);
-	}
-
 	// Decide now (before the island and the first pawn exist) whether this session continues a save.
+	// After an in-game Load / New Game restart the original URL options are still on the travel URL;
+	// they must not override the loaded save's seed or force the same "new" island again.
+	bool bHonourUrlOptions = true;
 	if (ULISaveSubsystem* SaveSubsystem = ULISaveSubsystem::Get(this))
 	{
-		SaveSubsystem->PrepareForNewMap(Options);
+		bHonourUrlOptions = SaveSubsystem->PrepareForNewMap(Options);
 	}
+
+	const FString SeedOption = UGameplayStatics::ParseOption(Options, TEXT("Seed"));
+	UrlSeed = (bHonourUrlOptions && !SeedOption.IsEmpty()) ? FCString::Atoi(*SeedOption) : 0;
 }
 
 void ALIGameMode::StartPlay()
