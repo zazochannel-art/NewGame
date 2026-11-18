@@ -1,4 +1,4 @@
-// Copyright LOST ISLAND Team. All Rights Reserved.
+﻿// Copyright LOST ISLAND Team. All Rights Reserved.
 
 #include "Core/LIPlayerController.h"
 
@@ -10,8 +10,11 @@
 #include "Inventory/LIInventoryComponent.h"
 #include "Core/LIGameMode.h"
 #include "World/LIIslandGenerator.h"
+#include "World/LIWaterSource.h"
+#include "EngineUtils.h"
 #include "Core/LIGameState.h"
 #include "Save/LISaveSubsystem.h"
+#include "Crafting/LICraftingComponent.h"
 
 void ALIPlayerController::BeginPlay()
 {
@@ -89,6 +92,7 @@ void ALIPlayerController::LIGive(const FString& ItemId, int32 Quantity) { Server
 void ALIPlayerController::LIClearInventory() { ServerDebugClearInventory(); }
 void ALIPlayerController::LIRegenerateIsland(int32 Seed) { ServerDebugRegenerateIsland(Seed); }
 void ALIPlayerController::LIGoToCrashSite() { ServerDebugGoToCrashSite(); }
+void ALIPlayerController::LIGoToSea() { ServerDebugGoToSea(); }
 void ALIPlayerController::LISetTime(float Hours) { ServerDebugSetTime(Hours); }
 
 // --- Debug commands (server) ---
@@ -128,15 +132,10 @@ void ALIPlayerController::ServerDebugDamage_Implementation(float Amount)
 void ALIPlayerController::ServerDebugRevive_Implementation()
 {
 #if !UE_BUILD_SHIPPING
-	// Prototype revive: destroy the dead pawn and let the GameMode spawn a fresh one.
-	if (APawn* ExistingPawn = GetPawn())
+	// Immediate respawn (sleeping bag or beach) with fresh stats.
+	if (ALIGameMode* GameMode = GetWorld()->GetAuthGameMode<ALIGameMode>())
 	{
-		UnPossess();
-		ExistingPawn->Destroy();
-	}
-	if (AGameModeBase* GameMode = GetWorld()->GetAuthGameMode())
-	{
-		GameMode->RestartPlayer(this);
+		GameMode->RespawnPlayer(this);
 	}
 #endif
 }
@@ -199,5 +198,144 @@ void ALIPlayerController::ServerDebugSetTime_Implementation(float Hours)
 	{
 		GameState->SetTime(GameState->GetDayNumber(), FMath::Fmod(FMath::Max(0.f, Hours), 24.f));
 	}
+#endif
+}
+
+void ALIPlayerController::ServerDebugGoToSea_Implementation()
+{
+#if !UE_BUILD_SHIPPING
+	const ALIGameMode* GameMode = GetWorld()->GetAuthGameMode<ALIGameMode>();
+	const ALIIslandGenerator* Island = GameMode ? GameMode->GetIsland() : nullptr;
+	APawn* MyPawn = GetPawn();
+	if (!Island || !MyPawn)
+	{
+		return;
+	}
+
+	// Walk outward from the island centre through the start beach until the seabed is at least 5 m deep.
+	const FVector Center = Island->GetActorLocation();
+	const FVector Spawn = Island->FindPlayerSpawnTransform().GetLocation();
+	const FVector Outward = FVector(Spawn.X - Center.X, Spawn.Y - Center.Y, 0.f).GetSafeNormal();
+	FVector Location = Spawn;
+	for (int32 Step = 0; Step < 100; ++Step)
+	{
+		Location += Outward * 200.f;
+		const FVector Local = Island->GetActorTransform().InverseTransformPosition(Location);
+		if (Island->GetHeightAt(FVector2D(Local.X, Local.Y)) < -500.f)
+		{
+			break;
+		}
+	}
+	Location.Z = Center.Z + 50.f;
+	MyPawn->TeleportTo(Location, FRotator(0.f, (-Outward).Rotation().Yaw, 0.f));
+	SetControlRotation(FRotator(-10.f, (-Outward).Rotation().Yaw, 0.f));
+#endif
+}
+
+void ALIPlayerController::LIPlace()
+{
+	if (const ALICharacter* LICharacter = Cast<ALICharacter>(GetPawn()))
+	{
+		if (ULICraftingComponent* Crafting = LICharacter->GetCraftingComponent())
+		{
+			Crafting->RequestPlace();
+		}
+	}
+}
+
+void ALIPlayerController::LIBuildMode()
+{
+	if (ALICharacter* LICharacter = Cast<ALICharacter>(GetPawn()))
+	{
+		LICharacter->ToggleBuildMode();
+	}
+}
+
+void ALIPlayerController::LICraft(const FString& RecipeId)
+{
+	if (const ALICharacter* LICharacter = Cast<ALICharacter>(GetPawn()))
+	{
+		if (ULICraftingComponent* Crafting = LICharacter->GetCraftingComponent())
+		{
+			Crafting->RequestCraft(FName(*RecipeId));
+		}
+	}
+}
+
+void ALIPlayerController::LIGoToSpring() { ServerDebugGoToSpring(); }
+
+void ALIPlayerController::ServerDebugGoToSpring_Implementation()
+{
+#if !UE_BUILD_SHIPPING
+	APawn* MyPawn = GetPawn();
+	const ALIWaterSource* Nearest = nullptr;
+	float BestDistSq = TNumericLimits<float>::Max();
+	for (TActorIterator<ALIWaterSource> It(GetWorld()); MyPawn && It; ++It)
+	{
+		const float DistSq = FVector::DistSquared(It->GetActorLocation(), MyPawn->GetActorLocation());
+		if (DistSq < BestDistSq)
+		{
+			BestDistSq = DistSq;
+			Nearest = *It;
+		}
+	}
+	if (Nearest)
+	{
+		MyPawn->TeleportTo(Nearest->GetActorLocation() + FVector(200.f, 0.f, 120.f), FRotator(0.f, 180.f, 0.f));
+	}
+#endif
+}
+
+void ALIPlayerController::LIConsume()
+{
+	if (const ALICharacter* LICharacter = Cast<ALICharacter>(GetPawn()))
+	{
+		LICharacter->GetInventoryComponent()->RequestConsumeBest();
+	}
+}
+
+void ALIPlayerController::LIEscape() { ServerDebugEscape(); }
+
+void ALIPlayerController::ServerDebugEscape_Implementation()
+{
+#if !UE_BUILD_SHIPPING
+	if (ALIGameState* GameState = GetWorld()->GetGameState<ALIGameState>())
+	{
+		GameState->SetEscaped();
+	}
+#endif
+}
+
+void ALIPlayerController::LIGoToShore() { ServerDebugGoToShore(); }
+
+void ALIPlayerController::ServerDebugGoToShore_Implementation()
+{
+#if !UE_BUILD_SHIPPING
+	const ALIGameMode* GameMode = GetWorld()->GetAuthGameMode<ALIGameMode>();
+	const ALIIslandGenerator* Island = GameMode ? GameMode->GetIsland() : nullptr;
+	APawn* MyPawn = GetPawn();
+	if (!Island || !MyPawn)
+	{
+		return;
+	}
+	// Walk outward from the start beach to the last dry point before the water.
+	const FVector Center = Island->GetActorLocation();
+	const FVector Spawn = Island->FindPlayerSpawnTransform().GetLocation();
+	const FVector Outward = FVector(Spawn.X - Center.X, Spawn.Y - Center.Y, 0.f).GetSafeNormal();
+	FVector Dry = Spawn;
+	for (int32 Step = 1; Step < 200; ++Step)
+	{
+		const FVector Candidate = Spawn + Outward * (Step * 50.f);
+		const FVector Local = Island->GetActorTransform().InverseTransformPosition(Candidate);
+		const float Height = Island->GetHeightAt(FVector2D(Local.X, Local.Y));
+		if (Height < 20.f)
+		{
+			break;
+		}
+		Dry = FVector(Candidate.X, Candidate.Y, Center.Z + Height);
+	}
+	const float Yaw = Outward.Rotation().Yaw;
+	MyPawn->TeleportTo(Dry + FVector(0.f, 0.f, 110.f), FRotator(0.f, Yaw, 0.f));
+	SetControlRotation(FRotator(-10.f, Yaw, 0.f));
 #endif
 }

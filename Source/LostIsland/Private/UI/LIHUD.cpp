@@ -30,6 +30,22 @@ void ALIHUD::DrawHUD()
 	const float CenterX = Canvas->ClipX * 0.5f;
 	const float CenterY = Canvas->ClipY * 0.5f;
 
+	// Ending: the raft sailed. Replaces the whole HUD until the new island starts.
+	if (const ALIGameState* EndState = GetWorld() ? GetWorld()->GetGameState<ALIGameState>() : nullptr; EndState && EndState->HasEscaped())
+	{
+		DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.6f), 0.f, 0.f, Canvas->ClipX, Canvas->ClipY);
+		UFont* BigFont = GEngine ? GEngine->GetLargeFont() : nullptr;
+		UFont* SubFont = GEngine ? GEngine->GetMediumFont() : nullptr;
+		const FString Title = LOCTEXT("Escaped", "YOU ESCAPED THE ISLAND").ToString();
+		const FString Sub = FText::Format(LOCTEXT("EscapedSub", "Rescued on day {0}. A new island awaits..."), FText::AsNumber(EndState->GetEscapeDay())).ToString();
+		float TW = 0.f, TH = 0.f, SW = 0.f, SH = 0.f;
+		GetTextSize(Title, TW, TH, BigFont, 2.f);
+		GetTextSize(Sub, SW, SH, SubFont, 1.f);
+		DrawText(Title, StaminaColor, CenterX - TW * 0.5f, CenterY - TH, BigFont, 2.f);
+		DrawText(Sub, PromptColor, CenterX - SW * 0.5f, CenterY + 10.f, SubFont, 1.f);
+		return;
+	}
+
 	const ALICharacter* Character = Cast<ALICharacter>(GetOwningPawn());
 	if (!Character)
 	{
@@ -56,9 +72,19 @@ void ALIHUD::DrawHUD()
 		if (Survival->IsCold() && !Survival->IsDead())
 		{
 			const float Spacing = BarSize.Y + 10.f;
-			DrawText(LOCTEXT("Cold", "COLD - find or build a fire").ToString(), ThirstColor,
-				24.f, Canvas->ClipY - 24.f - Spacing * 4.f - 24.f, GEngine ? GEngine->GetSmallFont() : nullptr, 1.f);
+			DrawText(LOCTEXT("Cold", "COLD - get to a fire or under a roof").ToString(), ThirstColor,
+				24.f, Canvas->ClipY - 24.f - Spacing * 5.f - 24.f, GEngine ? GEngine->GetSmallFont() : nullptr, 1.f);
 		}
+	}
+
+	// Build mode banner (top centre).
+	if (Character->IsInBuildMode())
+	{
+		const FString Banner = LOCTEXT("BuildMode", "BUILD MODE   [G] place   [E] dismantle   [B] exit").ToString();
+		UFont* BannerFont = GEngine ? GEngine->GetMediumFont() : nullptr;
+		float BW = 0.f, BH = 0.f;
+		GetTextSize(Banner, BW, BH, BannerFont, 1.f);
+		DrawText(Banner, StaminaColor, Canvas->ClipX * 0.5f - BW * 0.5f, 20.f, BannerFont, 1.f);
 	}
 
 	const ALIPlayerController* PC = Cast<ALIPlayerController>(GetOwningPlayerController());
@@ -86,6 +112,11 @@ void ALIHUD::DrawHUD()
 		float W = 0.f, H = 0.f;
 		GetTextSize(Text, W, H, Font, 2.f);
 		DrawText(Text, HealthColor, CenterX - W * 0.5f, CenterY - H * 0.5f, Font, 2.f);
+		const FString SubText = LOCTEXT("Respawning", "Respawning... your items stay where you fell").ToString();
+		UFont* SmallFont = GEngine ? GEngine->GetMediumFont() : nullptr;
+		float SubW = 0.f, SubH = 0.f;
+		GetTextSize(SubText, SubW, SubH, SmallFont, 1.f);
+		DrawText(SubText, PromptColor, CenterX - SubW * 0.5f, CenterY + H, SmallFont, 1.f);
 		return;
 	}
 
@@ -152,6 +183,13 @@ void ALIHUD::DrawSurvivalBars(const ALICharacter* Character)
 	const float X = 24.f;
 	const float Spacing = BarSize.Y + 10.f;
 	float Y = Canvas->ClipY - 24.f - Spacing * 4.f;
+
+	// Breath only shows while it is being used (under water) or refilling.
+	const float BreathPercent = Survival->GetBreathPercent();
+	if (BreathPercent < 0.999f)
+	{
+		DrawBar(X, Y - Spacing, BreathPercent, BreathPercent > 0.f ? ThirstColor : HealthColor, TEXT("AIR"));
+	}
 
 	DrawBar(X, Y, Survival->GetStatPercent(ELISurvivalStat::Health), HealthColor, TEXT("HP"));
 	Y += Spacing;
@@ -240,7 +278,7 @@ void ALIHUD::DrawInventoryPanel(const ALICharacter* Character)
 	DrawCraftingPanel(Character, PanelX + PanelW + 12.f, PanelY, PanelH);
 }
 
-void ALIHUD::DrawCraftingPanel(const ALICharacter* Character, float X, float Y, float Height)
+void ALIHUD::DrawCraftingPanel(const ALICharacter* Character, float X, float Y, float PanelHeight)
 {
 	const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
 	const ULICraftingComponent* Crafting = Character->GetCraftingComponent();
@@ -255,13 +293,20 @@ void ALIHUD::DrawCraftingPanel(const ALICharacter* Character, float X, float Y, 
 	const float Width = 300.f;
 	const float Padding = 14.f;
 	const float RowHeight = 40.f;
+	const int32 PerPage = ALICharacter::CraftKeysPerPage;
+	const int32 NumRecipes = Registry->GetRecipes().Num();
+	const int32 NumPages = FMath::Max(1, FMath::DivideAndRoundUp(NumRecipes, PerPage));
+	const int32 Page = FMath::Clamp(Character->GetCraftPage(), 0, NumPages - 1);
+	const int32 FirstRecipe = Page * PerPage;
+	const int32 NumRows = FMath::Min(NumRecipes - FirstRecipe, PerPage);
+	const float Height = FMath::Max(PanelHeight, 40.f + NumRows * RowHeight + 30.f); // grow to fit every recipe
 
 	DrawRect(FLinearColor(0.05f, 0.04f, 0.03f, 0.85f), X, Y, Width, Height);
-	DrawText(LOCTEXT("CraftingTitle", "CRAFTING").ToString(), PromptColor, X + Padding, Y + 8.f, MediumFont, 1.f);
+	DrawText(NumPages > 1 ? FString::Printf(TEXT("CRAFTING  %d/%d  [Q] next page"), Page + 1, NumPages) : LOCTEXT("CraftingTitle", "CRAFTING").ToString(), PromptColor, X + Padding, Y + 8.f, MediumFont, 1.f);
 
 	const TArray<TObjectPtr<ULIRecipeDefinition>>& Recipes = Registry->GetRecipes();
 	float RowY = Y + 40.f;
-	for (int32 Index = 0; Index < Recipes.Num() && Index < 9; ++Index)
+	for (int32 Index = FirstRecipe; Index < Recipes.Num() && Index < FirstRecipe + PerPage; ++Index)
 	{
 		const ULIRecipeDefinition* Recipe = Recipes[Index];
 		if (!Recipe || RowY + RowHeight > Y + Height)
@@ -273,7 +318,7 @@ void ALIHUD::DrawCraftingPanel(const ALICharacter* Character, float X, float Y, 
 		const FString Name = !Recipe->DisplayName.IsEmpty()
 			? Recipe->DisplayName.ToString()
 			: Registry->GetDisplayName(Recipe->Output.ItemId).ToString();
-		DrawText(FString::Printf(TEXT("[%d] %s"), Index + 1, *Name), bCanCraft ? FLinearColor::White : FLinearColor(0.6f, 0.6f, 0.6f, 1.f),
+		DrawText(FString::Printf(TEXT("[%d] %s%s"), (Index - FirstRecipe + 1) % 10, *Name, Recipe->bRequiresFire ? TEXT("  (at a fire)") : (Recipe->bRequiresWater ? TEXT("  (at a spring)") : TEXT(""))), bCanCraft ? FLinearColor::White : FLinearColor(0.6f, 0.6f, 0.6f, 1.f),
 			X + Padding, RowY, SmallFont, 1.f);
 
 		// Ingredients: "3/3 Wood  1/2 Stone" (red when missing).

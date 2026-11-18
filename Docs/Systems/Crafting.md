@@ -47,3 +47,18 @@ An axe costs ~1–2 trees of wood plus a bit of stone and fiber, and lasts 40 hi
 
 ## Debug
 `LIGive StoneAxe 1`, `LIGive Fiber 30`, and so on.
+
+## Milestone 15: metal tools, flasks, pages
+
+| Recipe | Ingredients | Notes |
+|---|---|---|
+| Scrap Axe | 2 Wood, 4 Scrap Metal, 2 Fiber | yield x3, stamina x0.45, 120 durability |
+| Scrap Pickaxe | 2 Wood, 5 Scrap Metal, 2 Fiber | yield x3, stamina x0.45, 120 durability |
+| Empty Flask | 2 Scrap Metal, 2 Fiber | stacks to 5 |
+| Water Flask | 1 Empty Flask | `bRequiresWater`: within 3.5 m of a spring. +30 water; drinking gives the Empty Flask back (`ConsumeReturnsItem`) |
+
+The wreck's Scrap Metal weight went from 3 to 4 (about 8-9 scrap per wreck on average): not enough for every metal item, so players choose.
+
+The best tool is still picked by `ToolYieldMultiplier`, so a scrap tool wins over a stone one automatically.
+
+Crafting pages: with more than 10 recipes the panel shows one page of 10 at a time; Q (inventory open) cycles pages, and keys 1-9, 0 craft from the visible page.

@@ -5,7 +5,7 @@ Windows PC / Steam · Unreal Engine 5 · C++ with Blueprint configuration · sin
 
 ## Status
 
-**Milestones 1–9: character + interaction, survival (health/hunger/thirst/stamina), resource gathering, inventory, procedural island, save system, food and water, crafting and tools, plane wreck, day/night with campfires.** The code is written. It **compiles with UE 5.8** (Development Editor, Win64) and is awaiting in-editor testing; see [Docs/DevelopmentPlan.md](Docs/DevelopmentPlan.md).
+**Milestones 1–16: character + interaction, survival (health/hunger/thirst/stamina), resource gathering, inventory, procedural island, save system, food and water, crafting and tools, plane wreck, day/night with campfires., swimming, death and respawn, building, crabs and cooking, metal tools and flasks, and the raft escape (the goal of a run).** The code is written. It **compiles with UE 5.8** (Development Editor, Win64) and is awaiting in-editor testing; see [Docs/DevelopmentPlan.md](Docs/DevelopmentPlan.md).
 
 ## Getting started (Windows)
 

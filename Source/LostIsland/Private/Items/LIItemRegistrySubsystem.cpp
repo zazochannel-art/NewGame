@@ -5,6 +5,9 @@
 #include "Items/LIItemDefinition.h"
 #include "Crafting/LIRecipeDefinition.h"
 #include "World/LICampfire.h"
+#include "World/LISleepingBag.h"
+#include "World/LIBuildingPiece.h"
+#include "World/LIRaft.h"
 #include "LostIsland.h"
 #include "Algo/Sort.h"
 #include "Engine/AssetManager.h"
@@ -53,8 +56,20 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 		{ LIItems::Stone,   LOCTEXT("Stone",   "Stone"),   LOCTEXT("StoneDesc",   "Heavy chunks of island rock."),               40, ELIItemCategory::Resource, 0.f,  0.f },
 		{ LIItems::Fiber,   LOCTEXT("Fiber",   "Fiber"),   LOCTEXT("FiberDesc",   "Plant fibres for rope and bindings."),        80, ELIItemCategory::Resource, 0.f,  0.f },
 		{ LIItems::Berries, LOCTEXT("Berries", "Berries"), LOCTEXT("BerriesDesc", "Tart wild berries. A little food, a little water."), 20, ELIItemCategory::Food, 8.f, 2.f },
+		{ LIItems::RawMeat,    LOCTEXT("RawMeat", "Raw Crab Meat"),    LOCTEXT("RawMeatDesc", "Stringy and cold. Better cooked at a fire."), 10, ELIItemCategory::Food, 3.f, 0.f },
+		{ LIItems::CookedMeat, LOCTEXT("CookedMeat", "Cooked Crab Meat"), LOCTEXT("CookedMeatDesc", "Hot, salty and filling."), 10, ELIItemCategory::Food, 22.f, -2.f },
+		{ LIItems::EmptyFlask, LOCTEXT("EmptyFlask", "Empty Flask"), LOCTEXT("EmptyFlaskDesc", "A dented aluminium flask. Fill it at a spring."), 5, ELIItemCategory::Misc, 0.f, 0.f },
+		{ LIItems::WaterFlask, LOCTEXT("WaterFlask", "Water Flask"), LOCTEXT("WaterFlaskDesc", "Fresh spring water to carry. Drink with F."), 5, ELIItemCategory::Food, 0.f, 30.f },
+		{ LIItems::MetalAxe, LOCTEXT("MetalAxe", "Scrap Axe"), LOCTEXT("MetalAxeDesc", "A sharpened aluminium blade on a haft. Fells trees fast."), 1, ELIItemCategory::Tool, 0.f, 0.f },
+		{ LIItems::MetalPickaxe, LOCTEXT("MetalPickaxe", "Scrap Pickaxe"), LOCTEXT("MetalPickaxeDesc", "A bent metal spike on a haft. Breaks rock fast."), 1, ELIItemCategory::Tool, 0.f, 0.f },
+		{ LIItems::RaftKit, LOCTEXT("RaftKit", "Raft Kit"), LOCTEXT("RaftKitDesc", "Lashed logs, a mast and a fibre sail. Place it (G) in shallow water at the shore and sail away."), 1, ELIItemCategory::Misc, 0.f, 0.f },
 		{ LIItems::FiberBandage, LOCTEXT("FiberBandage", "Fiber Bandage"), LOCTEXT("FiberBandageDesc", "Crude plant-fibre wrap. Stops some bleeding."), 10, ELIItemCategory::Misc, 0.f, 0.f },
 		{ LIItems::Campfire, LOCTEXT("Campfire", "Campfire"), LOCTEXT("CampfireDesc", "Stones and dry wood. Place it (G) to keep warm through the night."), 5, ELIItemCategory::Misc, 0.f, 0.f },
+		{ LIItems::SleepingBag, LOCTEXT("SleepingBag", "Sleeping Bag"), LOCTEXT("SleepingBagDesc", "A fibre bed roll. Place it (G): you respawn here, and can sleep through the night."), 1, ELIItemCategory::Misc, 0.f, 0.f },
+		{ LIItems::WoodenFloor, LOCTEXT("WoodenFloor", "Wooden Floor"), LOCTEXT("WoodenFloorDesc", "A 3 x 3 m plank floor. Place it (G); more floors snap next to it."), 10, ELIItemCategory::Misc, 0.f, 0.f },
+		{ LIItems::WoodenWall,  LOCTEXT("WoodenWall", "Wooden Wall"),   LOCTEXT("WoodenWallDesc", "A plank wall. Snaps to the floor edge you look at."), 10, ELIItemCategory::Misc, 0.f, 0.f },
+		{ LIItems::WoodenDoorway, LOCTEXT("WoodenDoorway", "Wooden Doorway"), LOCTEXT("WoodenDoorwayDesc", "A plank wall with a way through. Snaps like a wall."), 10, ELIItemCategory::Misc, 0.f, 0.f },
+		{ LIItems::WoodenRoof,  LOCTEXT("WoodenRoof", "Wooden Roof"),   LOCTEXT("WoodenRoofDesc", "Roof boards over a floor. Shelter from the night cold."), 10, ELIItemCategory::Misc, 0.f, 0.f },
 		{ LIItems::ScrapMetal, LOCTEXT("ScrapMetal", "Scrap Metal"), LOCTEXT("ScrapMetalDesc", "Twisted aluminium from the wreck. Better tools will need it."), 30, ELIItemCategory::Resource, 0.f, 0.f },
 		{ LIItems::StoneAxe, LOCTEXT("StoneAxe", "Stone Axe"), LOCTEXT("StoneAxeDesc", "Sharp stone lashed to a branch. Fells trees faster."), 1, ELIItemCategory::Tool, 0.f, 0.f },
 		{ LIItems::StonePickaxe, LOCTEXT("StonePickaxe", "Stone Pickaxe"), LOCTEXT("StonePickaxeDesc", "Heavy pointed stone on a haft. Breaks rock faster."), 1, ELIItemCategory::Tool, 0.f, 0.f },
@@ -82,6 +97,15 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 	{
 		CampfireItem->PlaceableActorClass = ALICampfire::StaticClass();
 	}
+	if (ULIItemDefinition* BagItem = FindItem(LIItems::SleepingBag))
+	{
+		BagItem->PlaceableActorClass = ALISleepingBag::StaticClass();
+	}
+	if (ULIItemDefinition* Item = FindItem(LIItems::WoodenFloor)) { Item->PlaceableActorClass = ALIWoodenFloor::StaticClass(); }
+	if (ULIItemDefinition* Item = FindItem(LIItems::WoodenWall))  { Item->PlaceableActorClass = ALIWoodenWall::StaticClass(); }
+	if (ULIItemDefinition* Item = FindItem(LIItems::WoodenDoorway)) { Item->PlaceableActorClass = ALIWoodenDoorway::StaticClass(); }
+	if (ULIItemDefinition* Item = FindItem(LIItems::RaftKit)) { Item->PlaceableActorClass = ALIRaft::StaticClass(); }
+	if (ULIItemDefinition* Item = FindItem(LIItems::WoodenRoof))  { Item->PlaceableActorClass = ALIWoodenRoof::StaticClass(); }
 	if (ULIItemDefinition* Axe = FindItem(LIItems::StoneAxe))
 	{
 		Axe->ToolType = ELIToolType::Axe;
@@ -91,6 +115,25 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 	{
 		Pickaxe->ToolType = ELIToolType::Pickaxe;
 		Pickaxe->MaxDurability = 40;
+	}
+	if (ULIItemDefinition* Flask = FindItem(LIItems::WaterFlask))
+	{
+		Flask->ConsumeReturnsItem = LIItems::EmptyFlask;
+	}
+	// Metal tools: more per hit, cheaper on stamina, last three times longer than stone.
+	if (ULIItemDefinition* Axe = FindItem(LIItems::MetalAxe))
+	{
+		Axe->ToolType = ELIToolType::Axe;
+		Axe->MaxDurability = 120;
+		Axe->ToolYieldMultiplier = 3.f;
+		Axe->ToolStaminaMultiplier = 0.45f;
+	}
+	if (ULIItemDefinition* Pickaxe = FindItem(LIItems::MetalPickaxe))
+	{
+		Pickaxe->ToolType = ELIToolType::Pickaxe;
+		Pickaxe->MaxDurability = 120;
+		Pickaxe->ToolYieldMultiplier = 3.f;
+		Pickaxe->ToolStaminaMultiplier = 0.45f;
 	}
 }
 
@@ -102,6 +145,8 @@ void ULIItemRegistrySubsystem::RegisterBuiltInRecipes()
 		TArray<FLIItemQuantity> Ingredients;
 		FLIItemQuantity Output;
 		int32 SortOrder;
+		bool bRequiresFire = false;
+		bool bRequiresWater = false;
 	};
 
 	const FBuiltInRecipe BuiltIns[] =
@@ -109,7 +154,18 @@ void ULIItemRegistrySubsystem::RegisterBuiltInRecipes()
 		{ LIItems::StoneAxe,     { { LIItems::Wood, 3 }, { LIItems::Stone, 2 }, { LIItems::Fiber, 4 } }, { LIItems::StoneAxe, 1 },     10 },
 		{ LIItems::StonePickaxe, { { LIItems::Wood, 3 }, { LIItems::Stone, 4 }, { LIItems::Fiber, 4 } }, { LIItems::StonePickaxe, 1 }, 20 },
 		{ LIItems::FiberBandage, { { LIItems::Fiber, 6 } },                                              { LIItems::FiberBandage, 1 }, 30 },
+		{ LIItems::CookedMeat,   { { LIItems::RawMeat, 1 } },                                            { LIItems::CookedMeat, 1 },   35, true },
+		{ LIItems::EmptyFlask,   { { LIItems::ScrapMetal, 2 }, { LIItems::Fiber, 2 } },                  { LIItems::EmptyFlask, 1 },   32 },
+		{ LIItems::WaterFlask,   { { LIItems::EmptyFlask, 1 } },                                         { LIItems::WaterFlask, 1 },   33, false, true },
+		{ LIItems::MetalAxe,     { { LIItems::Wood, 2 }, { LIItems::ScrapMetal, 4 }, { LIItems::Fiber, 2 } }, { LIItems::MetalAxe, 1 },   12 },
+		{ LIItems::MetalPickaxe, { { LIItems::Wood, 2 }, { LIItems::ScrapMetal, 5 }, { LIItems::Fiber, 2 } }, { LIItems::MetalPickaxe, 1 }, 22 },
 		{ LIItems::Campfire,     { { LIItems::Wood, 5 }, { LIItems::Stone, 6 } },                        { LIItems::Campfire, 1 },     5 },
+		{ LIItems::SleepingBag,  { { LIItems::Fiber, 20 }, { LIItems::Wood, 4 } },                       { LIItems::SleepingBag, 1 },  6 },
+		{ LIItems::WoodenFloor,  { { LIItems::Wood, 8 } },                                              { LIItems::WoodenFloor, 1 },  40 },
+		{ LIItems::WoodenWall,   { { LIItems::Wood, 6 }, { LIItems::Fiber, 2 } },                        { LIItems::WoodenWall, 1 },   41 },
+		{ LIItems::WoodenDoorway, { { LIItems::Wood, 5 }, { LIItems::Fiber, 2 } },                       { LIItems::WoodenDoorway, 1 }, 43 },
+		{ LIItems::RaftKit,      { { LIItems::Wood, 60 }, { LIItems::Fiber, 40 }, { LIItems::ScrapMetal, 6 } }, { LIItems::RaftKit, 1 }, 90 },
+		{ LIItems::WoodenRoof,   { { LIItems::Wood, 6 }, { LIItems::Fiber, 4 } },                        { LIItems::WoodenRoof, 1 },   42 },
 	};
 
 	for (const FBuiltInRecipe& BuiltIn : BuiltIns)
@@ -119,6 +175,8 @@ void ULIItemRegistrySubsystem::RegisterBuiltInRecipes()
 		Recipe->Ingredients = BuiltIn.Ingredients;
 		Recipe->Output = BuiltIn.Output;
 		Recipe->SortOrder = BuiltIn.SortOrder;
+		Recipe->bRequiresFire = BuiltIn.bRequiresFire;
+		Recipe->bRequiresWater = BuiltIn.bRequiresWater;
 		RegisterRecipe(Recipe);
 	}
 }

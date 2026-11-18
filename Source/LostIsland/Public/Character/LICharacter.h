@@ -50,6 +50,7 @@ UCLASS(Blueprintable)
 class LOSTISLAND_API ALICharacter : public ACharacter
 {
 	GENERATED_BODY()
+	friend class ALIPlayerController; // debug commands (LIBuildMode)
 
 public:
 	ALICharacter();
@@ -58,6 +59,20 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Movement")
 	bool IsSprinting() const { return bIsSprinting; }
+
+	/** True while in deep water (local state, computed the same way on server and owning client). */
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Movement")
+	bool IsSwimming() const { return bIsSwimmingLocal; }
+
+	/** Local: build mode is on (preview of the next building piece). */
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Building")
+	bool IsInBuildMode() const { return bBuildMode; }
+
+	/** Recipes per crafting page (number keys 1-9, 0). */
+	static constexpr int32 CraftKeysPerPage = 10;
+
+	/** Local: which page of recipes the number keys craft from (Q cycles while the inventory is open). */
+	int32 GetCraftPage() const { return CraftPage; }
 
 	/** Whether the character is currently allowed to sprint. Stamina will override this. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "LostIsland|Movement")
@@ -98,6 +113,8 @@ public:
 
 protected:
 	virtual void PostInitializeComponents() override;
+	virtual void Tick(float DeltaSeconds) override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void BeginPlay() override;
 	virtual void NotifyControllerChanged() override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
@@ -115,6 +132,8 @@ protected:
 	void CraftSlot(const struct FInputActionInstance& Instance);
 	void QuickSave();
 	void QuickLoad();
+	void ToggleBuildMode();
+	void NextCraftPage();
 
 	// ---- Components ----
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
@@ -184,12 +203,35 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
 	TObjectPtr<UInputAction> QuickLoadAction;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
+	TObjectPtr<UInputAction> BuildModeAction;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
+	TObjectPtr<UInputAction> CraftPageAction;
+
 	// ---- Movement tuning ----
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Movement", meta = (ClampMin = "0.0", Units = "cm/s"))
 	float WalkSpeed = 380.f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Movement", meta = (ClampMin = "0.0", Units = "cm/s"))
 	float SprintSpeed = 650.f;
+
+	// ---- Swimming (no water volume: the island sea level is a plane, so depth is computed directly) ----
+	/** Horizontal swim speed. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Swimming", meta = (ClampMin = "0.0", Units = "cm/s"))
+	float SwimSpeed = 260.f;
+
+	/** Water depth at the feet (cm) above which the character starts swimming. Leaves with 30 cm of hysteresis. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Swimming", meta = (ClampMin = "0.0", Units = "cm"))
+	float SwimStartDepth = 130.f;
+
+	/** While swimming, the capsule centre floats this far below the surface (head stays above). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Swimming", meta = (Units = "cm"))
+	float FloatDepth = 55.f;
+
+	/** Sea level used when no island generator exists. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Swimming", meta = (Units = "cm"))
+	float DefaultSeaLevelZ = 0.f;
 
 	// ---- Camera tuning ----
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Camera", meta = (ClampMin = "50.0", Units = "cm"))
@@ -210,6 +252,23 @@ private:
 
 	void SetSprinting(bool bNewSprinting);
 	void ApplyMovementSpeed();
+
+	/** Enters/leaves swimming from the water depth, keeps the body floating (or sinking when exhausted). */
+	void UpdateSwimming(float DeltaSeconds);
+	float GetSeaLevelZ();
+
+	TWeakObjectPtr<AActor> CachedIsland;
+	bool bSearchedIsland = false;
+	bool bIsSwimmingLocal = false;
+
+	/** Local only: build mode shows a preview of the building piece G would place. */
+	void UpdateBuildPreview();
+	void DestroyBuildPreview();
+	bool bBuildMode = false;
+	int32 CraftPage = 0;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class ALIBuildingPiece> BuildPreview;
 
 	UFUNCTION(Server, Reliable)
 	void ServerSetSprinting(bool bNewSprinting);

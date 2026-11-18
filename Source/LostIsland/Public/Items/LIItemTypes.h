@@ -12,11 +12,23 @@ namespace LIItems
 	inline const FName Stone(TEXT("Stone"));
 	inline const FName Fiber(TEXT("Fiber"));
 	inline const FName Berries(TEXT("Berries"));
+	inline const FName RawMeat(TEXT("RawMeat"));
+	inline const FName CookedMeat(TEXT("CookedMeat"));
+	inline const FName EmptyFlask(TEXT("EmptyFlask"));
+	inline const FName WaterFlask(TEXT("WaterFlask"));
+	inline const FName MetalAxe(TEXT("MetalAxe"));
+	inline const FName MetalPickaxe(TEXT("MetalPickaxe"));
+	inline const FName RaftKit(TEXT("RaftKit"));
 	inline const FName StoneAxe(TEXT("StoneAxe"));
 	inline const FName StonePickaxe(TEXT("StonePickaxe"));
 	inline const FName FiberBandage(TEXT("FiberBandage"));
 	inline const FName ScrapMetal(TEXT("ScrapMetal"));
 	inline const FName Campfire(TEXT("Campfire"));
+	inline const FName SleepingBag(TEXT("SleepingBag"));
+	inline const FName WoodenFloor(TEXT("WoodenFloor"));
+	inline const FName WoodenWall(TEXT("WoodenWall"));
+	inline const FName WoodenDoorway(TEXT("WoodenDoorway"));
+	inline const FName WoodenRoof(TEXT("WoodenRoof"));
 }
 
 /** What a tool is good at. Resource nodes declare which tool type helps them. */

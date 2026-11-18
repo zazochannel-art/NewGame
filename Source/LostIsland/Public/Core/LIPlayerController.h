@@ -20,6 +20,8 @@
  *     LIClearInventory
  *     LIRegenerateIsland <Seed>      (0 = random)
  *     LIGoToCrashSite
+ *     LIGoToSea                      (deep water off the start beach, to test swimming)
+ *     LIPlace                        (same as G)
  *     LISetTime <Hours>              (e.g. 21 for night)
  *
  * Save commands (all builds):  LISave, LILoad, LINewGame   (also F5 / F9 on the character)
@@ -66,6 +68,46 @@ public:
 	void LIGoToCrashSite();
 
 	UFUNCTION(Exec)
+	void LIGoToSea();
+
+	/** Same as the G key: place the first placeable item (campfire, sleeping bag). */
+	UFUNCTION(Exec)
+	void LIPlace();
+
+	/** Same as the B key: toggle build mode (piece preview). */
+	UFUNCTION(Exec)
+	void LIBuildMode();
+
+	/** Craft a recipe by id without opening the inventory (e.g. LICraft CookedMeat). */
+	UFUNCTION(Exec)
+	void LICraft(const FString& RecipeId);
+
+	/** Teleport next to the nearest fresh-water spring. */
+	UFUNCTION(Exec)
+	void LIGoToSpring();
+
+	UFUNCTION(Server, Reliable)
+	void ServerDebugGoToSpring();
+
+	/** Same as F: eat or drink the best consumable. */
+	UFUNCTION(Exec)
+	void LIConsume();
+
+	/** Trigger the raft ending (debug). */
+	UFUNCTION(Exec)
+	void LIEscape();
+
+	/** Stand on the start beach facing the sea (raft placement test). */
+	UFUNCTION(Exec)
+	void LIGoToShore();
+
+	UFUNCTION(Server, Reliable)
+	void ServerDebugGoToShore();
+
+	UFUNCTION(Server, Reliable)
+	void ServerDebugEscape();
+
+	UFUNCTION(Exec)
 	void LISetTime(float Hours);
 
 	UFUNCTION(Exec)
@@ -101,6 +143,9 @@ private:
 
 	UFUNCTION(Server, Reliable)
 	void ServerDebugGoToCrashSite();
+
+	UFUNCTION(Server, Reliable)
+	void ServerDebugGoToSea();
 
 	UFUNCTION(Server, Reliable)
 	void ServerDebugSetTime(float Hours);

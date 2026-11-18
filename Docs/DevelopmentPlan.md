@@ -45,6 +45,13 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 8 | Crafting and tools: recipes, stone axe and pickaxe, bandage, durability | **Compiles; awaiting PIE test.** See [Systems/Crafting.md](Systems/Crafting.md) |
 | 8b | Plane wreck: seed-placed landmark, searchable loot, Scrap Metal | **Compiles; awaiting PIE test.** See [Systems/CrashSite.md](Systems/CrashSite.md) |
 | 9 | Day/night cycle, cold at night, placeable campfire with fuel, save v2 (v3: wreck and resources) | **Compiles; awaiting PIE test.** See [Systems/DayNight.md](Systems/DayNight.md) |
+| 10 | Swimming: deep water, swim stamina, sinking when exhausted, breath and drowning, `LIGoToSea` | **Compiles; headless test passed (swim + drown); awaiting PIE test.** See [Systems/Swimming.md](Systems/Swimming.md) |
+| 11 | Death and respawn: dropped inventory bundle, respawn after 6 s, sleeping bag (craft, place, respawn point, sleep through the night) | **Compiles; headless test passed (place bag, die, drop, respawn at bag); awaiting PIE test.** See [Systems/DeathRespawn.md](Systems/DeathRespawn.md) |
+| 12 | Building: wooden floor, wall and roof on a 3 m grid with snapping; a roof overhead blocks the night cold; G places the last crafted placeable | **Compiles; placement tested (screenshot); awaiting PIE test.** See [Systems/Building.md](Systems/Building.md) |
+| 13 | Build mode (B) with a green placement preview, dismantle pieces with E (item back), wooden doorway | **Compiles; preview and doorway checked (screenshot); awaiting PIE test.** See [Systems/Building.md](Systems/Building.md) |
+| 14 | Crabs on the beaches (wander, flee, catch with E) -> Raw Crab Meat; cooking at a lit campfire -> Cooked Crab Meat; recipes on keys 1-9 and 0 | **Compiles; headless test passed (14 crabs spawned, cooking only at a fire); awaiting PIE test.** See [Systems/FoodWater.md](Systems/FoodWater.md) |
+| 15 | Scrap Axe and Scrap Pickaxe (metal tools), Empty Flask filled at springs into a Water Flask (drink returns the flask), crafting pages (Q) | **Compiles; headless test passed (metal tools, fill only at a spring, drink returns flask); awaiting PIE test.** See [Systems/Crafting.md](Systems/Crafting.md) |
+| 16 | Goal: Raft Kit (60 Wood, 40 Fiber, 6 Scrap) placed in shallow water at the shore; E sails away, everyone sees the ending, then a new island starts | **Compiles; headless test passed (craft, place at shore, ending, new island); awaiting PIE test.** See [Systems/Raft.md](Systems/Raft.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -187,8 +194,78 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - **Sprint in co-op:** sprint speed is predicted on the client and confirmed by an RPC. Under real latency this can cause small corrections. Before co-op, move sprint into a custom `UCharacterMovementComponent` with saved-move flags.
 - **Input assets:** runtime-generated bindings work but can't be rebound in the editor. Create `IMC_Default` and `IA_*` assets and assign them on `BP_Survivor`; the C++ fallback is skipped automatically.
 - **HUD:** the canvas HUD is temporary until the UMG inventory and HUD milestone.
-- **Death:** no respawn or loot drop yet, only the `LIRevive` debug command. The Blueprint event `On Died` is where ragdoll goes.
+- **Death:** automatic respawn and a dropped-items bundle exist (Milestone 11). Dropped bundles are not saved, and there is no ragdoll yet (the Blueprint event `On Died` is where it goes).
 - **Survival difficulty:** values live on the component. A `ULIDifficultySettings` Data Asset (Easy/Normal/Hard) can come later.
 - **Prototype crates:** they now spawn only when the island is disabled (`bGenerateIsland = false`) or `bSpawnPrototypeTestActors` is on.
-- **Water:** it's a visual plane only, with no swimming or drowning. The player can walk on the seabed.
+- **Water:** swimming is faked with `MOVE_Flying` (no water volume exists). There is no diving input yet, and the sea has no waves or underwater fog.
 - **Island scale:** resource nodes are separate actors (~195). HISM is the plan if performance or bandwidth requires it.
+
+## 4k. Milestone 10 test checklist (swimming)
+
+- [ ] `LIGoToSea`: you appear in deep water off the start beach and float with the head above the surface. The log shows `started swimming`.
+- [ ] WASD swims at ~260 cm/s. Shift does not sprint in water.
+- [ ] STAMINA drains slowly while swimming (faster when moving) and does not regenerate in deep water.
+- [ ] Swim to the beach: once the water is shallow you walk again (`stopped swimming`), and stamina regenerates.
+- [ ] `LISetStat Stamina 0` in deep water: you sink, an AIR bar appears and empties in ~15 s, then HP drops ~10/s until you die.
+- [ ] Back at the surface the AIR bar refills and disappears.
+- [ ] Co-op: the client swims and sinks the same way, and the host sees the client in the water.
+
+## 4l. Milestone 11 test checklist (death, respawn, sleeping bag)
+
+- [ ] Tab: the crafting list shows **Sleeping Bag** (20 Fiber + 4 Wood) right after the Campfire.
+- [ ] `LIGive Fiber 20`, `LIGive Wood 4`, craft it, then G: a teal mat appears in front of you, and the log says it is your respawn point.
+- [ ] `LIDamage 500`: "YOU DIED" plus "Respawning...". After ~6 s you stand next to the bag with fresh stats and an empty inventory.
+- [ ] Where you died there is a brown bundle: `[E] Take Dropped Items (N)` gives everything back, and tools keep their wear.
+- [ ] Without a bag you respawn on the start beach.
+- [ ] At night (`LISetTime 22`), E on the bag says `Sleep until morning`: the clock jumps to ~06:00 and food and water drop by 15.
+- [ ] Place a second bag: it becomes the respawn point and the first one stops being yours.
+- [ ] F5, F9: the bag is still there and still your respawn point.
+- [ ] Co-op: each player respawns at their own bag. Sleeping does not skip the night with 2 players.
+
+## 4m. Milestone 12 test checklist (building)
+
+- [ ] Tab: Wooden Floor (8 Wood), Wooden Wall (6 Wood + 2 Fiber), Wooden Roof (6 Wood + 4 Fiber) at the end of the list (keys 6, 7, 8).
+- [ ] Craft a floor, G: a 3 x 3 m plank floor appears in front of where the camera looks. On water or steep slopes G does nothing.
+- [ ] A second floor snaps next to the first, on the side you look at, at the same height.
+- [ ] Walls snap to the floor edge nearest to where you look, standing on the floor. The same edge can't get two walls.
+- [ ] A roof goes 3 m above the floor cell you look at.
+- [ ] Night (`LISetTime 22`): under a roof the COLD message disappears; step out and it comes back.
+- [ ] After crafting walls, G places walls even if a campfire or bag sits earlier in the inventory.
+- [ ] F5, F9: all pieces come back in place.
+- [ ] Co-op: both players see the same pieces and can build on each other's floors.
+
+## 4n. Milestone 13 test checklist (build mode, dismantle, doorway)
+
+- [ ] B toggles build mode: `BUILD MODE` banner at the top. With a building piece in the inventory, a green ghost shows where G will put it; it hides where G would fail.
+- [ ] The ghost follows the camera and snaps exactly where the real piece lands.
+- [ ] Looking at a placed piece: `[E] Dismantle Wooden Wall`; E removes it and gives the item back. With a full inventory nothing happens.
+- [ ] Wooden Doorway (5 Wood + 2 Fiber, key 9) snaps like a wall; you can walk through the opening.
+- [ ] Co-op: the ghost is only visible to its owner (also for the host), and it is never saved.
+
+## 4o. Milestone 14 test checklist (crabs and cooking)
+
+- [ ] Orange flat crabs walk around the beaches, pausing now and then, and never go into the sea.
+- [ ] Walking toward a crab makes it run away (200 cm/s); sprinting catches it. `[E] Catch Crab (2/2)`: two hits give 1-2 Raw Crab Meat each, then the crab disappears and comes back home after 10 min.
+- [ ] Raw meat can be eaten with F (+3 food).
+- [ ] Tab: `[6] Cooked Crab Meat  (at a fire)` is grey away from a fire, even with raw meat. Next to a lit campfire it turns white; crafting gives Cooked Crab Meat (+22 food, -2 water).
+- [ ] Crafting list shows 10 recipes: building pieces moved to keys 7, 8, 9 and the doorway to 0.
+- [ ] `LICraft CookedMeat` does the same without opening the inventory.
+- [ ] Co-op: crabs move the same for both players.
+
+## 4p. Milestone 15 test checklist (metal tools, flask, crafting pages)
+
+- [ ] Tab: the crafting panel title shows `1/2  [Q] next page`; Q switches pages and the number keys craft from the visible page.
+- [ ] Search the wreck for Scrap Metal (2-4 per find). Scrap Axe = 2 Wood + 4 Scrap + 2 Fiber, Scrap Pickaxe = 2 Wood + 5 Scrap + 2 Fiber.
+- [ ] With both a stone and a scrap axe, chopping uses the scrap axe (prompt `with Scrap Axe`): about 6-9 wood per hit and less stamina. It lasts 120 hits.
+- [ ] Empty Flask = 2 Scrap + 2 Fiber. `Water Flask (at a spring)` is grey away from a spring and works next to one.
+- [ ] F with low water drinks the flask (+30 water) and the Empty Flask comes back.
+- [ ] Debug: `LIGoToSpring`, `LIConsume`, `LICraft <RecipeId>`.
+
+## 4q. Milestone 16 test checklist (raft ending)
+
+- [ ] Crafting page 2: `Raft Kit` (60 Wood, 40 Fiber, 6 Scrap Metal).
+- [ ] On the beach facing the sea, G puts the raft in the shallow water in front (0.3-2.5 m deep). On dry land or in deep water nothing happens. `LIGoToShore` puts you in a good spot.
+- [ ] Wade to the raft: `[E] Sail away from the island`. The screen darkens: `YOU ESCAPED THE ISLAND`, `Rescued on day N`.
+- [ ] About 15 s later a new random island starts, and the old save is gone (F9: "No save found").
+- [ ] F5 before sailing, F9: the raft is still at the shore.
+- [ ] Co-op: either player can sail; both see the ending and both move to the new island.

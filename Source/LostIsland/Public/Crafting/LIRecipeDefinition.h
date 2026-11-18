@@ -41,4 +41,12 @@ public:
 	/** Lower values are listed first. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Recipe")
 	int32 SortOrder = 100;
+
+	/** Only craftable next to a lit campfire (cooking). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Recipe")
+	bool bRequiresFire = false;
+
+	/** Only craftable next to a fresh-water spring (filling flasks). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Recipe")
+	bool bRequiresWater = false;
 };

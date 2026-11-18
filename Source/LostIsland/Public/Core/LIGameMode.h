@@ -43,6 +43,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LostIsland|Island")
 	void RegenerateIsland(int32 NewSeed);
 
+	/** Server: a player character died. Drops its inventory as loot and respawns the player after RespawnDelay. */
+	void HandlePlayerDeath(class ALICharacter* DeadCharacter);
+
+	/** Server: replace the player's pawn with a fresh one at their sleeping bag (or the beach spawn). */
+	void RespawnPlayer(AController* Controller);
+
 protected:
 	/** Generate the procedural island at game start. */
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Island")
@@ -58,6 +64,10 @@ protected:
 	/** Seconds between automatic saves (server). 0 disables autosave. */
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Save", meta = (ClampMin = "0.0", Units = "s"))
 	float AutosaveInterval = 300.f;
+
+	/** Seconds between death and automatic respawn. */
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Death", meta = (ClampMin = "0.0", Units = "s"))
+	float RespawnDelay = 6.f;
 
 	/** Spawn the test crates / resource ring. Always on when the island is disabled. */
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Prototype")

@@ -49,6 +49,22 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Time")
 	float GetRealSecondsPerGameHour() const { return RealSecondsPerGameHour; }
 
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Time")
+	float GetNightEndHours() const { return NightEndHours; }
+
+	/** Server: someone sailed away on the raft. Everyone sees the ending, then a new island starts. */
+	void SetEscaped();
+
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Goal")
+	bool HasEscaped() const { return bEscaped; }
+
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Goal")
+	int32 GetEscapeDay() const { return EscapeDay; }
+
+	/** Seconds the ending stays on screen before a new island starts. */
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Goal", meta = (ClampMin = "1.0", Units = "s"))
+	float EscapeEndDelay = 15.f;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -86,4 +102,11 @@ private:
 	TWeakObjectPtr<ALIIslandGenerator> Island;
 
 	FTimerHandle LightingTimerHandle;
+
+private:
+	UPROPERTY(Replicated)
+	bool bEscaped = false;
+
+	UPROPERTY(Replicated)
+	int32 EscapeDay = 0;
 };

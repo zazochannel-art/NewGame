@@ -6,6 +6,13 @@
 #include "Inventory/LIInventoryComponent.h"
 #include "Items/LIItemDefinition.h"
 #include "Items/LIItemRegistrySubsystem.h"
+#include "Save/LISaveSubsystem.h"
+#include "World/LISleepingBag.h"
+#include "World/LIBuildingPiece.h"
+#include "World/LIRaft.h"
+#include "World/LICampfire.h"
+#include "World/LIWaterSource.h"
+#include "GameFramework/Pawn.h"
 #include "Engine/World.h"
 #include "LostIsland.h"
 #include "GameFramework/Actor.h"
@@ -35,6 +42,14 @@ bool ULICraftingComponent::CanCraft(FName RecipeId) const
 	if (!Recipe || !Inventory)
 	{
 		return false;
+	}
+	if (Recipe->bRequiresFire && (!GetOwner() || !ALICampfire::IsWarmAt(GetWorld(), GetOwner()->GetActorLocation())))
+	{
+		return false; // cooking needs a lit campfire within its warmth radius
+	}
+	if (Recipe->bRequiresWater && (!GetOwner() || !ALIWaterSource::IsNearWater(GetWorld(), GetOwner()->GetActorLocation(), 350.f)))
+	{
+		return false; // filling needs a spring
 	}
 
 	for (const FLIItemQuantity& Ingredient : Recipe->Ingredients)
@@ -100,7 +115,18 @@ bool ULICraftingComponent::Craft(FName RecipeId)
 	}
 
 	ClientNotifyCrafted(Recipe->Output.ItemId, Added);
+	RememberPlaceable(Recipe->Output.ItemId);
 	return Added > 0;
+}
+
+void ULICraftingComponent::RememberPlaceable(FName ItemId)
+{
+	const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
+	const ULIItemDefinition* Def = Registry ? Registry->FindItem(ItemId) : nullptr;
+	if (Def && Def->PlaceableActorClass)
+	{
+		PreferredPlaceable = ItemId; // G places what was crafted last (walls after crafting walls, ...)
+	}
 }
 
 FName ULICraftingComponent::FindPlaceableItem() const
@@ -110,6 +136,10 @@ FName ULICraftingComponent::FindPlaceableItem() const
 	if (!Registry || !Inventory)
 	{
 		return NAME_None;
+	}
+	if (!PreferredPlaceable.IsNone() && Inventory->HasItem(PreferredPlaceable, 1))
+	{
+		return PreferredPlaceable;
 	}
 	for (const FLIInventorySlot& Slot : Inventory->GetSlots())
 	{
@@ -149,6 +179,49 @@ bool ULICraftingComponent::PlaceItem(FName ItemId)
 	if (GetOwnerRole() != ROLE_Authority || !Owner || !World || !Def || !Def->PlaceableActorClass || !Inventory || !Inventory->HasItem(ItemId, 1))
 	{
 		return false;
+	}
+
+	// The raft goes in shallow water at the shore.
+	if (Def->PlaceableActorClass->IsChildOf(ALIRaft::StaticClass()))
+	{
+		const APawn* OwnerPawn = Cast<APawn>(Owner);
+		const FVector LookForward = OwnerPawn ? OwnerPawn->GetControlRotation().Vector() : Owner->GetActorForwardVector();
+		FTransform RaftTransform;
+		if (!ALIRaft::ComputePlacement(World, Owner->GetActorLocation(), LookForward, Owner, RaftTransform))
+		{
+			return false;
+		}
+		FActorSpawnParameters RaftParams;
+		RaftParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		if (!World->SpawnActor<AActor>(Def->PlaceableActorClass, RaftTransform, RaftParams))
+		{
+			return false;
+		}
+		Inventory->RemoveItem(ItemId, 1);
+		UE_LOG(LogLostIsland, Log, TEXT("%s launched the raft at %s."), *GetNameSafe(Owner), *RaftTransform.GetLocation().ToCompactString());
+		return true;
+	}
+
+	// Building pieces snap to their own grid instead of the free ground placement below.
+	if (Def->PlaceableActorClass->IsChildOf(ALIBuildingPiece::StaticClass()))
+	{
+		const APawn* OwnerPawn = Cast<APawn>(Owner);
+		const FVector LookForward = OwnerPawn ? OwnerPawn->GetControlRotation().Vector() : Owner->GetActorForwardVector();
+		FTransform PieceTransform;
+		if (!ALIBuildingPiece::ComputePlacement(World, TSubclassOf<ALIBuildingPiece>(Def->PlaceableActorClass.Get()),
+			Owner->GetActorLocation(), LookForward, Owner, PieceTransform))
+		{
+			return false;
+		}
+		FActorSpawnParameters PieceParams;
+		PieceParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		if (!World->SpawnActor<AActor>(Def->PlaceableActorClass, PieceTransform, PieceParams))
+		{
+			return false;
+		}
+		Inventory->RemoveItem(ItemId, 1);
+		UE_LOG(LogLostIsland, Log, TEXT("%s built %s at %s."), *GetNameSafe(Owner), *ItemId.ToString(), *PieceTransform.GetLocation().ToCompactString());
+		return true;
 	}
 
 	// Find the ground in front of the owner (static geometry only).
@@ -195,6 +268,13 @@ bool ULICraftingComponent::PlaceItem(FName ItemId)
 		return false;
 	}
 
+	// A placed sleeping bag becomes the placer's respawn point straight away.
+	if (ALISleepingBag* Bag = Cast<ALISleepingBag>(Placed))
+	{
+		const APawn* OwnerPawn = Cast<APawn>(Owner);
+		Bag->ClaimFor(ULISaveSubsystem::GetPlayerKey(OwnerPawn ? OwnerPawn->GetController() : nullptr));
+	}
+
 	Inventory->RemoveItem(ItemId, 1);
 	UE_LOG(LogLostIsland, Log, TEXT("%s placed %s."), *GetNameSafe(Owner), *ItemId.ToString());
 	return true;
@@ -203,4 +283,5 @@ bool ULICraftingComponent::PlaceItem(FName ItemId)
 void ULICraftingComponent::ClientNotifyCrafted_Implementation(FName OutputItemId, int32 Quantity)
 {
 	UE_LOG(LogLostIsland, Log, TEXT("Crafted %d x %s."), Quantity, *OutputItemId.ToString());
+	RememberPlaceable(OutputItemId); // client side, so the [G] hint matches what the server will place
 }

@@ -7,6 +7,12 @@
 #include "Inventory/LIInventoryComponent.h"
 #include "Crafting/LICraftingComponent.h"
 #include "Core/LIPlayerController.h"
+#include "Core/LIGameMode.h"
+#include "World/LIIslandGenerator.h"
+#include "World/LIBuildingPiece.h"
+#include "Crafting/LICraftingComponent.h"
+#include "Items/LIItemRegistrySubsystem.h"
+#include "Items/LIItemDefinition.h"
 #include "LostIsland.h"
 
 #include "Camera/CameraComponent.h"
@@ -17,6 +23,7 @@
 #include "Engine/DamageEvents.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/StaticMesh.h"
+#include "EngineUtils.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -31,9 +38,10 @@
 
 ALICharacter::ALICharacter()
 {
-	// Character logic is fully event/input driven.
-	PrimaryActorTick.bCanEverTick = false;
-	PrimaryActorTick.bStartWithTickEnabled = false;
+	// Ticks only for swimming (water depth check); everything else is event/input driven.
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = true;
+	PrimaryActorTick.TickInterval = 0.f;
 
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.f);
 
@@ -214,6 +222,14 @@ void ALICharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	{
 		EIC->BindAction(QuickLoadAction, ETriggerEvent::Started, this, &ALICharacter::QuickLoad);
 	}
+	if (BuildModeAction)
+	{
+		EIC->BindAction(BuildModeAction, ETriggerEvent::Started, this, &ALICharacter::ToggleBuildMode);
+	}
+	if (CraftPageAction)
+	{
+		EIC->BindAction(CraftPageAction, ETriggerEvent::Started, this, &ALICharacter::NextCraftPage);
+	}
 }
 
 void ALICharacter::EnsureDefaultInput()
@@ -238,7 +254,7 @@ void ALICharacter::EnsureDefaultInput()
 	const bool bGenerateCraftActions = CraftSlotActions.Num() == 0;
 	if (bGenerateCraftActions)
 	{
-		for (int32 Index = 0; Index < 9; ++Index)
+		for (int32 Index = 0; Index < 10; ++Index) // keys 1-9, then 0
 		{
 			const FString Name = FString::Printf(TEXT("IA_Craft%d_Runtime"), Index + 1);
 			CraftSlotActions.Add(MakeAction(*Name, EInputActionValueType::Boolean));
@@ -246,6 +262,8 @@ void ALICharacter::EnsureDefaultInput()
 	}
 	if (!QuickSaveAction) { QuickSaveAction = MakeAction(TEXT("IA_QuickSave_Runtime"), EInputActionValueType::Boolean); }
 	if (!QuickLoadAction) { QuickLoadAction = MakeAction(TEXT("IA_QuickLoad_Runtime"), EInputActionValueType::Boolean); }
+	if (!BuildModeAction) { BuildModeAction = MakeAction(TEXT("IA_BuildMode_Runtime"), EInputActionValueType::Boolean); }
+	if (!CraftPageAction) { CraftPageAction = MakeAction(TEXT("IA_CraftPage_Runtime"), EInputActionValueType::Boolean); }
 
 	if (DefaultMappingContext)
 	{
@@ -304,7 +322,7 @@ void ALICharacter::EnsureDefaultInput()
 	IMC->MapKey(InventoryAction, EKeys::Tab);
 	IMC->MapKey(InventoryAction, EKeys::Gamepad_Special_Right);
 
-	const FKey NumberKeys[] = { EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five, EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine };
+	const FKey NumberKeys[] = { EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five, EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine, EKeys::Zero };
 	for (int32 Index = 0; Index < CraftSlotActions.Num() && Index < static_cast<int32>(UE_ARRAY_COUNT(NumberKeys)); ++Index)
 	{
 		if (CraftSlotActions[Index])
@@ -321,6 +339,9 @@ void ALICharacter::EnsureDefaultInput()
 
 	IMC->MapKey(QuickSaveAction, EKeys::F5);
 	IMC->MapKey(QuickLoadAction, EKeys::F9);
+	IMC->MapKey(BuildModeAction, EKeys::B);
+	IMC->MapKey(CraftPageAction, EKeys::Q);
+	IMC->MapKey(BuildModeAction, EKeys::Gamepad_DPad_Left);
 
 	DefaultMappingContext = IMC;
 
@@ -433,7 +454,7 @@ void ALICharacter::CraftSlot(const FInputActionInstance& Instance)
 	{
 		if (CraftSlotActions[Index].Get() == Source)
 		{
-			CraftingComponent->RequestCraftByIndex(Index);
+			CraftingComponent->RequestCraftByIndex(CraftPage * CraftKeysPerPage + Index);
 			return;
 		}
 	}
@@ -458,7 +479,7 @@ void ALICharacter::QuickLoad()
 bool ALICharacter::CanSprint_Implementation() const
 {
 	const UCharacterMovementComponent* Movement = GetCharacterMovement();
-	return Movement && !Movement->IsCrouching() && SurvivalComponent && SurvivalComponent->CanSprint();
+	return Movement && !Movement->IsCrouching() && !bIsSwimmingLocal && SurvivalComponent && SurvivalComponent->CanSprint();
 }
 
 bool ALICharacter::IsDead() const
@@ -482,6 +503,14 @@ void ALICharacter::HandleExhaustedChanged(bool bIsExhausted)
 
 void ALICharacter::HandleDeath(AController* Killer)
 {
+	if (HasAuthority())
+	{
+		if (ALIGameMode* GameMode = GetWorld()->GetAuthGameMode<ALIGameMode>())
+		{
+			GameMode->HandlePlayerDeath(this);
+		}
+	}
+
 	ForceStopSprinting();
 	InteractionComponent->SetScanningEnabled(false);
 	GetCharacterMovement()->DisableMovement();
@@ -558,4 +587,180 @@ void ALICharacter::ApplyMovementSpeed()
 	{
 		Movement->MaxWalkSpeed = bIsSprinting ? SprintSpeed : WalkSpeed;
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Swimming
+// ---------------------------------------------------------------------------
+
+void ALICharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	// Server and owning client run the same depth test; simulated proxies get the movement mode replicated.
+	if (HasAuthority() || IsLocallyControlled())
+	{
+		UpdateSwimming(DeltaSeconds);
+	}
+	if (IsLocallyControlled())
+	{
+		UpdateBuildPreview();
+	}
+}
+
+float ALICharacter::GetSeaLevelZ()
+{
+	if (!bSearchedIsland || (!CachedIsland.IsValid() && GetWorld()))
+	{
+		bSearchedIsland = true;
+		for (TActorIterator<ALIIslandGenerator> It(GetWorld()); It; ++It)
+		{
+			CachedIsland = *It;
+			break;
+		}
+	}
+	// The island's water plane sits at the generator's origin.
+	return CachedIsland.IsValid() ? CachedIsland->GetActorLocation().Z : DefaultSeaLevelZ;
+}
+
+void ALICharacter::UpdateSwimming(float DeltaSeconds)
+{
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	if (!Movement || IsDead())
+	{
+		return;
+	}
+
+	const float SeaLevel = GetSeaLevelZ();
+	const float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	const FVector Location = GetActorLocation();
+	const float FeetDepth = SeaLevel - (Location.Z - HalfHeight);
+
+	const bool bWasSwimming = bIsSwimmingLocal;
+	if (!bIsSwimmingLocal && FeetDepth > SwimStartDepth)
+	{
+		bIsSwimmingLocal = true;
+	}
+	else if (bIsSwimmingLocal && FeetDepth < SwimStartDepth - 30.f)
+	{
+		bIsSwimmingLocal = false;
+	}
+
+	if (bIsSwimmingLocal != bWasSwimming)
+	{
+		UE_LOG(LogLostIsland, Log, TEXT("%s: %s swimming (depth %.0f cm)."), *GetName(), bIsSwimmingLocal ? TEXT("started") : TEXT("stopped"), FeetDepth);
+	}
+	if (bIsSwimmingLocal != bWasSwimming)
+	{
+		if (bIsSwimmingLocal)
+		{
+			if (bIsSprinting)
+			{
+				ForceStopSprinting();
+			}
+			// Flying = free 3D movement without gravity; Z is driven below (no water volume exists).
+			Movement->MaxFlySpeed = SwimSpeed;
+			Movement->BrakingDecelerationFlying = 600.f;
+			Movement->SetMovementMode(MOVE_Flying);
+		}
+		else if (Movement->MovementMode == MOVE_Flying)
+		{
+			Movement->SetMovementMode(MOVE_Falling); // lands and switches to walking by itself
+		}
+	}
+
+	const bool bExhausted = SurvivalComponent && SurvivalComponent->IsExhausted();
+	if (bIsSwimmingLocal && Movement->MovementMode == MOVE_Flying)
+	{
+		// Float with the head above water; an exhausted swimmer slowly sinks.
+		const float TargetZ = bExhausted ? SeaLevel - HalfHeight * 2.f - 100.f : SeaLevel - FloatDepth;
+		const float MaxVertical = bExhausted ? 60.f : 150.f;
+		Movement->Velocity.Z = FMath::Clamp((TargetZ - Location.Z) * 2.f, -MaxVertical, MaxVertical);
+	}
+
+	// Breath: the head (top of the capsule, minus a little) is under the surface.
+	const bool bSubmerged = (Location.Z + HalfHeight * 0.8f) < SeaLevel;
+	if (SurvivalComponent && HasAuthority())
+	{
+		SurvivalComponent->SetWaterState(bIsSwimmingLocal, bSubmerged);
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Build mode (local preview only; placement itself stays server-side via G)
+// ---------------------------------------------------------------------------
+
+void ALICharacter::ToggleBuildMode()
+{
+	bBuildMode = !bBuildMode;
+	if (!bBuildMode)
+	{
+		DestroyBuildPreview();
+	}
+}
+
+void ALICharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	DestroyBuildPreview();
+	Super::EndPlay(EndPlayReason);
+}
+
+void ALICharacter::DestroyBuildPreview()
+{
+	if (IsValid(BuildPreview))
+	{
+		BuildPreview->Destroy();
+		BuildPreview = nullptr;
+	}
+}
+
+void ALICharacter::UpdateBuildPreview()
+{
+	// The piece G would place right now, if it is a building piece.
+	TSubclassOf<ALIBuildingPiece> PieceClass;
+	if (bBuildMode && !IsDead() && CraftingComponent)
+	{
+		const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
+		const ULIItemDefinition* Def = Registry ? Registry->FindItem(CraftingComponent->FindPlaceableItem()) : nullptr;
+		if (Def && Def->PlaceableActorClass && Def->PlaceableActorClass->IsChildOf(ALIBuildingPiece::StaticClass()))
+		{
+			PieceClass = Def->PlaceableActorClass.Get();
+		}
+	}
+	if (!PieceClass)
+	{
+		DestroyBuildPreview();
+		return;
+	}
+
+	if (!IsValid(BuildPreview) || BuildPreview->GetClass() != PieceClass)
+	{
+		DestroyBuildPreview();
+		BuildPreview = ALIBuildingPiece::SpawnPreview(GetWorld(), PieceClass);
+		if (!BuildPreview)
+		{
+			return;
+		}
+	}
+
+	FTransform Transform;
+	const bool bValid = ALIBuildingPiece::ComputePlacement(GetWorld(), PieceClass, GetActorLocation(),
+		GetControlRotation().Vector(), this, Transform);
+	BuildPreview->SetActorHiddenInGame(!bValid);
+	if (bValid)
+	{
+		BuildPreview->SetActorTransform(Transform);
+	}
+}
+
+void ALICharacter::NextCraftPage()
+{
+	const ALIPlayerController* PC = Cast<ALIPlayerController>(Controller);
+	const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
+	if (!PC || !PC->IsInventoryOpen() || !Registry)
+	{
+		return;
+	}
+	const int32 NumPages = FMath::Max(1, FMath::DivideAndRoundUp(Registry->GetRecipes().Num(), CraftKeysPerPage));
+	CraftPage = (CraftPage + 1) % NumPages;
 }

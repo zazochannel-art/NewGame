@@ -236,7 +236,13 @@ bool ULIInventoryComponent::ConsumeItem(FName ItemId)
 	Survival->ModifyStat(ELISurvivalStat::Hunger, Def->FoodValue);
 	Survival->ModifyStat(ELISurvivalStat::Thirst, Def->WaterValue);
 	Survival->ModifyStat(ELISurvivalStat::Health, Def->HealthValue);
+	if (!Def->ConsumeReturnsItem.IsNone())
+	{
+		AddItem(Def->ConsumeReturnsItem, 1); // lost only if the inventory is completely full
+	}
 
+	UE_LOG(LogLostIsland, Log, TEXT("%s consumed %s%s."), *GetNameSafe(GetOwner()), *ItemId.ToString(),
+		Def->ConsumeReturnsItem.IsNone() ? TEXT("") : *FString::Printf(TEXT(" (got %s back)"), *Def->ConsumeReturnsItem.ToString()));
 	ClientNotifyConsumed(ItemId);
 	return true;
 }
@@ -252,7 +258,7 @@ void ULIInventoryComponent::ClientNotifyConsumed_Implementation(FName ItemId)
 // Mutation (server)
 // ---------------------------------------------------------------------------
 
-int32 ULIInventoryComponent::AddItem(FName ItemId, int32 Quantity)
+int32 ULIInventoryComponent::AddItem(FName ItemId, int32 Quantity, int32 DurabilityOverride)
 {
 	if (GetOwnerRole() != ROLE_Authority || ItemId.IsNone() || Quantity <= 0)
 	{
@@ -295,7 +301,8 @@ int32 ULIInventoryComponent::AddItem(FName ItemId, int32 Quantity)
 			const int32 ToAdd = FMath::Min(Remaining, MaxStack);
 			Slot.ItemId = ItemId;
 			Slot.Quantity = ToAdd;
-			Slot.Durability = GetMaxDurability(ItemId);
+			const int32 MaxDurability = GetMaxDurability(ItemId);
+			Slot.Durability = DurabilityOverride > 0 ? FMath::Min(DurabilityOverride, MaxDurability) : MaxDurability;
 			Remaining -= ToAdd;
 		}
 	}

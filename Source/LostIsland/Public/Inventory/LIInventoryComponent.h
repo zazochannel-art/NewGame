@@ -92,7 +92,7 @@ public:
 
 	/** Adds up to Quantity. Returns how many were actually added (the rest did not fit). */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "LostIsland|Inventory")
-	int32 AddItem(FName ItemId, int32 Quantity);
+	int32 AddItem(FName ItemId, int32 Quantity, int32 DurabilityOverride = 0);
 
 	/** Removes exactly Quantity, or nothing if there are not enough. */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "LostIsland|Inventory")

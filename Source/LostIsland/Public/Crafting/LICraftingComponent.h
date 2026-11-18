@@ -65,6 +65,11 @@ private:
 	/** Server: spawn the item's actor on the ground in front of the owner. */
 	bool PlaceItem(FName ItemId);
 
+	/** Server and owning client: remember the last crafted placeable so G places it first. */
+	void RememberPlaceable(FName ItemId);
+
+	FName PreferredPlaceable = NAME_None;
+
 	/** Distance in front of the owner where items are placed. */
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Crafting", meta = (ClampMin = "50.0", Units = "cm"))
 	float PlaceDistance = 220.f;

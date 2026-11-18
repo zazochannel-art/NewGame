@@ -65,10 +65,10 @@ ALICrashSite::ALICrashSite()
 		Debris.Add(MakePart(*Name, SceneRoot, Cube, DebrisSpecs[Index].Location, DebrisSpecs[Index].Rotation, DebrisSpecs[Index].Scale));
 	}
 
-	// Supplies a small plane might have carried. ScrapMetal is reserved for future recipes.
+	// Supplies a small plane might have carried. ScrapMetal feeds the metal tools and flasks (not enough for all).
 	LootTable =
 	{
-		FLILootEntry(LIItems::ScrapMetal,   2, 4, 3.f),
+		FLILootEntry(LIItems::ScrapMetal,   2, 4, 4.f),
 		FLILootEntry(LIItems::Fiber,        3, 6, 2.f),
 		FLILootEntry(LIItems::FiberBandage, 1, 1, 2.f),
 		FLILootEntry(LIItems::Berries,      2, 4, 2.f),

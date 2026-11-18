@@ -27,6 +27,9 @@ public:
 	ALIWaterSource();
 
 	// ILIInteractable
+	/** True if a spring is within Radius of Location (crafting station check). */
+	static bool IsNearWater(const UWorld* World, const FVector& Location, float Radius);
+
 	virtual bool CanInteract_Implementation(APawn* InstigatorPawn) const override;
 	virtual void Interact_Implementation(APawn* InstigatorPawn) override;
 	virtual FText GetInteractionPrompt_Implementation(APawn* InstigatorPawn) const override;
