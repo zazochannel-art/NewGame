@@ -293,3 +293,49 @@ void ALIPlayerController::LIConsume()
 		LICharacter->GetInventoryComponent()->RequestConsumeBest();
 	}
 }
+
+void ALIPlayerController::LIEscape() { ServerDebugEscape(); }
+
+void ALIPlayerController::ServerDebugEscape_Implementation()
+{
+#if !UE_BUILD_SHIPPING
+	if (ALIGameState* GameState = GetWorld()->GetGameState<ALIGameState>())
+	{
+		GameState->SetEscaped();
+	}
+#endif
+}
+
+void ALIPlayerController::LIGoToShore() { ServerDebugGoToShore(); }
+
+void ALIPlayerController::ServerDebugGoToShore_Implementation()
+{
+#if !UE_BUILD_SHIPPING
+	const ALIGameMode* GameMode = GetWorld()->GetAuthGameMode<ALIGameMode>();
+	const ALIIslandGenerator* Island = GameMode ? GameMode->GetIsland() : nullptr;
+	APawn* MyPawn = GetPawn();
+	if (!Island || !MyPawn)
+	{
+		return;
+	}
+	// Walk outward from the start beach to the last dry point before the water.
+	const FVector Center = Island->GetActorLocation();
+	const FVector Spawn = Island->FindPlayerSpawnTransform().GetLocation();
+	const FVector Outward = FVector(Spawn.X - Center.X, Spawn.Y - Center.Y, 0.f).GetSafeNormal();
+	FVector Dry = Spawn;
+	for (int32 Step = 1; Step < 200; ++Step)
+	{
+		const FVector Candidate = Spawn + Outward * (Step * 50.f);
+		const FVector Local = Island->GetActorTransform().InverseTransformPosition(Candidate);
+		const float Height = Island->GetHeightAt(FVector2D(Local.X, Local.Y));
+		if (Height < 20.f)
+		{
+			break;
+		}
+		Dry = FVector(Candidate.X, Candidate.Y, Center.Z + Height);
+	}
+	const float Yaw = Outward.Rotation().Yaw;
+	MyPawn->TeleportTo(Dry + FVector(0.f, 0.f, 110.f), FRotator(0.f, Yaw, 0.f));
+	SetControlRotation(FRotator(-10.f, Yaw, 0.f));
+#endif
+}

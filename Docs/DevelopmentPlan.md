@@ -51,6 +51,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 13 | Build mode (B) with a green placement preview, dismantle pieces with E (item back), wooden doorway | **Compiles; preview and doorway checked (screenshot); awaiting PIE test.** See [Systems/Building.md](Systems/Building.md) |
 | 14 | Crabs on the beaches (wander, flee, catch with E) -> Raw Crab Meat; cooking at a lit campfire -> Cooked Crab Meat; recipes on keys 1-9 and 0 | **Compiles; headless test passed (14 crabs spawned, cooking only at a fire); awaiting PIE test.** See [Systems/FoodWater.md](Systems/FoodWater.md) |
 | 15 | Scrap Axe and Scrap Pickaxe (metal tools), Empty Flask filled at springs into a Water Flask (drink returns the flask), crafting pages (Q) | **Compiles; headless test passed (metal tools, fill only at a spring, drink returns flask); awaiting PIE test.** See [Systems/Crafting.md](Systems/Crafting.md) |
+| 16 | Goal: Raft Kit (60 Wood, 40 Fiber, 6 Scrap) placed in shallow water at the shore; E sails away, everyone sees the ending, then a new island starts | **Compiles; headless test passed (craft, place at shore, ending, new island); awaiting PIE test.** See [Systems/Raft.md](Systems/Raft.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -259,3 +260,12 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] Empty Flask = 2 Scrap + 2 Fiber. `Water Flask (at a spring)` is grey away from a spring and works next to one.
 - [ ] F with low water drinks the flask (+30 water) and the Empty Flask comes back.
 - [ ] Debug: `LIGoToSpring`, `LIConsume`, `LICraft <RecipeId>`.
+
+## 4q. Milestone 16 test checklist (raft ending)
+
+- [ ] Crafting page 2: `Raft Kit` (60 Wood, 40 Fiber, 6 Scrap Metal).
+- [ ] On the beach facing the sea, G puts the raft in the shallow water in front (0.3-2.5 m deep). On dry land or in deep water nothing happens. `LIGoToShore` puts you in a good spot.
+- [ ] Wade to the raft: `[E] Sail away from the island`. The screen darkens: `YOU ESCAPED THE ISLAND`, `Rescued on day N`.
+- [ ] About 15 s later a new random island starts, and the old save is gone (F9: "No save found").
+- [ ] F5 before sailing, F9: the raft is still at the shore.
+- [ ] Co-op: either player can sail; both see the ending and both move to the new island.

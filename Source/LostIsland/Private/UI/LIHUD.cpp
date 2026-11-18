@@ -30,6 +30,22 @@ void ALIHUD::DrawHUD()
 	const float CenterX = Canvas->ClipX * 0.5f;
 	const float CenterY = Canvas->ClipY * 0.5f;
 
+	// Ending: the raft sailed. Replaces the whole HUD until the new island starts.
+	if (const ALIGameState* EndState = GetWorld() ? GetWorld()->GetGameState<ALIGameState>() : nullptr; EndState && EndState->HasEscaped())
+	{
+		DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.6f), 0.f, 0.f, Canvas->ClipX, Canvas->ClipY);
+		UFont* BigFont = GEngine ? GEngine->GetLargeFont() : nullptr;
+		UFont* SubFont = GEngine ? GEngine->GetMediumFont() : nullptr;
+		const FString Title = LOCTEXT("Escaped", "YOU ESCAPED THE ISLAND").ToString();
+		const FString Sub = FText::Format(LOCTEXT("EscapedSub", "Rescued on day {0}. A new island awaits..."), FText::AsNumber(EndState->GetEscapeDay())).ToString();
+		float TW = 0.f, TH = 0.f, SW = 0.f, SH = 0.f;
+		GetTextSize(Title, TW, TH, BigFont, 2.f);
+		GetTextSize(Sub, SW, SH, SubFont, 1.f);
+		DrawText(Title, StaminaColor, CenterX - TW * 0.5f, CenterY - TH, BigFont, 2.f);
+		DrawText(Sub, PromptColor, CenterX - SW * 0.5f, CenterY + 10.f, SubFont, 1.f);
+		return;
+	}
+
 	const ALICharacter* Character = Cast<ALICharacter>(GetOwningPawn());
 	if (!Character)
 	{

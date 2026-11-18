@@ -13,6 +13,7 @@
 #include "World/LICampfire.h"
 #include "World/LISleepingBag.h"
 #include "World/LIBuildingPiece.h"
+#include "World/LIRaft.h"
 #include "World/LICrashSite.h"
 #include "Resources/LIResourceNode.h"
 #include "Core/LIGameState.h"
@@ -186,6 +187,12 @@ bool ULISaveSubsystem::SaveCurrentGame()
 		Structure.ActorClass = It->GetClass();
 		Structure.Transform = It->GetActorTransform();
 		Structure.OwnerKey = It->GetOwnerKey();
+	}
+	for (TActorIterator<ALIRaft> It(World); It; ++It)
+	{
+		FLIStructureSaveData& Structure = Save->Structures.AddDefaulted_GetRef();
+		Structure.ActorClass = It->GetClass();
+		Structure.Transform = It->GetActorTransform();
 	}
 	for (TActorIterator<ALIBuildingPiece> It(World); It; ++It)
 	{

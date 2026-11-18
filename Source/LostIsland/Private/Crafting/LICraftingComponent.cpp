@@ -9,6 +9,7 @@
 #include "Save/LISaveSubsystem.h"
 #include "World/LISleepingBag.h"
 #include "World/LIBuildingPiece.h"
+#include "World/LIRaft.h"
 #include "World/LICampfire.h"
 #include "World/LIWaterSource.h"
 #include "GameFramework/Pawn.h"
@@ -178,6 +179,27 @@ bool ULICraftingComponent::PlaceItem(FName ItemId)
 	if (GetOwnerRole() != ROLE_Authority || !Owner || !World || !Def || !Def->PlaceableActorClass || !Inventory || !Inventory->HasItem(ItemId, 1))
 	{
 		return false;
+	}
+
+	// The raft goes in shallow water at the shore.
+	if (Def->PlaceableActorClass->IsChildOf(ALIRaft::StaticClass()))
+	{
+		const APawn* OwnerPawn = Cast<APawn>(Owner);
+		const FVector LookForward = OwnerPawn ? OwnerPawn->GetControlRotation().Vector() : Owner->GetActorForwardVector();
+		FTransform RaftTransform;
+		if (!ALIRaft::ComputePlacement(World, Owner->GetActorLocation(), LookForward, Owner, RaftTransform))
+		{
+			return false;
+		}
+		FActorSpawnParameters RaftParams;
+		RaftParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		if (!World->SpawnActor<AActor>(Def->PlaceableActorClass, RaftTransform, RaftParams))
+		{
+			return false;
+		}
+		Inventory->RemoveItem(ItemId, 1);
+		UE_LOG(LogLostIsland, Log, TEXT("%s launched the raft at %s."), *GetNameSafe(Owner), *RaftTransform.GetLocation().ToCompactString());
+		return true;
 	}
 
 	// Building pieces snap to their own grid instead of the free ground placement below.

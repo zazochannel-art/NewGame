@@ -93,6 +93,20 @@ public:
 	UFUNCTION(Exec)
 	void LIConsume();
 
+	/** Trigger the raft ending (debug). */
+	UFUNCTION(Exec)
+	void LIEscape();
+
+	/** Stand on the start beach facing the sea (raft placement test). */
+	UFUNCTION(Exec)
+	void LIGoToShore();
+
+	UFUNCTION(Server, Reliable)
+	void ServerDebugGoToShore();
+
+	UFUNCTION(Server, Reliable)
+	void ServerDebugEscape();
+
 	UFUNCTION(Exec)
 	void LISetTime(float Hours);
 

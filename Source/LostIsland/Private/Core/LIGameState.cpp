@@ -3,6 +3,8 @@
 #include "Core/LIGameState.h"
 
 #include "World/LIIslandGenerator.h"
+#include "LostIsland.h"
+#include "Save/LISaveSubsystem.h"
 #include "EngineUtils.h"
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
@@ -18,6 +20,8 @@ void ALIGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	DOREPLIFETIME(ALIGameState, RealSecondsPerGameHour);
 	DOREPLIFETIME(ALIGameState, AnchorServerSeconds);
 	DOREPLIFETIME(ALIGameState, AnchorTotalHours);
+	DOREPLIFETIME(ALIGameState, bEscaped);
+	DOREPLIFETIME(ALIGameState, EscapeDay);
 }
 
 void ALIGameState::BeginPlay()
@@ -89,4 +93,25 @@ void ALIGameState::UpdateLighting()
 		// Sunrise = end of night, sunset = start of night: darkness and cold always match.
 		Island->ApplyTimeOfDay(GetTimeOfDayHours(), NightEndHours, NightStartHours);
 	}
+}
+
+void ALIGameState::SetEscaped()
+{
+	if (!HasAuthority() || bEscaped)
+	{
+		return;
+	}
+	bEscaped = true;
+	EscapeDay = GetDayNumber();
+	UE_LOG(LogLostIsland, Log, TEXT("Escaped the island on day %d."), EscapeDay);
+
+	// The run is over: after the ending, start a fresh island (this also deletes the save).
+	FTimerHandle Handle;
+	GetWorldTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, [this]()
+	{
+		if (ULISaveSubsystem* SaveSubsystem = ULISaveSubsystem::Get(this))
+		{
+			SaveSubsystem->NewGameAndRestart();
+		}
+	}), EscapeEndDelay, false);
 }
