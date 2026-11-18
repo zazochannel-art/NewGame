@@ -245,7 +245,7 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] Orange flat crabs walk around the beaches, pausing now and then, and never go into the sea.
 - [ ] Walking toward a crab makes it run away (200 cm/s); sprinting catches it. `[E] Catch Crab (2/2)`: two hits give 1-2 Raw Crab Meat each, then the crab disappears and comes back home after 10 min.
 - [ ] Raw meat can be eaten with F (+3 food).
-- [ ] Tab: `[5] Cooked Crab Meat  (at a fire)` is grey away from a fire, even with raw meat. Next to a lit campfire it turns white; crafting gives Cooked Crab Meat (+22 food, -2 water).
-- [ ] Crafting list shows 10 recipes; the tenth is on key 0.
+- [ ] Tab: `[6] Cooked Crab Meat  (at a fire)` is grey away from a fire, even with raw meat. Next to a lit campfire it turns white; crafting gives Cooked Crab Meat (+22 food, -2 water).
+- [ ] Crafting list shows 10 recipes: building pieces moved to keys 7, 8, 9 and the doorway to 0.
 - [ ] `LICraft CookedMeat` does the same without opening the inventory.
 - [ ] Co-op: crabs move the same for both players.
