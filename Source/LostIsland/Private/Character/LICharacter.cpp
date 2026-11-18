@@ -10,6 +10,7 @@
 #include "Core/LIGameMode.h"
 #include "World/LIIslandGenerator.h"
 #include "World/LIBuildingPiece.h"
+#include "World/LIStorageChest.h"
 #include "Crafting/LICraftingComponent.h"
 #include "Items/LIItemRegistrySubsystem.h"
 #include "Items/LIItemDefinition.h"
@@ -230,6 +231,10 @@ void ALICharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	{
 		EIC->BindAction(CraftPageAction, ETriggerEvent::Started, this, &ALICharacter::NextCraftPage);
 	}
+	if (TakeAllAction)
+	{
+		EIC->BindAction(TakeAllAction, ETriggerEvent::Started, this, &ALICharacter::TakeAllFromFocused);
+	}
 }
 
 void ALICharacter::EnsureDefaultInput()
@@ -264,6 +269,7 @@ void ALICharacter::EnsureDefaultInput()
 	if (!QuickLoadAction) { QuickLoadAction = MakeAction(TEXT("IA_QuickLoad_Runtime"), EInputActionValueType::Boolean); }
 	if (!BuildModeAction) { BuildModeAction = MakeAction(TEXT("IA_BuildMode_Runtime"), EInputActionValueType::Boolean); }
 	if (!CraftPageAction) { CraftPageAction = MakeAction(TEXT("IA_CraftPage_Runtime"), EInputActionValueType::Boolean); }
+	if (!TakeAllAction)   { TakeAllAction   = MakeAction(TEXT("IA_TakeAll_Runtime"),   EInputActionValueType::Boolean); }
 
 	if (DefaultMappingContext)
 	{
@@ -341,6 +347,8 @@ void ALICharacter::EnsureDefaultInput()
 	IMC->MapKey(QuickLoadAction, EKeys::F9);
 	IMC->MapKey(BuildModeAction, EKeys::B);
 	IMC->MapKey(CraftPageAction, EKeys::Q);
+	IMC->MapKey(TakeAllAction, EKeys::R);
+	IMC->MapKey(TakeAllAction, EKeys::Gamepad_FaceButton_Top);
 	IMC->MapKey(BuildModeAction, EKeys::Gamepad_DPad_Left);
 
 	DefaultMappingContext = IMC;
@@ -763,4 +771,29 @@ void ALICharacter::NextCraftPage()
 	}
 	const int32 NumPages = FMath::Max(1, FMath::DivideAndRoundUp(Registry->GetRecipes().Num(), CraftKeysPerPage));
 	CraftPage = (CraftPage + 1) % NumPages;
+}
+
+// ---------------------------------------------------------------------------
+// Storage chest: R takes everything from the chest in focus
+// ---------------------------------------------------------------------------
+
+void ALICharacter::TakeAllFromFocused()
+{
+	if (IsDead() || !InteractionComponent)
+	{
+		return;
+	}
+	if (ALIStorageChest* Chest = Cast<ALIStorageChest>(InteractionComponent->GetFocusedActor()))
+	{
+		ServerTakeAllFromChest(Chest);
+	}
+}
+
+void ALICharacter::ServerTakeAllFromChest_Implementation(ALIStorageChest* Chest)
+{
+	// Same reach rule as interaction, with some slack for latency.
+	if (Chest && !IsDead() && FVector::DistSquared(Chest->GetActorLocation(), GetActorLocation()) < FMath::Square(450.f))
+	{
+		Chest->TakeAllInto(InventoryComponent);
+	}
 }

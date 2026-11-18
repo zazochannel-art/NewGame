@@ -8,6 +8,7 @@
 #include "World/LISleepingBag.h"
 #include "World/LIBuildingPiece.h"
 #include "World/LIRaft.h"
+#include "World/LIStorageChest.h"
 #include "LostIsland.h"
 #include "Algo/Sort.h"
 #include "Engine/AssetManager.h"
@@ -63,6 +64,7 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 		{ LIItems::MetalAxe, LOCTEXT("MetalAxe", "Scrap Axe"), LOCTEXT("MetalAxeDesc", "A sharpened aluminium blade on a haft. Fells trees fast."), 1, ELIItemCategory::Tool, 0.f, 0.f },
 		{ LIItems::MetalPickaxe, LOCTEXT("MetalPickaxe", "Scrap Pickaxe"), LOCTEXT("MetalPickaxeDesc", "A bent metal spike on a haft. Breaks rock fast."), 1, ELIItemCategory::Tool, 0.f, 0.f },
 		{ LIItems::RaftKit, LOCTEXT("RaftKit", "Raft Kit"), LOCTEXT("RaftKitDesc", "Lashed logs, a mast and a fibre sail. Place it (G) in shallow water at the shore and sail away."), 1, ELIItemCategory::Misc, 0.f, 0.f },
+		{ LIItems::StorageChest, LOCTEXT("StorageChest", "Storage Chest"), LOCTEXT("StorageChestDesc", "A plank box with 30 stacks of room. E stores your materials and food, R takes everything back."), 1, ELIItemCategory::Misc, 0.f, 0.f },
 		{ LIItems::FiberBandage, LOCTEXT("FiberBandage", "Fiber Bandage"), LOCTEXT("FiberBandageDesc", "Crude plant-fibre wrap. Stops some bleeding."), 10, ELIItemCategory::Misc, 0.f, 0.f },
 		{ LIItems::Campfire, LOCTEXT("Campfire", "Campfire"), LOCTEXT("CampfireDesc", "Stones and dry wood. Place it (G) to keep warm through the night."), 5, ELIItemCategory::Misc, 0.f, 0.f },
 		{ LIItems::SleepingBag, LOCTEXT("SleepingBag", "Sleeping Bag"), LOCTEXT("SleepingBagDesc", "A fibre bed roll. Place it (G): you respawn here, and can sleep through the night."), 1, ELIItemCategory::Misc, 0.f, 0.f },
@@ -105,6 +107,7 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 	if (ULIItemDefinition* Item = FindItem(LIItems::WoodenWall))  { Item->PlaceableActorClass = ALIWoodenWall::StaticClass(); }
 	if (ULIItemDefinition* Item = FindItem(LIItems::WoodenDoorway)) { Item->PlaceableActorClass = ALIWoodenDoorway::StaticClass(); }
 	if (ULIItemDefinition* Item = FindItem(LIItems::RaftKit)) { Item->PlaceableActorClass = ALIRaft::StaticClass(); }
+	if (ULIItemDefinition* Item = FindItem(LIItems::StorageChest)) { Item->PlaceableActorClass = ALIStorageChest::StaticClass(); }
 	if (ULIItemDefinition* Item = FindItem(LIItems::WoodenRoof))  { Item->PlaceableActorClass = ALIWoodenRoof::StaticClass(); }
 	if (ULIItemDefinition* Axe = FindItem(LIItems::StoneAxe))
 	{
@@ -165,6 +168,7 @@ void ULIItemRegistrySubsystem::RegisterBuiltInRecipes()
 		{ LIItems::WoodenWall,   { { LIItems::Wood, 6 }, { LIItems::Fiber, 2 } },                        { LIItems::WoodenWall, 1 },   41 },
 		{ LIItems::WoodenDoorway, { { LIItems::Wood, 5 }, { LIItems::Fiber, 2 } },                       { LIItems::WoodenDoorway, 1 }, 43 },
 		{ LIItems::RaftKit,      { { LIItems::Wood, 60 }, { LIItems::Fiber, 40 }, { LIItems::ScrapMetal, 6 } }, { LIItems::RaftKit, 1 }, 90 },
+		{ LIItems::StorageChest, { { LIItems::Wood, 20 }, { LIItems::Fiber, 4 } },                       { LIItems::StorageChest, 1 }, 44 },
 		{ LIItems::WoodenRoof,   { { LIItems::Wood, 6 }, { LIItems::Fiber, 4 } },                        { LIItems::WoodenRoof, 1 },   42 },
 	};
 

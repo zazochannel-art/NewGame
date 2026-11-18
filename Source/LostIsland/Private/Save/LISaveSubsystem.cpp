@@ -14,6 +14,7 @@
 #include "World/LISleepingBag.h"
 #include "World/LIBuildingPiece.h"
 #include "World/LIRaft.h"
+#include "World/LIStorageChest.h"
 #include "World/LICrashSite.h"
 #include "Resources/LIResourceNode.h"
 #include "Core/LIGameState.h"
@@ -188,6 +189,13 @@ bool ULISaveSubsystem::SaveCurrentGame()
 		Structure.Transform = It->GetActorTransform();
 		Structure.OwnerKey = It->GetOwnerKey();
 	}
+	for (TActorIterator<ALIStorageChest> It(World); It; ++It)
+	{
+		FLIStructureSaveData& Structure = Save->Structures.AddDefaulted_GetRef();
+		Structure.ActorClass = It->GetClass();
+		Structure.Transform = It->GetActorTransform();
+		Structure.Slots = It->GetSlots();
+	}
 	for (TActorIterator<ALIRaft> It(World); It; ++It)
 	{
 		FLIStructureSaveData& Structure = Save->Structures.AddDefaulted_GetRef();
@@ -355,6 +363,10 @@ void ULISaveSubsystem::ApplyWorldState()
 		if (Actor)
 		{
 			Actor->FinishSpawning(Structure.Transform);
+			if (ALIStorageChest* Chest = Cast<ALIStorageChest>(Actor))
+			{
+				Chest->SetSlots(Structure.Slots);
+			}
 			if (ALISleepingBag* Bag = Cast<ALISleepingBag>(Actor))
 			{
 				Bag->ClaimFor(Structure.OwnerKey);

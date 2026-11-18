@@ -134,6 +134,10 @@ protected:
 	void QuickLoad();
 	void ToggleBuildMode();
 	void NextCraftPage();
+	void TakeAllFromFocused();
+
+	UFUNCTION(Server, Reliable)
+	void ServerTakeAllFromChest(class ALIStorageChest* Chest);
 
 	// ---- Components ----
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
@@ -208,6 +212,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
 	TObjectPtr<UInputAction> CraftPageAction;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
+	TObjectPtr<UInputAction> TakeAllAction;
 
 	// ---- Movement tuning ----
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Movement", meta = (ClampMin = "0.0", Units = "cm/s"))

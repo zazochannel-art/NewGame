@@ -19,6 +19,7 @@ namespace LIItems
 	inline const FName MetalAxe(TEXT("MetalAxe"));
 	inline const FName MetalPickaxe(TEXT("MetalPickaxe"));
 	inline const FName RaftKit(TEXT("RaftKit"));
+	inline const FName StorageChest(TEXT("StorageChest"));
 	inline const FName StoneAxe(TEXT("StoneAxe"));
 	inline const FName StonePickaxe(TEXT("StonePickaxe"));
 	inline const FName FiberBandage(TEXT("FiberBandage"));

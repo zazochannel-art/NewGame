@@ -52,6 +52,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 14 | Crabs on the beaches (wander, flee, catch with E) -> Raw Crab Meat; cooking at a lit campfire -> Cooked Crab Meat; recipes on keys 1-9 and 0 | **Compiles; headless test passed (14 crabs spawned, cooking only at a fire); awaiting PIE test.** See [Systems/FoodWater.md](Systems/FoodWater.md) |
 | 15 | Scrap Axe and Scrap Pickaxe (metal tools), Empty Flask filled at springs into a Water Flask (drink returns the flask), crafting pages (Q) | **Compiles; headless test passed (metal tools, fill only at a spring, drink returns flask); awaiting PIE test.** See [Systems/Crafting.md](Systems/Crafting.md) |
 | 16 | Goal: Raft Kit (60 Wood, 40 Fiber, 6 Scrap) placed in shallow water at the shore; E sails away, everyone sees the ending, then a new island starts | **Compiles; headless test passed (craft, place at shore, ending, new island); awaiting PIE test.** See [Systems/Raft.md](Systems/Raft.md) |
+| 17 | Storage chest (20 Wood + 4 Fiber, 30 stacks): E stores resources and food, R takes everything; saved with contents | **Compiles; headless test passed (store 85 items, take back, tools stay); awaiting PIE test.** See [Systems/Inventory.md](Systems/Inventory.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -269,3 +270,13 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] About 15 s later a new random island starts, and the old save is gone (F9: "No save found").
 - [ ] F5 before sailing, F9: the raft is still at the shore.
 - [ ] Co-op: either player can sail; both see the ending and both move to the new island.
+
+## 4r. Milestone 17 test checklist (storage chest)
+
+- [ ] Crafting page 2: Storage Chest (20 Wood + 4 Fiber). G places it like a campfire.
+- [ ] Looking at it: `[E] Store materials (0/30)   [R] Take all`.
+- [ ] E moves every resource and food stack into the chest; tools, bandages, flasks and placeables stay in the inventory. The counter goes up.
+- [ ] R takes everything back that fits; leftovers stay in the chest.
+- [ ] F5, F9: the chest is in place with the same contents.
+- [ ] Co-op: both players see the same counter; one stores, the other takes.
+- [ ] Debug: `LIChest store`, `LIChest take` (nearest chest).

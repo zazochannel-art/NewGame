@@ -59,6 +59,10 @@ struct LOSTISLAND_API FLIStructureSaveData
 	/** Sleeping bag owner (save subsystem player key). Empty for other structures. */
 	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
 	FString OwnerKey;
+
+	/** Storage chest contents. Empty for other structures. */
+	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
+	TArray<FLIInventorySlot> Slots;
 };
 
 /** A resource node that is not in its fresh state (v3). Nodes at full hits are not stored. */
