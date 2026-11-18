@@ -4,6 +4,7 @@
 
 #include "Items/LIItemDefinition.h"
 #include "Crafting/LIRecipeDefinition.h"
+#include "World/LICampfire.h"
 #include "LostIsland.h"
 #include "Algo/Sort.h"
 #include "Engine/AssetManager.h"
@@ -53,6 +54,7 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 		{ LIItems::Fiber,   LOCTEXT("Fiber",   "Fiber"),   LOCTEXT("FiberDesc",   "Plant fibres for rope and bindings."),        80, ELIItemCategory::Resource, 0.f,  0.f },
 		{ LIItems::Berries, LOCTEXT("Berries", "Berries"), LOCTEXT("BerriesDesc", "Tart wild berries. A little food, a little water."), 20, ELIItemCategory::Food, 8.f, 2.f },
 		{ LIItems::FiberBandage, LOCTEXT("FiberBandage", "Fiber Bandage"), LOCTEXT("FiberBandageDesc", "Crude plant-fibre wrap. Stops some bleeding."), 10, ELIItemCategory::Misc, 0.f, 0.f },
+		{ LIItems::Campfire, LOCTEXT("Campfire", "Campfire"), LOCTEXT("CampfireDesc", "Stones and dry wood. Place it (G) to keep warm through the night."), 5, ELIItemCategory::Misc, 0.f, 0.f },
 		{ LIItems::ScrapMetal, LOCTEXT("ScrapMetal", "Scrap Metal"), LOCTEXT("ScrapMetalDesc", "Twisted aluminium from the wreck. Better tools will need it."), 30, ELIItemCategory::Resource, 0.f, 0.f },
 		{ LIItems::StoneAxe, LOCTEXT("StoneAxe", "Stone Axe"), LOCTEXT("StoneAxeDesc", "Sharp stone lashed to a branch. Fells trees faster."), 1, ELIItemCategory::Tool, 0.f, 0.f },
 		{ LIItems::StonePickaxe, LOCTEXT("StonePickaxe", "Stone Pickaxe"), LOCTEXT("StonePickaxeDesc", "Heavy pointed stone on a haft. Breaks rock faster."), 1, ELIItemCategory::Tool, 0.f, 0.f },
@@ -75,6 +77,10 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 	if (ULIItemDefinition* Bandage = FindItem(LIItems::FiberBandage))
 	{
 		Bandage->HealthValue = 15.f;
+	}
+	if (ULIItemDefinition* CampfireItem = FindItem(LIItems::Campfire))
+	{
+		CampfireItem->PlaceableActorClass = ALICampfire::StaticClass();
 	}
 	if (ULIItemDefinition* Axe = FindItem(LIItems::StoneAxe))
 	{
@@ -103,6 +109,7 @@ void ULIItemRegistrySubsystem::RegisterBuiltInRecipes()
 		{ LIItems::StoneAxe,     { { LIItems::Wood, 3 }, { LIItems::Stone, 2 }, { LIItems::Fiber, 4 } }, { LIItems::StoneAxe, 1 },     10 },
 		{ LIItems::StonePickaxe, { { LIItems::Wood, 3 }, { LIItems::Stone, 4 }, { LIItems::Fiber, 4 } }, { LIItems::StonePickaxe, 1 }, 20 },
 		{ LIItems::FiberBandage, { { LIItems::Fiber, 6 } },                                              { LIItems::FiberBandage, 1 }, 30 },
+		{ LIItems::Campfire,     { { LIItems::Wood, 5 }, { LIItems::Stone, 6 } },                        { LIItems::Campfire, 1 },     5 },
 	};
 
 	for (const FBuiltInRecipe& BuiltIn : BuiltIns)

@@ -128,6 +128,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Island")
 	FTransform GetCrashSiteTransform() const;
 
+	/**
+	 * Local (all machines): place the sun or moon for this hour (0..24). Called by ALIGameState.
+	 * No effect when the level provides its own lighting.
+	 */
+	void ApplyTimeOfDay(float Hours);
+
 	/** Half the width of the generated grid (cm). */
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Island")
 	float GetHalfExtent() const { return GridResolution * CellSize * 0.5f; }
@@ -268,6 +274,26 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering")
 	bool bCreateEnvironmentIfMissing = true;
 
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight", meta = (Units = "lux"))
+	float SunIntensity = 10.f;
+
+	/** Moonlight is a dim, cool directional light so nights are dark but playable. */
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight", meta = (Units = "lux"))
+	float MoonIntensity = 0.35f;
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight")
+	FLinearColor NoonColor = FLinearColor(1.f, 0.96f, 0.88f);
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight")
+	FLinearColor SunsetColor = FLinearColor(1.f, 0.55f, 0.3f);
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight")
+	FLinearColor MoonColor = FLinearColor(0.55f, 0.65f, 1.f);
+
+	/** Compass direction the sun travels along (degrees). */
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight")
+	float SunYaw = 35.f;
+
 private:
 	UFUNCTION()
 	void OnRep_Seed();
@@ -299,6 +325,7 @@ private:
 	TArray<FLIResourceSpawnPoint> SpawnPoints;
 
 	bool bHasCrashSite = false;
+	bool bOwnEnvironmentActive = false;
 	FTransform CrashSiteLocalTransform;
 
 	UPROPERTY(Transient)

@@ -11,6 +11,7 @@
 #include "Crafting/LICraftingComponent.h"
 #include "Crafting/LIRecipeDefinition.h"
 #include "Core/LIPlayerController.h"
+#include "Core/LIGameState.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
@@ -37,6 +38,28 @@ void ALIHUD::DrawHUD()
 
 	DrawSurvivalBars(Character);
 	DrawInventoryNotices(Character);
+
+	// Clock, top-left: "Day 2  21:30  Night"
+	if (const ALIGameState* GameState = GetWorld() ? GetWorld()->GetGameState<ALIGameState>() : nullptr)
+	{
+		const float Hours = GameState->GetTimeOfDayHours();
+		const int32 H = FMath::FloorToInt(Hours);
+		const int32 Min = FMath::FloorToInt((Hours - H) * 60.f);
+		const FString Clock = FString::Printf(TEXT("Day %d   %02d:%02d   %s"), GameState->GetDayNumber(), H, Min,
+			GameState->IsNight() ? TEXT("Night") : TEXT("Day"));
+		DrawText(Clock, PromptColor, 24.f, 20.f, GEngine ? GEngine->GetMediumFont() : nullptr, 1.f);
+	}
+
+	// Cold warning above the survival bars.
+	if (const ULISurvivalComponent* Survival = Character->GetSurvivalComponent())
+	{
+		if (Survival->IsCold() && !Survival->IsDead())
+		{
+			const float Spacing = BarSize.Y + 10.f;
+			DrawText(LOCTEXT("Cold", "COLD - find or build a fire").ToString(), ThirstColor,
+				24.f, Canvas->ClipY - 24.f - Spacing * 4.f - 24.f, GEngine ? GEngine->GetSmallFont() : nullptr, 1.f);
+		}
+	}
 
 	const ALIPlayerController* PC = Cast<ALIPlayerController>(GetOwningPlayerController());
 	if (PC)
@@ -68,6 +91,21 @@ void ALIHUD::DrawHUD()
 
 	DrawRect(CrosshairColor, CenterX - 2.f, CenterY - 2.f, 4.f, 4.f);
 	DrawInteractionPrompt(Character, CenterX, CenterY);
+
+	// "[G] Place Campfire" when carrying a placeable item.
+	if (const ULICraftingComponent* Crafting = Character->GetCraftingComponent())
+	{
+		const FName Placeable = Crafting->FindPlaceableItem();
+		if (!Placeable.IsNone())
+		{
+			const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
+			const FString Hint = FString::Printf(TEXT("[G] Place %s"), *(Registry ? Registry->GetDisplayName(Placeable).ToString() : Placeable.ToString()));
+			UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
+			float W = 0.f, H = 0.f;
+			GetTextSize(Hint, W, H, Font, 1.f);
+			DrawText(Hint, PromptColor, CenterX - W * 0.5f, Canvas->ClipY - 68.f, Font, 1.f);
+		}
+	}
 
 	// "[F] Eat Berries (x4)" when something in the inventory would help.
 	if (const ULIInventoryComponent* Inventory = Character->GetInventoryComponent())

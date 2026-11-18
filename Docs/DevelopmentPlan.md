@@ -30,6 +30,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 7 | Food and water: consumables, berry bushes, fresh-water springs, eat key | **Code written; awaiting first compile.** See [Systems/FoodWater.md](Systems/FoodWater.md) |
 | 8 | Crafting and tools: recipes, stone axe and pickaxe, bandage, durability | **Code written; awaiting first compile.** See [Systems/Crafting.md](Systems/Crafting.md) |
 | 8b | Plane wreck: seed-placed landmark, searchable loot, Scrap Metal | **Code written; awaiting first compile.** See [Systems/CrashSite.md](Systems/CrashSite.md) |
+| 9 | Day/night cycle, cold at night, placeable campfire with fuel, save v2 | **Code written; awaiting first compile.** See [Systems/DayNight.md](Systems/DayNight.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -138,6 +139,18 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] `LIRegenerateIsland 42` twice gives the wreck in the same place. A different seed puts it elsewhere.
 - [ ] It's at least ~60 m from the start point (see the preview: `Tools/IslandPreview`).
 - [ ] Co-op: both players see the wreck in the same place, and the search counter is shared.
+
+## 4i. Milestone 9 test checklist
+
+- [ ] Top-left shows `Day 1   08:00   Day`, and the clock advances 1 hour per minute. The sun moves across the sky.
+- [ ] `LISetTime 21`: dark, bluish moonlight, `Night`. After at most 0.25 s, `COLD - find or build a fire` appears and the food bar drops faster.
+- [ ] `LIGive Wood 10`, `LIGive Stone 10`, Tab, 1: Campfire in the inventory, and `[G] Place Campfire` appears.
+- [ ] G places the fire in front of you, lit (flame + orange light). Within 6 m the `COLD` message disappears. Walk away and it comes back.
+- [ ] E with wood: `Add Wood (burns m:ss)` and the time goes up. With no fuel the fire goes out, and wood relights it.
+- [ ] G in the water or on a slope does nothing, and the item stays in the inventory.
+- [ ] F5 at night next to the fire, then F9: same hour and day, the fire is in place with the same fuel.
+- [ ] An older save (v1) still loads (day 1, 08:00).
+- [ ] Co-op: the client sees the same time and light, the cold works on the client, and the client's fire warms both players.
 
 ## 5. Known limitations and follow-ups
 

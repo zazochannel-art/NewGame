@@ -421,6 +421,7 @@ void ALIIslandGenerator::SetupEnvironment()
 		}
 	}
 
+	bOwnEnvironmentActive = bUseOwnEnvironment;
 	Sun->SetVisibility(bUseOwnEnvironment);
 	SkyAtmosphere->SetVisibility(bUseOwnEnvironment);
 	SkyLight->SetVisibility(bUseOwnEnvironment);
@@ -430,6 +431,44 @@ void ALIIslandGenerator::SetupEnvironment()
 // ---------------------------------------------------------------------------
 // Resources (server)
 // ---------------------------------------------------------------------------
+
+void ALIIslandGenerator::ApplyTimeOfDay(float Hours)
+{
+	if (!bOwnEnvironmentActive || !Sun)
+	{
+		return;
+	}
+
+	// Sun elevation: 0 deg at 06:00, 90 at noon, 180 at 18:00. Outside that, the moon takes over (opposite side).
+	const float SunElevation = (Hours - 6.f) / 12.f * 180.f;
+	const bool bSunUp = SunElevation > -4.f && SunElevation < 184.f; // a few degrees of twilight
+
+	float Elevation;
+	float Intensity;
+	FLinearColor Color;
+	if (bSunUp)
+	{
+		Elevation = FMath::Clamp(SunElevation, 2.f, 178.f);
+		const float Height01 = FMath::Sin(FMath::DegreesToRadians(Elevation)); // 0 at horizon, 1 at noon
+		Intensity = SunIntensity * FMath::Clamp(Height01 * 1.5f, 0.05f, 1.f);
+		Color = FLinearColor::LerpUsingHSV(SunsetColor, NoonColor, FMath::Clamp(Height01 * 2.f, 0.f, 1.f));
+	}
+	else
+	{
+		const float MoonElevation = FMath::Fmod(SunElevation + 360.f, 360.f) - 180.f;
+		Elevation = FMath::Clamp(MoonElevation, 10.f, 170.f);
+		Intensity = MoonIntensity;
+		Color = MoonColor;
+	}
+
+	// A directional light shines along its forward vector: pitch down by the elevation.
+	// Past 90 degrees the light comes from the opposite side of the sky.
+	const float Yaw = Elevation <= 90.f ? SunYaw : SunYaw + 180.f;
+	const float Pitch = Elevation <= 90.f ? -Elevation : -(180.f - Elevation);
+	Sun->SetWorldRotation(FRotator(Pitch, Yaw, 0.f));
+	Sun->SetIntensity(Intensity);
+	Sun->SetLightColor(Color);
+}
 
 FTransform ALIIslandGenerator::GetCrashSiteTransform() const
 {

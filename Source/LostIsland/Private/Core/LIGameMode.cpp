@@ -4,6 +4,9 @@
 
 #include "Character/LICharacter.h"
 #include "Core/LIPlayerController.h"
+#include "Core/LIGameState.h"
+#include "World/LICampfire.h"
+#include "EngineUtils.h"
 #include "Interaction/LIInteractableActor.h"
 #include "Resources/LIResourceNode.h"
 #include "World/LIIslandGenerator.h"
@@ -26,6 +29,7 @@ ALIGameMode::ALIGameMode()
 	DefaultPawnClass = ALICharacter::StaticClass();
 	PlayerControllerClass = ALIPlayerController::StaticClass();
 	HUDClass = ALIHUD::StaticClass();
+	GameStateClass = ALIGameState::StaticClass();
 	PrototypeTestActorClass = ALIInteractableActor::StaticClass();
 	PrototypeResourceClasses = { ALITreeNode::StaticClass(), ALIRockNode::StaticClass(), ALIFiberBushNode::StaticClass() };
 	IslandGeneratorClass = ALIIslandGenerator::StaticClass();
@@ -54,6 +58,12 @@ void ALIGameMode::StartPlay()
 	EnsureIslandGenerated();
 
 	Super::StartPlay();
+
+	// Clock and placed structures from a continued save (after GameState BeginPlay set its defaults).
+	if (ULISaveSubsystem* SaveSubsystem = ULISaveSubsystem::Get(this))
+	{
+		SaveSubsystem->ApplyWorldState();
+	}
 
 	if (bSpawnPrototypeTestActors || !bGenerateIsland)
 	{
@@ -158,6 +168,12 @@ void ALIGameMode::RegenerateIsland(int32 NewSeed)
 		{
 			return;
 		}
+	}
+
+	// Player structures belong to the old terrain.
+	for (TActorIterator<ALICampfire> It(GetWorld()); It; ++It)
+	{
+		It->Destroy();
 	}
 
 	Island->GenerateIsland(NewSeed != 0 ? NewSeed : FMath::RandRange(1, MAX_int32 - 1));

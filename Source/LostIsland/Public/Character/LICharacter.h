@@ -36,6 +36,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FLIOnSprintStateChanged, bool, bIsSp
  *     Tab / Special right   Inventory      F5 / F9               Quick save / load
  *     F / D-pad up          Eat / drink / heal (best consumable)
  *     1..9 (inventory open) Craft recipe N
+ *     G / D-pad down        Place campfire (placeable item)
  *
  * Visuals: assign a Skeletal Mesh + Anim Blueprint (parented to ULIAnimInstance)
  * in a Blueprint subclass. Until then a placeholder capsule-sized cylinder is shown.
@@ -110,6 +111,7 @@ protected:
 	void Interact();
 	void ToggleInventory();
 	void Consume();
+	void Place();
 	void CraftSlot(const struct FInputActionInstance& Instance);
 	void QuickSave();
 	void QuickLoad();
@@ -168,6 +170,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
 	TObjectPtr<UInputAction> ConsumeAction;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
+	TObjectPtr<UInputAction> PlaceAction;
 
 	/** Number keys 1..9 while the inventory is open: craft recipe N. One action per key (index = array position). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")

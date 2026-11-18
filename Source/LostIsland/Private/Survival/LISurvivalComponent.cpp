@@ -3,6 +3,8 @@
 #include "Survival/LISurvivalComponent.h"
 
 #include "LostIsland.h"
+#include "Core/LIGameState.h"
+#include "World/LICampfire.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Net/UnrealNetwork.h"
@@ -26,6 +28,7 @@ void ULISurvivalComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 	DOREPLIFETIME_CONDITION(ULISurvivalComponent, Thirst, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(ULISurvivalComponent, Stamina, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(ULISurvivalComponent, bIsExhausted, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(ULISurvivalComponent, bIsCold, COND_OwnerOnly);
 }
 
 void ULISurvivalComponent::BeginPlay()
@@ -256,9 +259,14 @@ void ULISurvivalComponent::UpdateSurvival()
 	const bool bMoving = Owner && Owner->GetVelocity().SizeSquared2D() > FMath::Square(SprintMinSpeed);
 	const bool bSprintingAndMoving = bIsSprinting && bMoving;
 
+	// --- Temperature ---
+	const ALIGameState* GameState = GetWorld() ? GetWorld()->GetGameState<ALIGameState>() : nullptr;
+	SetCold(GameState && GameState->IsNight() && Owner && !ALICampfire::IsWarmAt(GetWorld(), Owner->GetActorLocation()));
+
 	// --- Needs ---
 	const float NeedsMultiplier = bSprintingAndMoving ? SprintNeedsDecayMultiplier : 1.f;
-	SetStatInternal(ELISurvivalStat::Hunger, Hunger + HungerConfig.ChangePerSecond * NeedsMultiplier * Dt);
+	const float ColdMultiplier = bIsCold ? ColdHungerMultiplier : 1.f;
+	SetStatInternal(ELISurvivalStat::Hunger, Hunger + HungerConfig.ChangePerSecond * NeedsMultiplier * ColdMultiplier * Dt);
 	SetStatInternal(ELISurvivalStat::Thirst, Thirst + ThirstConfig.ChangePerSecond * NeedsMultiplier * Dt);
 
 	const bool bWellFed = GetStatPercent(ELISurvivalStat::Hunger) >= WellFedThreshold
@@ -279,7 +287,7 @@ void ULISurvivalComponent::UpdateSurvival()
 		TimeSinceStaminaDrain += Dt;
 		if (TimeSinceStaminaDrain >= StaminaRegenDelay)
 		{
-			const float RegenMultiplier = bWellFed ? 1.f : HungryStaminaRegenMultiplier;
+			const float RegenMultiplier = (bWellFed ? 1.f : HungryStaminaRegenMultiplier) * (bIsCold ? ColdStaminaRegenMultiplier : 1.f);
 			SetStatInternal(ELISurvivalStat::Stamina, Stamina + StaminaConfig.ChangePerSecond * RegenMultiplier * Dt);
 		}
 	}
@@ -323,6 +331,20 @@ void ULISurvivalComponent::OnRep_Hunger()  { OnStatChanged.Broadcast(ELISurvival
 void ULISurvivalComponent::OnRep_Thirst()  { OnStatChanged.Broadcast(ELISurvivalStat::Thirst, Thirst, ThirstConfig.MaxValue); }
 void ULISurvivalComponent::OnRep_Stamina() { OnStatChanged.Broadcast(ELISurvivalStat::Stamina, Stamina, StaminaConfig.MaxValue); }
 void ULISurvivalComponent::OnRep_IsExhausted() { OnExhaustedChanged.Broadcast(bIsExhausted); }
+
+void ULISurvivalComponent::SetCold(bool bNewCold)
+{
+	if (bIsCold != bNewCold)
+	{
+		bIsCold = bNewCold;
+		OnColdChanged.Broadcast(bIsCold);
+	}
+}
+
+void ULISurvivalComponent::OnRep_IsCold()
+{
+	OnColdChanged.Broadcast(bIsCold);
+}
 
 void ULISurvivalComponent::OnRep_IsDead()
 {

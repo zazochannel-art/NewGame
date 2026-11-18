@@ -195,6 +195,10 @@ void ALICharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	{
 		EIC->BindAction(ConsumeAction, ETriggerEvent::Started, this, &ALICharacter::Consume);
 	}
+	if (PlaceAction)
+	{
+		EIC->BindAction(PlaceAction, ETriggerEvent::Started, this, &ALICharacter::Place);
+	}
 	for (UInputAction* CraftAction : CraftSlotActions)
 	{
 		if (CraftAction)
@@ -229,6 +233,7 @@ void ALICharacter::EnsureDefaultInput()
 	if (!ZoomAction)     { ZoomAction     = MakeAction(TEXT("IA_Zoom_Runtime"),     EInputActionValueType::Axis1D); }
 	if (!InventoryAction) { InventoryAction = MakeAction(TEXT("IA_Inventory_Runtime"), EInputActionValueType::Boolean); }
 	if (!ConsumeAction)   { ConsumeAction   = MakeAction(TEXT("IA_Consume_Runtime"),   EInputActionValueType::Boolean); }
+	if (!PlaceAction)     { PlaceAction     = MakeAction(TEXT("IA_Place_Runtime"),     EInputActionValueType::Boolean); }
 
 	const bool bGenerateCraftActions = CraftSlotActions.Num() == 0;
 	if (bGenerateCraftActions)
@@ -307,6 +312,9 @@ void ALICharacter::EnsureDefaultInput()
 			IMC->MapKey(CraftSlotActions[Index], NumberKeys[Index]);
 		}
 	}
+
+	IMC->MapKey(PlaceAction, EKeys::G);
+	IMC->MapKey(PlaceAction, EKeys::Gamepad_DPad_Down);
 
 	IMC->MapKey(ConsumeAction, EKeys::F);
 	IMC->MapKey(ConsumeAction, EKeys::Gamepad_DPad_Up);
@@ -401,6 +409,14 @@ void ALICharacter::Consume()
 	if (!IsDead())
 	{
 		InventoryComponent->RequestConsumeBest();
+	}
+}
+
+void ALICharacter::Place()
+{
+	if (!IsDead())
+	{
+		CraftingComponent->RequestPlace();
 	}
 }
 

@@ -20,6 +20,7 @@
  *     LIClearInventory
  *     LIRegenerateIsland <Seed>      (0 = random)
  *     LIGoToCrashSite
+ *     LISetTime <Hours>              (e.g. 21 for night)
  *
  * Save commands (all builds):  LISave, LILoad, LINewGame   (also F5 / F9 on the character)
  */
@@ -65,6 +66,9 @@ public:
 	void LIGoToCrashSite();
 
 	UFUNCTION(Exec)
+	void LISetTime(float Hours);
+
+	UFUNCTION(Exec)
 	void LISetStat(const FString& StatName, float Value);
 
 	UFUNCTION(Exec)
@@ -97,6 +101,9 @@ private:
 
 	UFUNCTION(Server, Reliable)
 	void ServerDebugGoToCrashSite();
+
+	UFUNCTION(Server, Reliable)
+	void ServerDebugSetTime(float Hours);
 
 	UFUNCTION(Server, Reliable)
 	void ServerSaveGame();

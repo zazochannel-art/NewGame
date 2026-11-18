@@ -12,6 +12,7 @@ class AController;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FLIOnSurvivalStatChanged, ELISurvivalStat, Stat, float, NewValue, float, MaxValue);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FLIOnExhaustedChanged, bool, bIsExhausted);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FLIOnDeath, AController*, Killer);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FLIOnColdChanged, bool, bIsCold);
 
 /**
  * ULISurvivalComponent
@@ -65,6 +66,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Survival")
 	bool IsExhausted() const { return bIsExhausted; }
 
+	/** Night and no lit campfire nearby. Server and owning client. */
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Survival")
+	bool IsCold() const { return bIsCold; }
+
 	/** True when stamina allows sprinting. Safe to call on clients for prediction. */
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Survival")
 	bool CanSprint() const;
@@ -99,6 +104,10 @@ public:
 	/** Fired on server and clients when the exhausted state toggles. */
 	UPROPERTY(BlueprintAssignable, Category = "LostIsland|Survival")
 	FLIOnExhaustedChanged OnExhaustedChanged;
+
+	/** Fired on server and owning client when the cold state toggles. */
+	UPROPERTY(BlueprintAssignable, Category = "LostIsland|Survival")
+	FLIOnColdChanged OnColdChanged;
 
 	/** Fired on server and clients once when health reaches zero. Killer is only valid on the server. */
 	UPROPERTY(BlueprintAssignable, Category = "LostIsland|Survival")
@@ -165,6 +174,14 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Survival|Health", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float WellFedThreshold = 0.6f;
 
+	/** Hunger decay multiplier while cold (the body burns calories to stay warm). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Survival|Cold", meta = (ClampMin = "1.0"))
+	float ColdHungerMultiplier = 1.6f;
+
+	/** Stamina regeneration multiplier while cold. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Survival|Cold", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float ColdStaminaRegenMultiplier = 0.5f;
+
 	/** Minimum speed (cm/s) that counts as "moving" for sprint stamina drain. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Survival|Stamina", meta = (ClampMin = "0.0"))
 	float SprintMinSpeed = 50.f;
@@ -184,6 +201,8 @@ private:
 	UFUNCTION() void OnRep_Stamina();
 	UFUNCTION() void OnRep_IsExhausted();
 	UFUNCTION() void OnRep_IsDead();
+	UFUNCTION() void OnRep_IsCold();
+	void SetCold(bool bNewCold);
 
 	UPROPERTY(ReplicatedUsing = OnRep_Health)
 	float Health = 100.f;
@@ -202,6 +221,9 @@ private:
 
 	UPROPERTY(ReplicatedUsing = OnRep_IsDead)
 	bool bIsDead = false;
+
+	UPROPERTY(ReplicatedUsing = OnRep_IsCold)
+	bool bIsCold = false;
 
 	bool bIsSprinting = false;
 	float TimeSinceStaminaDrain = 0.f;

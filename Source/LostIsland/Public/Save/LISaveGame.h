@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
 #include "GameFramework/SaveGame.h"
 #include "Items/LIItemTypes.h"
 #include "LISaveGame.generated.h"
@@ -39,10 +40,29 @@ struct LOSTISLAND_API FLIPlayerSaveData
 	TArray<FLIInventorySlot> InventorySlots;
 };
 
+/** A player-built structure (v2: campfires). */
+USTRUCT(BlueprintType)
+struct LOSTISLAND_API FLIStructureSaveData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
+	TSoftClassPtr<AActor> ActorClass;
+
+	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
+	FTransform Transform;
+
+	/** Campfire fuel in seconds. */
+	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
+	float Fuel = 0.f;
+};
+
 /**
  * ULISaveGame
  *
- * Version 1 contents: world seed + per-player position, survival stats and inventory.
+ * v1: world seed + per-player position, survival stats and inventory.
+ * v2: + world clock (day, hour) and placed structures (campfires). v1 saves load with
+ *     default time (day 1, 08:00) and no structures.
  * Bump CurrentVersion and handle older SaveVersion values in ULISaveSubsystem when
  * the format changes.
  */
@@ -52,7 +72,7 @@ class LOSTISLAND_API ULISaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	static constexpr int32 CurrentVersion = 1;
+	static constexpr int32 CurrentVersion = 2;
 
 	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
 	int32 SaveVersion = CurrentVersion;
@@ -65,6 +85,16 @@ public:
 
 	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
 	TArray<FLIPlayerSaveData> Players;
+
+	// ---- v2 ----
+	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
+	int32 Day = 1;
+
+	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
+	float Hours = 8.f;
+
+	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
+	TArray<FLIStructureSaveData> Structures;
 
 	const FLIPlayerSaveData* FindPlayer(const FString& Key) const
 	{

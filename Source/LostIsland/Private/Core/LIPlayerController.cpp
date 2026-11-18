@@ -10,6 +10,7 @@
 #include "Inventory/LIInventoryComponent.h"
 #include "Core/LIGameMode.h"
 #include "World/LIIslandGenerator.h"
+#include "Core/LIGameState.h"
 #include "Save/LISaveSubsystem.h"
 
 void ALIPlayerController::BeginPlay()
@@ -88,6 +89,7 @@ void ALIPlayerController::LIGive(const FString& ItemId, int32 Quantity) { Server
 void ALIPlayerController::LIClearInventory() { ServerDebugClearInventory(); }
 void ALIPlayerController::LIRegenerateIsland(int32 Seed) { ServerDebugRegenerateIsland(Seed); }
 void ALIPlayerController::LIGoToCrashSite() { ServerDebugGoToCrashSite(); }
+void ALIPlayerController::LISetTime(float Hours) { ServerDebugSetTime(Hours); }
 
 // --- Debug commands (server) ---
 
@@ -187,5 +189,15 @@ void ALIPlayerController::ServerDebugGoToCrashSite_Implementation()
 	const FRotator LookAt = (Wreck.GetLocation() - Location).Rotation();
 	MyPawn->TeleportTo(Location, FRotator(0.f, LookAt.Yaw, 0.f));
 	SetControlRotation(FRotator(-10.f, LookAt.Yaw, 0.f));
+#endif
+}
+
+void ALIPlayerController::ServerDebugSetTime_Implementation(float Hours)
+{
+#if !UE_BUILD_SHIPPING
+	if (ALIGameState* GameState = GetWorld()->GetGameState<ALIGameState>())
+	{
+		GameState->SetTime(GameState->GetDayNumber(), FMath::Fmod(FMath::Max(0.f, Hours), 24.f));
+	}
 #endif
 }

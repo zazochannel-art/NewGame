@@ -55,6 +55,9 @@ public:
 	/** The save being applied in this map session, or null for a new game. */
 	const ULISaveGame* GetPendingSave() const { return PendingSave; }
 
+	/** Server, once per map session after the island exists: restore clock and structures. */
+	void ApplyWorldState();
+
 	/** Apply saved state to a freshly spawned player (first spawn only). */
 	void ApplyToPlayer(AController* Controller);
 

@@ -78,6 +78,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Tool", meta = (ClampMin = "0"))
 	int32 MaxDurability = 0;
 
+	/** If set, the item can be placed in the world (G) as this actor; the item is consumed. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Placeable")
+	TSubclassOf<AActor> PlaceableActorClass;
+
 	/** UI icon (loaded on demand by UI). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item")
 	TSoftObjectPtr<UTexture2D> Icon;

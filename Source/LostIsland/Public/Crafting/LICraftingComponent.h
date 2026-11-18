@@ -40,6 +40,14 @@ public:
 	/** Crafts the Nth recipe in the registry's sorted list (number keys). */
 	void RequestCraftByIndex(int32 Index);
 
+	/** First placeable item in the inventory (NAME_None if none). Server and owning client, for the HUD hint. */
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Crafting")
+	FName FindPlaceableItem() const;
+
+	/** Owning client or server: place the first placeable item in front of the owner. */
+	UFUNCTION(BlueprintCallable, Category = "LostIsland|Crafting")
+	void RequestPlace();
+
 	/** Server: craft once. Returns true on success. */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "LostIsland|Crafting")
 	bool Craft(FName RecipeId);
@@ -50,6 +58,16 @@ private:
 
 	UFUNCTION(Server, Reliable)
 	void ServerCraft(FName RecipeId);
+
+	UFUNCTION(Server, Reliable)
+	void ServerPlace();
+
+	/** Server: spawn the item's actor on the ground in front of the owner. */
+	bool PlaceItem(FName ItemId);
+
+	/** Distance in front of the owner where items are placed. */
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Crafting", meta = (ClampMin = "50.0", Units = "cm"))
+	float PlaceDistance = 220.f;
 
 	UFUNCTION(Client, Unreliable)
 	void ClientNotifyCrafted(FName OutputItemId, int32 Quantity);

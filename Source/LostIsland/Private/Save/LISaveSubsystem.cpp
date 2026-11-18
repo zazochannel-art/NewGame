@@ -10,6 +10,9 @@
 #include "LostIsland.h"
 #include "Survival/LISurvivalComponent.h"
 #include "World/LIIslandGenerator.h"
+#include "World/LICampfire.h"
+#include "Core/LIGameState.h"
+#include "EngineUtils.h"
 
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
@@ -51,7 +54,13 @@ ULISaveGame* ULISaveSubsystem::LoadFromDisk() const
 			*SlotName, Save->SaveVersion, ULISaveGame::CurrentVersion);
 		return nullptr;
 	}
-	// Future: migrate Save->SaveVersion < CurrentVersion here.
+	if (Save->SaveVersion < 2)
+	{
+		// v1 -> v2: no clock or structures stored; the defaults (day 1, 08:00, none) apply.
+		Save->Day = 1;
+		Save->Hours = 8.f;
+		Save->Structures.Reset();
+	}
 
 	return Save;
 }
@@ -147,6 +156,19 @@ bool ULISaveSubsystem::SaveCurrentGame()
 	Save->SavedAt = FDateTime::Now();
 	Save->WorldSeed = GameMode->GetIsland() ? GameMode->GetIsland()->GetSeed() : 0;
 
+	if (const ALIGameState* GameState = World->GetGameState<ALIGameState>())
+	{
+		Save->Day = GameState->GetDayNumber();
+		Save->Hours = GameState->GetTimeOfDayHours();
+	}
+	for (TActorIterator<ALICampfire> It(World); It; ++It)
+	{
+		FLIStructureSaveData& Structure = Save->Structures.AddDefaulted_GetRef();
+		Structure.ActorClass = It->GetClass();
+		Structure.Transform = It->GetActorTransform();
+		Structure.Fuel = It->GetFuel();
+	}
+
 	// Keep entries of players who are offline right now (co-op), replace the rest.
 	if (PendingSave)
 	{
@@ -236,6 +258,42 @@ void ULISaveSubsystem::ApplyToPlayer(AController* Controller)
 	}
 
 	UE_LOG(LogLostIsland, Log, TEXT("Restored saved state for player '%s'."), *Key);
+}
+
+void ULISaveSubsystem::ApplyWorldState()
+{
+	UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr;
+	if (!PendingSave || !World || World->GetNetMode() == NM_Client)
+	{
+		return;
+	}
+
+	if (ALIGameState* GameState = World->GetGameState<ALIGameState>())
+	{
+		GameState->SetTime(PendingSave->Day, PendingSave->Hours);
+	}
+
+	for (const FLIStructureSaveData& Structure : PendingSave->Structures)
+	{
+		UClass* Class = Structure.ActorClass.LoadSynchronous();
+		if (!Class)
+		{
+			continue;
+		}
+		AActor* Actor = World->SpawnActorDeferred<AActor>(Class, Structure.Transform, nullptr, nullptr,
+			ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+		if (ALICampfire* Campfire = Cast<ALICampfire>(Actor))
+		{
+			Campfire->SetFuel(Structure.Fuel);
+		}
+		if (Actor)
+		{
+			Actor->FinishSpawning(Structure.Transform);
+		}
+	}
+
+	UE_LOG(LogLostIsland, Log, TEXT("Restored world: day %d %.1fh, %d structure(s)."),
+		PendingSave->Day, PendingSave->Hours, PendingSave->Structures.Num());
 }
 
 bool ULISaveSubsystem::LoadAndRestart()
