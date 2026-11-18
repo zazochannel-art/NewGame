@@ -20,6 +20,7 @@ namespace LIItems
 	inline const FName SleepingBag(TEXT("SleepingBag"));
 	inline const FName WoodenFloor(TEXT("WoodenFloor"));
 	inline const FName WoodenWall(TEXT("WoodenWall"));
+	inline const FName WoodenDoorway(TEXT("WoodenDoorway"));
 	inline const FName WoodenRoof(TEXT("WoodenRoof"));
 }
 

@@ -9,6 +9,10 @@
 #include "Core/LIPlayerController.h"
 #include "Core/LIGameMode.h"
 #include "World/LIIslandGenerator.h"
+#include "World/LIBuildingPiece.h"
+#include "Crafting/LICraftingComponent.h"
+#include "Items/LIItemRegistrySubsystem.h"
+#include "Items/LIItemDefinition.h"
 #include "LostIsland.h"
 
 #include "Camera/CameraComponent.h"
@@ -218,6 +222,10 @@ void ALICharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	{
 		EIC->BindAction(QuickLoadAction, ETriggerEvent::Started, this, &ALICharacter::QuickLoad);
 	}
+	if (BuildModeAction)
+	{
+		EIC->BindAction(BuildModeAction, ETriggerEvent::Started, this, &ALICharacter::ToggleBuildMode);
+	}
 }
 
 void ALICharacter::EnsureDefaultInput()
@@ -250,6 +258,7 @@ void ALICharacter::EnsureDefaultInput()
 	}
 	if (!QuickSaveAction) { QuickSaveAction = MakeAction(TEXT("IA_QuickSave_Runtime"), EInputActionValueType::Boolean); }
 	if (!QuickLoadAction) { QuickLoadAction = MakeAction(TEXT("IA_QuickLoad_Runtime"), EInputActionValueType::Boolean); }
+	if (!BuildModeAction) { BuildModeAction = MakeAction(TEXT("IA_BuildMode_Runtime"), EInputActionValueType::Boolean); }
 
 	if (DefaultMappingContext)
 	{
@@ -325,6 +334,8 @@ void ALICharacter::EnsureDefaultInput()
 
 	IMC->MapKey(QuickSaveAction, EKeys::F5);
 	IMC->MapKey(QuickLoadAction, EKeys::F9);
+	IMC->MapKey(BuildModeAction, EKeys::B);
+	IMC->MapKey(BuildModeAction, EKeys::Gamepad_DPad_Left);
 
 	DefaultMappingContext = IMC;
 
@@ -585,6 +596,10 @@ void ALICharacter::Tick(float DeltaSeconds)
 	{
 		UpdateSwimming(DeltaSeconds);
 	}
+	if (IsLocallyControlled())
+	{
+		UpdateBuildPreview();
+	}
 }
 
 float ALICharacter::GetSeaLevelZ()
@@ -662,5 +677,72 @@ void ALICharacter::UpdateSwimming(float DeltaSeconds)
 	if (SurvivalComponent && HasAuthority())
 	{
 		SurvivalComponent->SetWaterState(bIsSwimmingLocal, bSubmerged);
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Build mode (local preview only; placement itself stays server-side via G)
+// ---------------------------------------------------------------------------
+
+void ALICharacter::ToggleBuildMode()
+{
+	bBuildMode = !bBuildMode;
+	if (!bBuildMode)
+	{
+		DestroyBuildPreview();
+	}
+}
+
+void ALICharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	DestroyBuildPreview();
+	Super::EndPlay(EndPlayReason);
+}
+
+void ALICharacter::DestroyBuildPreview()
+{
+	if (IsValid(BuildPreview))
+	{
+		BuildPreview->Destroy();
+		BuildPreview = nullptr;
+	}
+}
+
+void ALICharacter::UpdateBuildPreview()
+{
+	// The piece G would place right now, if it is a building piece.
+	TSubclassOf<ALIBuildingPiece> PieceClass;
+	if (bBuildMode && !IsDead() && CraftingComponent)
+	{
+		const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
+		const ULIItemDefinition* Def = Registry ? Registry->FindItem(CraftingComponent->FindPlaceableItem()) : nullptr;
+		if (Def && Def->PlaceableActorClass && Def->PlaceableActorClass->IsChildOf(ALIBuildingPiece::StaticClass()))
+		{
+			PieceClass = Def->PlaceableActorClass.Get();
+		}
+	}
+	if (!PieceClass)
+	{
+		DestroyBuildPreview();
+		return;
+	}
+
+	if (!IsValid(BuildPreview) || BuildPreview->GetClass() != PieceClass)
+	{
+		DestroyBuildPreview();
+		BuildPreview = ALIBuildingPiece::SpawnPreview(GetWorld(), PieceClass);
+		if (!BuildPreview)
+		{
+			return;
+		}
+	}
+
+	FTransform Transform;
+	const bool bValid = ALIBuildingPiece::ComputePlacement(GetWorld(), PieceClass, GetActorLocation(),
+		GetControlRotation().Vector(), this, Transform);
+	BuildPreview->SetActorHiddenInGame(!bValid);
+	if (bValid)
+	{
+		BuildPreview->SetActorTransform(Transform);
 	}
 }

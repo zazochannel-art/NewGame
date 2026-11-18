@@ -60,6 +60,7 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 		{ LIItems::SleepingBag, LOCTEXT("SleepingBag", "Sleeping Bag"), LOCTEXT("SleepingBagDesc", "A fibre bed roll. Place it (G): you respawn here, and can sleep through the night."), 1, ELIItemCategory::Misc, 0.f, 0.f },
 		{ LIItems::WoodenFloor, LOCTEXT("WoodenFloor", "Wooden Floor"), LOCTEXT("WoodenFloorDesc", "A 3 x 3 m plank floor. Place it (G); more floors snap next to it."), 10, ELIItemCategory::Misc, 0.f, 0.f },
 		{ LIItems::WoodenWall,  LOCTEXT("WoodenWall", "Wooden Wall"),   LOCTEXT("WoodenWallDesc", "A plank wall. Snaps to the floor edge you look at."), 10, ELIItemCategory::Misc, 0.f, 0.f },
+		{ LIItems::WoodenDoorway, LOCTEXT("WoodenDoorway", "Wooden Doorway"), LOCTEXT("WoodenDoorwayDesc", "A plank wall with a way through. Snaps like a wall."), 10, ELIItemCategory::Misc, 0.f, 0.f },
 		{ LIItems::WoodenRoof,  LOCTEXT("WoodenRoof", "Wooden Roof"),   LOCTEXT("WoodenRoofDesc", "Roof boards over a floor. Shelter from the night cold."), 10, ELIItemCategory::Misc, 0.f, 0.f },
 		{ LIItems::ScrapMetal, LOCTEXT("ScrapMetal", "Scrap Metal"), LOCTEXT("ScrapMetalDesc", "Twisted aluminium from the wreck. Better tools will need it."), 30, ELIItemCategory::Resource, 0.f, 0.f },
 		{ LIItems::StoneAxe, LOCTEXT("StoneAxe", "Stone Axe"), LOCTEXT("StoneAxeDesc", "Sharp stone lashed to a branch. Fells trees faster."), 1, ELIItemCategory::Tool, 0.f, 0.f },
@@ -94,6 +95,7 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 	}
 	if (ULIItemDefinition* Item = FindItem(LIItems::WoodenFloor)) { Item->PlaceableActorClass = ALIWoodenFloor::StaticClass(); }
 	if (ULIItemDefinition* Item = FindItem(LIItems::WoodenWall))  { Item->PlaceableActorClass = ALIWoodenWall::StaticClass(); }
+	if (ULIItemDefinition* Item = FindItem(LIItems::WoodenDoorway)) { Item->PlaceableActorClass = ALIWoodenDoorway::StaticClass(); }
 	if (ULIItemDefinition* Item = FindItem(LIItems::WoodenRoof))  { Item->PlaceableActorClass = ALIWoodenRoof::StaticClass(); }
 	if (ULIItemDefinition* Axe = FindItem(LIItems::StoneAxe))
 	{
@@ -126,6 +128,7 @@ void ULIItemRegistrySubsystem::RegisterBuiltInRecipes()
 		{ LIItems::SleepingBag,  { { LIItems::Fiber, 20 }, { LIItems::Wood, 4 } },                       { LIItems::SleepingBag, 1 },  6 },
 		{ LIItems::WoodenFloor,  { { LIItems::Wood, 8 } },                                              { LIItems::WoodenFloor, 1 },  40 },
 		{ LIItems::WoodenWall,   { { LIItems::Wood, 6 }, { LIItems::Fiber, 2 } },                        { LIItems::WoodenWall, 1 },   41 },
+		{ LIItems::WoodenDoorway, { { LIItems::Wood, 5 }, { LIItems::Fiber, 2 } },                       { LIItems::WoodenDoorway, 1 }, 43 },
 		{ LIItems::WoodenRoof,   { { LIItems::Wood, 6 }, { LIItems::Fiber, 4 } },                        { LIItems::WoodenRoof, 1 },   42 },
 	};
 

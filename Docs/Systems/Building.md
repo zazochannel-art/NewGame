@@ -18,4 +18,11 @@ Saved as structures (class + transform). `LIRegenerateIsland` removes them.
 
 Lighting change in this milestone: the island sky light intensity is 8, so shadowed sides of buildings are not black.
 
-Follow-ups: placement preview (ghost), doorways and windows, deconstruct/pick up, structural support (roofs currently float if the walls are missing), stone tier.
+## Milestone 13 additions
+
+- **Build mode (B):** the character spawns a local, non-replicated copy of the piece G would place (`ALIBuildingPiece::SpawnPreview`), tinted green, without collision, and moves it to `ComputePlacement` every tick. Previews are ignored by snapping, shelter and saving.
+- **Dismantle (E):** building pieces are interactable; E gives the piece's item back and destroys it.
+- **Wooden Doorway:** 5 Wood + 2 Fiber, a wall with a 100 x 220 cm opening; occupies a wall slot.
+- Debug: `LIBuildMode` (same as B).
+
+Follow-ups: windows, structural support (roofs currently float if the walls are missing), stone tier, a door that opens.

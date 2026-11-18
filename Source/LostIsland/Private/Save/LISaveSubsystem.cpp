@@ -189,6 +189,10 @@ bool ULISaveSubsystem::SaveCurrentGame()
 	}
 	for (TActorIterator<ALIBuildingPiece> It(World); It; ++It)
 	{
+		if (It->IsPreview())
+		{
+			continue; // the host's build-mode ghost
+		}
 		FLIStructureSaveData& Structure = Save->Structures.AddDefaulted_GetRef();
 		Structure.ActorClass = It->GetClass();
 		Structure.Transform = It->GetActorTransform();

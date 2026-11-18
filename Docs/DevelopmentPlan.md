@@ -48,6 +48,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 10 | Swimming: deep water, swim stamina, sinking when exhausted, breath and drowning, `LIGoToSea` | **Compiles; headless test passed (swim + drown); awaiting PIE test.** See [Systems/Swimming.md](Systems/Swimming.md) |
 | 11 | Death and respawn: dropped inventory bundle, respawn after 6 s, sleeping bag (craft, place, respawn point, sleep through the night) | **Compiles; headless test passed (place bag, die, drop, respawn at bag); awaiting PIE test.** See [Systems/DeathRespawn.md](Systems/DeathRespawn.md) |
 | 12 | Building: wooden floor, wall and roof on a 3 m grid with snapping; a roof overhead blocks the night cold; G places the last crafted placeable | **Compiles; placement tested (screenshot); awaiting PIE test.** See [Systems/Building.md](Systems/Building.md) |
+| 13 | Build mode (B) with a green placement preview, dismantle pieces with E (item back), wooden doorway | **Compiles; preview and doorway checked (screenshot); awaiting PIE test.** See [Systems/Building.md](Systems/Building.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -229,3 +230,11 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] After crafting walls, G places walls even if a campfire or bag sits earlier in the inventory.
 - [ ] F5, F9: all pieces come back in place.
 - [ ] Co-op: both players see the same pieces and can build on each other's floors.
+
+## 4n. Milestone 13 test checklist (build mode, dismantle, doorway)
+
+- [ ] B toggles build mode: `BUILD MODE` banner at the top. With a building piece in the inventory, a green ghost shows where G will put it; it hides where G would fail.
+- [ ] The ghost follows the camera and snaps exactly where the real piece lands.
+- [ ] Looking at a placed piece: `[E] Dismantle Wooden Wall`; E removes it and gives the item back. With a full inventory nothing happens.
+- [ ] Wooden Doorway (5 Wood + 2 Fiber, key 9) snaps like a wall; you can walk through the opening.
+- [ ] Co-op: the ghost is only visible to its owner (also for the host), and it is never saved.

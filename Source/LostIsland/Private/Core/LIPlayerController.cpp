@@ -240,3 +240,11 @@ void ALIPlayerController::LIPlace()
 		}
 	}
 }
+
+void ALIPlayerController::LIBuildMode()
+{
+	if (ALICharacter* LICharacter = Cast<ALICharacter>(GetPawn()))
+	{
+		LICharacter->ToggleBuildMode();
+	}
+}

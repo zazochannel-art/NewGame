@@ -3,6 +3,10 @@
 #include "World/LIBuildingPiece.h"
 
 #include "LostIsland.h"
+#include "Inventory/LIInventoryComponent.h"
+#include "Items/LIItemRegistrySubsystem.h"
+#include "Items/LIItemTypes.h"
+#include "GameFramework/Pawn.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
@@ -29,7 +33,7 @@ namespace
 	{
 		for (TActorIterator<ALIBuildingPiece> It(World); It; ++It)
 		{
-			if (It->GetPieceType() != Type || FVector::DistSquared(It->GetActorLocation(), Location) > FMath::Square(30.f))
+			if (It->IsPreview() || It->GetPieceType() != Type || FVector::DistSquared(It->GetActorLocation(), Location) > FMath::Square(30.f))
 			{
 				continue;
 			}
@@ -64,25 +68,108 @@ ALIBuildingPiece::ALIBuildingPiece()
 void ALIBuildingPiece::BeginPlay()
 {
 	Super::BeginPlay();
-	LITintPlaceholder(Mesh, WoodColor);
+	const FLinearColor Color = bIsPreview ? FLinearColor(0.15f, 0.75f, 0.25f) : WoodColor; // preview: green ghost
+	LITintPlaceholder(Mesh, Color);
+	for (UStaticMeshComponent* Part : ExtraParts)
+	{
+		LITintPlaceholder(Part, Color);
+	}
+}
+
+ALIBuildingPiece* ALIBuildingPiece::SpawnPreview(UWorld* World, TSubclassOf<ALIBuildingPiece> PieceClass)
+{
+	if (!World || !PieceClass)
+	{
+		return nullptr;
+	}
+	ALIBuildingPiece* Preview = World->SpawnActorDeferred<ALIBuildingPiece>(PieceClass, FTransform::Identity, nullptr, nullptr,
+		ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	if (!Preview)
+	{
+		return nullptr;
+	}
+	Preview->bIsPreview = true;
+	Preview->SetReplicates(false); // never sent to clients, even on a listen server
+	Preview->SetActorEnableCollision(false);
+	Preview->FinishSpawning(FTransform::Identity);
+	Preview->SetActorHiddenInGame(true);
+	return Preview;
+}
+
+bool ALIBuildingPiece::CanInteract_Implementation(APawn* InstigatorPawn) const
+{
+	return !bIsPreview && !ItemId.IsNone() && InstigatorPawn;
+}
+
+FText ALIBuildingPiece::GetInteractionPrompt_Implementation(APawn* InstigatorPawn) const
+{
+	const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
+	return FText::Format(NSLOCTEXT("LIBuildingPiece", "Dismantle", "Dismantle {0}"),
+		Registry ? Registry->GetDisplayName(ItemId) : FText::FromName(ItemId));
+}
+
+void ALIBuildingPiece::Interact_Implementation(APawn* InstigatorPawn)
+{
+	ULIInventoryComponent* Inventory = InstigatorPawn ? InstigatorPawn->FindComponentByClass<ULIInventoryComponent>() : nullptr;
+	if (!HasAuthority() || bIsPreview || !Inventory)
+	{
+		return;
+	}
+	if (Inventory->AddItem(ItemId, 1) == 1) // full inventory: nothing happens (the inventory shows why)
+	{
+		UE_LOG(LogLostIsland, Log, TEXT("%s dismantled %s."), *GetNameSafe(InstigatorPawn), *GetName());
+		Destroy();
+	}
 }
 
 ALIWoodenFloor::ALIWoodenFloor()
 {
 	PieceType = ELIBuildingPieceType::Floor;
+	ItemId = LIItems::WoodenFloor;
 	SetupBox(Mesh, FVector(GridSize, GridSize, FloorThickness));
 }
 
 ALIWoodenWall::ALIWoodenWall()
 {
 	PieceType = ELIBuildingPieceType::Wall;
+	ItemId = LIItems::WoodenWall;
 	SetupBox(Mesh, FVector(20.f, GridSize, WallHeight)); // thin along local X
 	WoodColor = FLinearColor(0.50f, 0.33f, 0.17f);
+}
+
+ALIWoodenDoorway::ALIWoodenDoorway()
+{
+	PieceType = ELIBuildingPieceType::Wall;
+	ItemId = LIItems::WoodenDoorway;
+	WoodColor = FLinearColor(0.50f, 0.33f, 0.17f);
+
+	// Left post = Mesh, right post, lintel: a 100 cm wide, 220 cm high opening in the middle.
+	const float PostWidth = (GridSize - 100.f) * 0.5f;
+	Mesh->SetRelativeScale3D(FVector(0.2f, PostWidth / 100.f, WallHeight / 100.f));
+	Mesh->SetRelativeLocation(FVector(0.f, -(50.f + PostWidth * 0.5f), WallHeight * 0.5f));
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
+	RightPost = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RightPost"));
+	RightPost->SetupAttachment(GetRootComponent());
+	RightPost->SetStaticMesh(CubeMesh.Object);
+	RightPost->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+	RightPost->SetRelativeScale3D(Mesh->GetRelativeScale3D());
+	RightPost->SetRelativeLocation(FVector(0.f, 50.f + PostWidth * 0.5f, WallHeight * 0.5f));
+
+	Lintel = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Lintel"));
+	Lintel->SetupAttachment(GetRootComponent());
+	Lintel->SetStaticMesh(CubeMesh.Object);
+	Lintel->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+	Lintel->SetRelativeScale3D(FVector(0.2f, 1.f, (WallHeight - 220.f) / 100.f));
+	Lintel->SetRelativeLocation(FVector(0.f, 0.f, 220.f + (WallHeight - 220.f) * 0.5f));
+
+	ExtraParts = { RightPost, Lintel };
 }
 
 ALIWoodenRoof::ALIWoodenRoof()
 {
 	PieceType = ELIBuildingPieceType::Roof;
+	ItemId = LIItems::WoodenRoof;
 	SetupBox(Mesh, FVector(GridSize + 20.f, GridSize + 20.f, 15.f)); // small overhang
 	WoodColor = FLinearColor(0.33f, 0.22f, 0.12f);
 }
@@ -105,7 +192,7 @@ bool ALIBuildingPiece::ComputePlacement(const UWorld* World, TSubclassOf<ALIBuil
 	for (TActorIterator<ALIBuildingPiece> It(World); It; ++It)
 	{
 		const float DistSq = FVector::DistSquared2D(It->GetActorLocation(), Target);
-		if (It->PieceType == ELIBuildingPieceType::Floor && DistSq < BestDistSq)
+		if (!It->bIsPreview && It->PieceType == ELIBuildingPieceType::Floor && DistSq < BestDistSq)
 		{
 			BestDistSq = DistSq;
 			Anchor = *It;
@@ -181,7 +268,7 @@ bool ALIBuildingPiece::IsSheltered(const UWorld* World, const FVector& Location)
 	}
 	for (TActorIterator<ALIBuildingPiece> It(World); It; ++It)
 	{
-		if (It->PieceType != ELIBuildingPieceType::Roof)
+		if (It->bIsPreview || It->PieceType != ELIBuildingPieceType::Roof)
 		{
 			continue;
 		}

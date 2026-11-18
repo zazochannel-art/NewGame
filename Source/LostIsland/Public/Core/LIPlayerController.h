@@ -74,6 +74,10 @@ public:
 	UFUNCTION(Exec)
 	void LIPlace();
 
+	/** Same as the B key: toggle build mode (piece preview). */
+	UFUNCTION(Exec)
+	void LIBuildMode();
+
 	UFUNCTION(Exec)
 	void LISetTime(float Hours);
 

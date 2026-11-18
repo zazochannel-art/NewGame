@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Interaction/LIInteractable.h"
 #include "LIBuildingPiece.generated.h"
 
 class UStaticMeshComponent;
@@ -24,15 +25,26 @@ enum class ELIBuildingPieceType : uint8
  * ComputePlacement (server, called by ULICraftingComponent when a building item is placed with G).
  *
  * Standing under a roof counts as sheltered: no night cold (see ULISurvivalComponent).
- * Persisted in the save game with the other structures.
+ * Persisted in the save game with the other structures. Interact (E) dismantles a piece and gives
+ * its item back. Build mode (B) shows a local, non-replicated preview copy (IsPreview()).
  */
 UCLASS(Abstract)
-class LOSTISLAND_API ALIBuildingPiece : public AActor
+class LOSTISLAND_API ALIBuildingPiece : public AActor, public ILIInteractable
 {
 	GENERATED_BODY()
 
 public:
 	ALIBuildingPiece();
+
+	// ILIInteractable: dismantle
+	virtual bool CanInteract_Implementation(APawn* InstigatorPawn) const override;
+	virtual void Interact_Implementation(APawn* InstigatorPawn) override;
+	virtual FText GetInteractionPrompt_Implementation(APawn* InstigatorPawn) const override;
+
+	/** Local-only ghost of PieceClass for build mode: no collision, not replicated, tinted green. */
+	static ALIBuildingPiece* SpawnPreview(UWorld* World, TSubclassOf<ALIBuildingPiece> PieceClass);
+
+	bool IsPreview() const { return bIsPreview; }
 
 	static constexpr float GridSize = 300.f;
 	static constexpr float WallHeight = 300.f;
@@ -61,6 +73,16 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Building")
 	FLinearColor WoodColor = FLinearColor(0.42f, 0.27f, 0.13f);
+
+	/** Item given back when the piece is dismantled. */
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Building")
+	FName ItemId = NAME_None;
+
+	/** Extra mesh parts (doorway posts); tinted like Mesh. */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> ExtraParts;
+
+	bool bIsPreview = false;
 };
 
 UCLASS()
@@ -77,6 +99,19 @@ class LOSTISLAND_API ALIWoodenWall : public ALIBuildingPiece
 	GENERATED_BODY()
 public:
 	ALIWoodenWall();
+};
+
+/** A wall with a 100 x 220 cm opening. Snaps like a wall (and takes a wall's place). */
+UCLASS()
+class LOSTISLAND_API ALIWoodenDoorway : public ALIBuildingPiece
+{
+	GENERATED_BODY()
+public:
+	ALIWoodenDoorway();
+
+protected:
+	UPROPERTY(VisibleAnywhere, Category = "Components") TObjectPtr<UStaticMeshComponent> RightPost;
+	UPROPERTY(VisibleAnywhere, Category = "Components") TObjectPtr<UStaticMeshComponent> Lintel;
 };
 
 UCLASS()

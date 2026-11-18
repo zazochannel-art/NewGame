@@ -57,8 +57,18 @@ void ALIHUD::DrawHUD()
 		{
 			const float Spacing = BarSize.Y + 10.f;
 			DrawText(LOCTEXT("Cold", "COLD - get to a fire or under a roof").ToString(), ThirstColor,
-				24.f, Canvas->ClipY - 24.f - Spacing * 4.f - 24.f, GEngine ? GEngine->GetSmallFont() : nullptr, 1.f);
+				24.f, Canvas->ClipY - 24.f - Spacing * 5.f - 24.f, GEngine ? GEngine->GetSmallFont() : nullptr, 1.f);
 		}
+	}
+
+	// Build mode banner (top centre).
+	if (Character->IsInBuildMode())
+	{
+		const FString Banner = LOCTEXT("BuildMode", "BUILD MODE   [G] place   [E] dismantle   [B] exit").ToString();
+		UFont* BannerFont = GEngine ? GEngine->GetMediumFont() : nullptr;
+		float BW = 0.f, BH = 0.f;
+		GetTextSize(Banner, BW, BH, BannerFont, 1.f);
+		DrawText(Banner, StaminaColor, Canvas->ClipX * 0.5f - BW * 0.5f, 20.f, BannerFont, 1.f);
 	}
 
 	const ALIPlayerController* PC = Cast<ALIPlayerController>(GetOwningPlayerController());

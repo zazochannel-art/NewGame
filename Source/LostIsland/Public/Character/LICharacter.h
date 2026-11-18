@@ -50,6 +50,7 @@ UCLASS(Blueprintable)
 class LOSTISLAND_API ALICharacter : public ACharacter
 {
 	GENERATED_BODY()
+	friend class ALIPlayerController; // debug commands (LIBuildMode)
 
 public:
 	ALICharacter();
@@ -62,6 +63,10 @@ public:
 	/** True while in deep water (local state, computed the same way on server and owning client). */
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Movement")
 	bool IsSwimming() const { return bIsSwimmingLocal; }
+
+	/** Local: build mode is on (preview of the next building piece). */
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Building")
+	bool IsInBuildMode() const { return bBuildMode; }
 
 	/** Whether the character is currently allowed to sprint. Stamina will override this. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "LostIsland|Movement")
@@ -103,6 +108,7 @@ public:
 protected:
 	virtual void PostInitializeComponents() override;
 	virtual void Tick(float DeltaSeconds) override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void BeginPlay() override;
 	virtual void NotifyControllerChanged() override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
@@ -120,6 +126,7 @@ protected:
 	void CraftSlot(const struct FInputActionInstance& Instance);
 	void QuickSave();
 	void QuickLoad();
+	void ToggleBuildMode();
 
 	// ---- Components ----
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
@@ -189,6 +196,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
 	TObjectPtr<UInputAction> QuickLoadAction;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
+	TObjectPtr<UInputAction> BuildModeAction;
+
 	// ---- Movement tuning ----
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Movement", meta = (ClampMin = "0.0", Units = "cm/s"))
 	float WalkSpeed = 380.f;
@@ -240,6 +250,14 @@ private:
 	TWeakObjectPtr<AActor> CachedIsland;
 	bool bSearchedIsland = false;
 	bool bIsSwimmingLocal = false;
+
+	/** Local only: build mode shows a preview of the building piece G would place. */
+	void UpdateBuildPreview();
+	void DestroyBuildPreview();
+	bool bBuildMode = false;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class ALIBuildingPiece> BuildPreview;
 
 	UFUNCTION(Server, Reliable)
 	void ServerSetSprinting(bool bNewSprinting);
