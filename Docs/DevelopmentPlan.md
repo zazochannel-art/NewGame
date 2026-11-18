@@ -53,6 +53,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 15 | Scrap Axe and Scrap Pickaxe (metal tools), Empty Flask filled at springs into a Water Flask (drink returns the flask), crafting pages (Q) | **Compiles; headless test passed (metal tools, fill only at a spring, drink returns flask); awaiting PIE test.** See [Systems/Crafting.md](Systems/Crafting.md) |
 | 16 | Goal: Raft Kit (60 Wood, 40 Fiber, 6 Scrap) placed in shallow water at the shore; E sails away, everyone sees the ending, then a new island starts | **Compiles; headless test passed (craft, place at shore, ending, new island); awaiting PIE test.** See [Systems/Raft.md](Systems/Raft.md) |
 | 17 | Storage chest (20 Wood + 4 Fiber, 30 stacks): E stores resources and food, R takes everything; saved with contents | **Compiles; headless test passed (store 85 items, take back, tools stay); awaiting PIE test.** See [Systems/Inventory.md](Systems/Inventory.md) |
+| 18 | Wild boars (7, forest and meadow): charge players within 9 m, bite for 8 HP every 1.5 s, 6 hits for 6-12 Raw Meat; crabs and boars share ALIAnimalNode | **Compiles; headless test passed (boar charges, bites, kills an idle player, respawn); awaiting PIE test.** See [Systems/FoodWater.md](Systems/FoodWater.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -280,3 +281,13 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] F5, F9: the chest is in place with the same contents.
 - [ ] Co-op: both players see the same counter; one stores, the other takes.
 - [ ] Debug: `LIChest store`, `LIChest take` (nearest chest).
+
+## 4s. Milestone 18 test checklist (wild boars)
+
+- [ ] Dark brown long shapes roam forests and meadows (7 per island, far apart).
+- [ ] Within ~9 m a boar charges (330 cm/s). Next to you it bites: -8 HP every 1.5 s.
+- [ ] Sprinting (650 cm/s) outruns it; it gives up about 27 m from home. Swimming does not (it stops at the water's edge, though).
+- [ ] `[E] Fight Boar (6/6)`: six hits give 6-12 Raw Meat (no tool bonus yet); then it disappears and returns after 20 min.
+- [ ] Raw Meat and Cooked Meat are now generic (crab or boar).
+- [ ] Debug: `LIGoToBoar` (6 m from the nearest boar).
+- [ ] Co-op: the boar picks the nearest living player; both see it move.

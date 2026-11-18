@@ -128,8 +128,16 @@ ALIIslandGenerator::ALIIslandGenerator()
 	Crabs.MinSpacing = 900.f;
 	Crabs.MinNormalZ = 0.85f;
 
+	// Few boars, far apart: the island's danger and its best meat.
+	FLIResourceSpawnRule Boars;
+	Boars.NodeClass = ALIBoarNode::StaticClass();
+	Boars.AllowedBiomes = { ELIIslandBiome::Forest, ELIIslandBiome::Meadow };
+	Boars.Count = 7;
+	Boars.MinSpacing = 3000.f;
+	Boars.MinNormalZ = 0.85f;
+
 	// Order matters: springs first so their wide spacing is guaranteed, then sparse food, then the rest.
-	SpawnRules = { Springs, Berries, Trees, Rocks, Bushes, Crabs }; // new rules go last: saves store nodes by index
+	SpawnRules = { Springs, Berries, Trees, Rocks, Bushes, Crabs, Boars }; // new rules go last: saves store nodes by index
 }
 
 void ALIIslandGenerator::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

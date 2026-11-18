@@ -332,36 +332,19 @@ ALIBerryBushNode::ALIBerryBushNode()
 #undef LOCTEXT_NAMESPACE
 
 // ---------------------------------------------------------------------------
-// Crab
+// Animals (crab, boar)
 // ---------------------------------------------------------------------------
 
 #define LOCTEXT_NAMESPACE "LIResourceNode"
 
-ALICrabNode::ALICrabNode()
+ALIAnimalNode::ALIAnimalNode()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	SetReplicateMovement(true);
-
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> ShapeMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-	if (ShapeMesh.Succeeded())
-	{
-		Mesh->SetStaticMesh(ShapeMesh.Object);
-	}
-	Mesh->SetRelativeScale3D(FVector(0.45f, 0.6f, 0.22f));
-	Mesh->SetRelativeLocation(FVector(0.f, 0.f, 12.f));
-	Mesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore); // players don't get stuck on crabs
-
-	ResourceItemId = LIItems::RawMeat;
-	MinYield = 1;
-	MaxYield = 2;
-	HitsToDeplete = 2;
-	RespawnTime = 600.f;
-	StaminaCostPerHit = 3.f;
-	PromptText = LOCTEXT("CatchCrab", "Catch Crab");
-	PlaceholderColor = FLinearColor(0.85f, 0.30f, 0.12f, 1.f); // crab orange
+	Mesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore); // players do not get stuck on animals
 }
 
-void ALICrabNode::BeginPlay()
+void ALIAnimalNode::BeginPlay()
 {
 	Super::BeginPlay();
 	Home = GetActorLocation();
@@ -369,25 +352,25 @@ void ALICrabNode::BeginPlay()
 	SetActorTickEnabled(HasAuthority()); // movement is server-side and replicated
 }
 
-bool ALICrabNode::FindGround(const FVector& XY, FVector& OutGround) const
+bool ALIAnimalNode::FindGround(const FVector& XY, FVector& OutGround) const
 {
 	FHitResult Hit;
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(LICrabGround), false, this);
-	const FVector Start(XY.X, XY.Y, Home.Z + 400.f);
-	const FVector End(XY.X, XY.Y, Home.Z - 600.f);
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(LIAnimalGround), false, this);
+	const FVector Start(XY.X, XY.Y, Home.Z + 600.f);
+	const FVector End(XY.X, XY.Y, Home.Z - 800.f);
 	if (!GetWorld()->LineTraceSingleByObjectType(Hit, Start, End, FCollisionObjectQueryParams(ECC_WorldStatic), Params))
 	{
 		return false;
 	}
-	if (Hit.ImpactPoint.Z < 15.f) // the sea is at Z = 0: stay on the sand
+	if (Hit.ImpactPoint.Z < 15.f || Hit.ImpactNormal.Z < 0.6f)
 	{
-		return false;
+		return false; // the sea is at Z = 0; also avoid cliffs
 	}
 	OutGround = Hit.ImpactPoint;
 	return true;
 }
 
-bool ALICrabNode::PickWanderTarget()
+bool ALIAnimalNode::PickWanderTarget()
 {
 	for (int32 Attempt = 0; Attempt < 6; ++Attempt)
 	{
@@ -403,7 +386,7 @@ bool ALICrabNode::PickWanderTarget()
 	return false;
 }
 
-void ALICrabNode::Tick(float DeltaSeconds)
+void ALIAnimalNode::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
@@ -414,30 +397,60 @@ void ALICrabNode::Tick(float DeltaSeconds)
 	}
 	if (bWasDepleted)
 	{
-		// Respawned: back home.
-		bWasDepleted = false;
+		bWasDepleted = false; // respawned: back home
 		SetActorLocation(Home);
 		WanderTarget = Home;
 	}
+	AttackTimer = FMath::Max(0.f, AttackTimer - DeltaSeconds);
 
-	// Run from the nearest player within FleeRadius, else wander with short pauses.
-	FVector Location = GetActorLocation();
-	FVector Desired = WanderTarget;
-	float Speed = WanderSpeed;
+	// Nearest living player within ReactRadius.
+	const FVector Location = GetActorLocation();
+	APawn* Threat = nullptr;
+	float ThreatDistSq = FMath::Square(ReactRadius);
 	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
 	{
-		const APawn* Pawn = It->IsValid() ? (*It)->GetPawn() : nullptr;
-		if (Pawn && FVector::DistSquared2D(Pawn->GetActorLocation(), Location) < FMath::Square(FleeRadius))
+		APawn* Pawn = It->IsValid() ? (*It)->GetPawn() : nullptr;
+		const ULISurvivalComponent* Survival = Pawn ? Pawn->FindComponentByClass<ULISurvivalComponent>() : nullptr;
+		const float DistSq = Pawn ? FVector::DistSquared2D(Pawn->GetActorLocation(), Location) : 0.f;
+		if (Pawn && Survival && !Survival->IsDead() && DistSq < ThreatDistSq)
 		{
-			const FVector Away = (Location - Pawn->GetActorLocation()).GetSafeNormal2D();
-			Desired = Location + Away * 200.f;
-			Speed = FleeSpeed;
-			PauseTime = 0.f;
-			break;
+			Threat = Pawn;
+			ThreatDistSq = DistSq;
 		}
 	}
 
-	if (Speed == WanderSpeed)
+	FVector Desired = WanderTarget;
+	float Speed = WanderSpeed;
+	if (Threat)
+	{
+		PauseTime = 0.f;
+		const FVector ToThreat = (Threat->GetActorLocation() - Location).GetSafeNormal2D();
+		Speed = RunSpeed;
+		if (!bAggressive)
+		{
+			Desired = Location - ToThreat * 200.f;
+		}
+		else if (ThreatDistSq <= FMath::Square(AttackRange))
+		{
+			// In range: face the player and bite on cooldown instead of pushing into them.
+			SetActorRotation(FRotator(0.f, ToThreat.Rotation().Yaw, 0.f));
+			if (AttackTimer <= 0.f)
+			{
+				AttackTimer = AttackCooldown;
+				if (ULISurvivalComponent* Survival = Threat->FindComponentByClass<ULISurvivalComponent>())
+				{
+					Survival->ApplyDamage(AttackDamage);
+					UE_LOG(LogLostIsland, Log, TEXT("%s bit %s for %.0f."), *GetName(), *Threat->GetName(), AttackDamage);
+				}
+			}
+			return;
+		}
+		else
+		{
+			Desired = Threat->GetActorLocation();
+		}
+	}
+	else
 	{
 		if (PauseTime > 0.f)
 		{
@@ -454,12 +467,68 @@ void ALICrabNode::Tick(float DeltaSeconds)
 
 	const FVector Step = (Desired - Location).GetSafeNormal2D() * Speed * DeltaSeconds;
 	FVector Ground;
-	if (!FindGround(Location + Step, Ground) || FVector::DistSquared2D(Ground, Home) > FMath::Square(WanderRadius * 1.5f))
+	const float Leash = (Threat && bAggressive) ? WanderRadius * 3.f : WanderRadius * 1.5f; // chasers stray further
+	if (!FindGround(Location + Step, Ground) || FVector::DistSquared2D(Ground, Home) > FMath::Square(Leash))
 	{
-		PickWanderTarget(); // water or too far from home: turn around
+		PickWanderTarget(); // water, cliff or too far from home: turn around
 		return;
 	}
 	SetActorLocationAndRotation(Ground, FRotator(0.f, Step.Rotation().Yaw, 0.f));
+}
+
+ALICrabNode::ALICrabNode()
+{
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> ShapeMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	if (ShapeMesh.Succeeded())
+	{
+		Mesh->SetStaticMesh(ShapeMesh.Object);
+	}
+	Mesh->SetRelativeScale3D(FVector(0.45f, 0.6f, 0.22f));
+	Mesh->SetRelativeLocation(FVector(0.f, 0.f, 12.f));
+
+	ResourceItemId = LIItems::RawMeat;
+	MinYield = 1;
+	MaxYield = 2;
+	HitsToDeplete = 2;
+	RespawnTime = 600.f;
+	StaminaCostPerHit = 3.f;
+	PromptText = LOCTEXT("CatchCrab", "Catch Crab");
+	PlaceholderColor = FLinearColor(0.85f, 0.30f, 0.12f, 1.f); // crab orange
+
+	WanderSpeed = 70.f;
+	RunSpeed = 200.f;
+	ReactRadius = 400.f;
+	WanderRadius = 600.f;
+	bAggressive = false;
+}
+
+ALIBoarNode::ALIBoarNode()
+{
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> ShapeMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	if (ShapeMesh.Succeeded())
+	{
+		Mesh->SetStaticMesh(ShapeMesh.Object);
+	}
+	Mesh->SetRelativeScale3D(FVector(1.3f, 0.7f, 0.75f)); // long body
+	Mesh->SetRelativeLocation(FVector(0.f, 0.f, 40.f));
+
+	ResourceItemId = LIItems::RawMeat;
+	MinYield = 1;
+	MaxYield = 2;
+	HitsToDeplete = 6;
+	RespawnTime = 1200.f;
+	StaminaCostPerHit = 5.f;
+	PromptText = LOCTEXT("FightBoar", "Fight Boar");
+	PlaceholderColor = FLinearColor(0.25f, 0.17f, 0.12f, 1.f); // dark bristly brown
+
+	WanderSpeed = 90.f;
+	RunSpeed = 330.f; // slower than a sprint (650), faster than swimming (260)
+	ReactRadius = 900.f;
+	WanderRadius = 900.f;
+	bAggressive = true;
+	AttackDamage = 8.f;
+	AttackRange = 170.f;
+	AttackCooldown = 1.5f;
 }
 
 #undef LOCTEXT_NAMESPACE

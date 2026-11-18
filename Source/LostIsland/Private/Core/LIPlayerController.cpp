@@ -11,6 +11,7 @@
 #include "Core/LIGameMode.h"
 #include "World/LIIslandGenerator.h"
 #include "World/LIWaterSource.h"
+#include "Resources/LIResourceNode.h"
 #include "World/LIStorageChest.h"
 #include "EngineUtils.h"
 #include "Core/LIGameState.h"
@@ -369,6 +370,31 @@ void ALIPlayerController::ServerDebugChest_Implementation(const FString& Action)
 	else
 	{
 		Nearest->StoreFrom(LICharacter->GetInventoryComponent());
+	}
+#endif
+}
+
+void ALIPlayerController::LIGoToBoar() { ServerDebugGoToBoar(); }
+
+void ALIPlayerController::ServerDebugGoToBoar_Implementation()
+{
+#if !UE_BUILD_SHIPPING
+	APawn* MyPawn = GetPawn();
+	const ALIBoarNode* Nearest = nullptr;
+	float BestDistSq = TNumericLimits<float>::Max();
+	for (TActorIterator<ALIBoarNode> It(GetWorld()); MyPawn && It; ++It)
+	{
+		const float DistSq = FVector::DistSquared(It->GetActorLocation(), MyPawn->GetActorLocation());
+		if (!It->IsDepleted() && DistSq < BestDistSq)
+		{
+			BestDistSq = DistSq;
+			Nearest = *It;
+		}
+	}
+	if (Nearest)
+	{
+		MyPawn->TeleportTo(Nearest->GetActorLocation() + FVector(600.f, 0.f, 150.f), FRotator(0.f, 180.f, 0.f));
+		UE_LOG(LogLostIsland, Log, TEXT("LIGoToBoar: next to %s."), *Nearest->GetName());
 	}
 #endif
 }

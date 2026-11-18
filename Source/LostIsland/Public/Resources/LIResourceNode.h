@@ -169,40 +169,76 @@ public:
 	ALIFiberBushNode();
 };
 
+
 /**
- * Crab -> Raw Crab Meat. A resource node that scuttles around its beach spawn point and runs from
- * nearby players (server-side movement, replicated). Two hits; respawns at home after RespawnTime.
+ * A resource node that moves: it wanders around its spawn point, keeps out of the sea, and either
+ * runs from players (timid) or charges and bites them (aggressive). Server-side movement, replicated.
+ * When depleted it hides and later respawns at home like any resource node.
  */
-UCLASS()
-class LOSTISLAND_API ALICrabNode : public ALIResourceNode
+UCLASS(Abstract)
+class LOSTISLAND_API ALIAnimalNode : public ALIResourceNode
 {
 	GENERATED_BODY()
 public:
-	ALICrabNode();
+	ALIAnimalNode();
 	virtual void Tick(float DeltaSeconds) override;
 
 protected:
 	virtual void BeginPlay() override;
 
-	UPROPERTY(EditAnywhere, Category = "LostIsland|Crab", meta = (Units = "cm/s"))
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Animal", meta = (Units = "cm/s"))
 	float WanderSpeed = 70.f;
 
-	UPROPERTY(EditAnywhere, Category = "LostIsland|Crab", meta = (Units = "cm/s"))
-	float FleeSpeed = 200.f;
+	/** Speed when fleeing (timid) or charging (aggressive). */
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Animal", meta = (Units = "cm/s"))
+	float RunSpeed = 200.f;
 
-	UPROPERTY(EditAnywhere, Category = "LostIsland|Crab", meta = (Units = "cm"))
-	float FleeRadius = 400.f;
+	/** Players closer than this make the animal react (flee or charge). */
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Animal", meta = (Units = "cm"))
+	float ReactRadius = 400.f;
 
-	UPROPERTY(EditAnywhere, Category = "LostIsland|Crab", meta = (Units = "cm"))
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Animal", meta = (Units = "cm"))
 	float WanderRadius = 600.f;
+
+	/** Aggressive animals charge instead of fleeing. */
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Animal")
+	bool bAggressive = false;
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Animal", meta = (EditCondition = "bAggressive"))
+	float AttackDamage = 8.f;
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Animal", meta = (EditCondition = "bAggressive", Units = "cm"))
+	float AttackRange = 160.f;
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Animal", meta = (EditCondition = "bAggressive", Units = "s"))
+	float AttackCooldown = 1.5f;
 
 private:
 	bool PickWanderTarget();
-	/** Ground height under XY, or false if it is under water / no ground. */
+	/** Ground under XY, or false if it is under water, too steep, or missing. */
 	bool FindGround(const FVector& XY, FVector& OutGround) const;
 
 	FVector Home = FVector::ZeroVector;
 	FVector WanderTarget = FVector::ZeroVector;
 	float PauseTime = 0.f;
+	float AttackTimer = 0.f;
 	bool bWasDepleted = false;
+};
+
+/** Crab -> Raw Meat. Timid: scuttles around a beach spawn point and runs from players. */
+UCLASS()
+class LOSTISLAND_API ALICrabNode : public ALIAnimalNode
+{
+	GENERATED_BODY()
+public:
+	ALICrabNode();
+};
+
+/** Wild boar -> Raw Meat (lots). Aggressive: charges nearby players and bites. Takes many hits. */
+UCLASS()
+class LOSTISLAND_API ALIBoarNode : public ALIAnimalNode
+{
+	GENERATED_BODY()
+public:
+	ALIBoarNode();
 };

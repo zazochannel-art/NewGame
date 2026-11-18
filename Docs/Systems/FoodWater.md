@@ -41,3 +41,19 @@ The minimum spacing of a rule only applies **between points of the same type**. 
 - Raw Crab Meat: +3 food. Cooked Crab Meat: +22 food, -2 water.
 - Recipe `CookedMeat` (1 Raw Crab Meat) has `bRequiresFire`: craftable only within a lit campfire's warmth radius. The HUD marks such recipes `(at a fire)`.
 - Debug: `LICraft <RecipeId>`.
+
+## Wild boars (Milestone 18)
+
+Crabs and boars now share `ALIAnimalNode` (a moving `ALIResourceNode`): wander around home, react to the nearest living player within `ReactRadius`, avoid the sea and slopes steeper than ~53 degrees, and stay on a leash around home (1.5 x `WanderRadius`, 3 x while chasing).
+
+| | Crab | Boar |
+|---|---|---|
+| Where / how many | Beach / 14 | Forest, Meadow / 7 (3000 cm apart) |
+| Reaction | flees (200 cm/s within 4 m) | charges (330 cm/s within 9 m) |
+| Attack | none | 8 HP every 1.5 s within 1.7 m |
+| Hits / yield | 2 / 1-2 each | 6 / 1-2 each |
+| Respawn | 10 min | 20 min |
+
+Raw Meat (+3 food) and Cooked Meat (+22 food, -2 water) are no longer crab-specific. Debug: `LIGoToBoar`.
+
+Follow-ups: weapon bonus against animals (spear), knock-back, hit feedback.
