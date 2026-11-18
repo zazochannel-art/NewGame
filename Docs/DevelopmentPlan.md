@@ -46,6 +46,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 8b | Plane wreck: seed-placed landmark, searchable loot, Scrap Metal | **Compiles; awaiting PIE test.** See [Systems/CrashSite.md](Systems/CrashSite.md) |
 | 9 | Day/night cycle, cold at night, placeable campfire with fuel, save v2 (v3: wreck and resources) | **Compiles; awaiting PIE test.** See [Systems/DayNight.md](Systems/DayNight.md) |
 | 10 | Swimming: deep water, swim stamina, sinking when exhausted, breath and drowning, `LIGoToSea` | **Compiles; headless test passed (swim + drown); awaiting PIE test.** See [Systems/Swimming.md](Systems/Swimming.md) |
+| 11 | Death and respawn: dropped inventory bundle, respawn after 6 s, sleeping bag (craft, place, respawn point, sleep through the night) | **Compiles; headless test passed (place bag, die, drop, respawn at bag); awaiting PIE test.** See [Systems/DeathRespawn.md](Systems/DeathRespawn.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -188,7 +189,7 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - **Sprint in co-op:** sprint speed is predicted on the client and confirmed by an RPC. Under real latency this can cause small corrections. Before co-op, move sprint into a custom `UCharacterMovementComponent` with saved-move flags.
 - **Input assets:** runtime-generated bindings work but can't be rebound in the editor. Create `IMC_Default` and `IA_*` assets and assign them on `BP_Survivor`; the C++ fallback is skipped automatically.
 - **HUD:** the canvas HUD is temporary until the UMG inventory and HUD milestone.
-- **Death:** no respawn or loot drop yet, only the `LIRevive` debug command. The Blueprint event `On Died` is where ragdoll goes.
+- **Death:** automatic respawn and a dropped-items bundle exist (Milestone 11). Dropped bundles are not saved, and there is no ragdoll yet (the Blueprint event `On Died` is where it goes).
 - **Survival difficulty:** values live on the component. A `ULIDifficultySettings` Data Asset (Easy/Normal/Hard) can come later.
 - **Prototype crates:** they now spawn only when the island is disabled (`bGenerateIsland = false`) or `bSpawnPrototypeTestActors` is on.
 - **Water:** swimming is faked with `MOVE_Flying` (no water volume exists). There is no diving input yet, and the sea has no waves or underwater fog.
@@ -203,3 +204,15 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] `LISetStat Stamina 0` in deep water: you sink, an AIR bar appears and empties in ~15 s, then HP drops ~10/s until you die.
 - [ ] Back at the surface the AIR bar refills and disappears.
 - [ ] Co-op: the client swims and sinks the same way, and the host sees the client in the water.
+
+## 4l. Milestone 11 test checklist (death, respawn, sleeping bag)
+
+- [ ] Tab: the crafting list shows **Sleeping Bag** (20 Fiber + 4 Wood) right after the Campfire.
+- [ ] `LIGive Fiber 20`, `LIGive Wood 4`, craft it, then G: a teal mat appears in front of you, and the log says it is your respawn point.
+- [ ] `LIDamage 500`: "YOU DIED" plus "Respawning...". After ~6 s you stand next to the bag with fresh stats and an empty inventory.
+- [ ] Where you died there is a brown bundle: `[E] Take Dropped Items (N)` gives everything back, and tools keep their wear.
+- [ ] Without a bag you respawn on the start beach.
+- [ ] At night (`LISetTime 22`), E on the bag says `Sleep until morning`: the clock jumps to ~06:00 and food and water drop by 15.
+- [ ] Place a second bag: it becomes the respawn point and the first one stops being yours.
+- [ ] F5, F9: the bag is still there and still your respawn point.
+- [ ] Co-op: each player respawns at their own bag. Sleeping does not skip the night with 2 players.

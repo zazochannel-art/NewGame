@@ -6,6 +6,9 @@
 #include "Inventory/LIInventoryComponent.h"
 #include "Items/LIItemDefinition.h"
 #include "Items/LIItemRegistrySubsystem.h"
+#include "Save/LISaveSubsystem.h"
+#include "World/LISleepingBag.h"
+#include "GameFramework/Pawn.h"
 #include "Engine/World.h"
 #include "LostIsland.h"
 #include "GameFramework/Actor.h"
@@ -193,6 +196,13 @@ bool ULICraftingComponent::PlaceItem(FName ItemId)
 	if (!Placed)
 	{
 		return false;
+	}
+
+	// A placed sleeping bag becomes the placer's respawn point straight away.
+	if (ALISleepingBag* Bag = Cast<ALISleepingBag>(Placed))
+	{
+		const APawn* OwnerPawn = Cast<APawn>(Owner);
+		Bag->ClaimFor(ULISaveSubsystem::GetPlayerKey(OwnerPawn ? OwnerPawn->GetController() : nullptr));
 	}
 
 	Inventory->RemoveItem(ItemId, 1);

@@ -86,6 +86,11 @@ void ALIHUD::DrawHUD()
 		float W = 0.f, H = 0.f;
 		GetTextSize(Text, W, H, Font, 2.f);
 		DrawText(Text, HealthColor, CenterX - W * 0.5f, CenterY - H * 0.5f, Font, 2.f);
+		const FString SubText = LOCTEXT("Respawning", "Respawning... your items stay where you fell").ToString();
+		UFont* SmallFont = GEngine ? GEngine->GetMediumFont() : nullptr;
+		float SubW = 0.f, SubH = 0.f;
+		GetTextSize(SubText, SubW, SubH, SmallFont, 1.f);
+		DrawText(SubText, PromptColor, CenterX - SubW * 0.5f, CenterY + H, SmallFont, 1.f);
 		return;
 	}
 

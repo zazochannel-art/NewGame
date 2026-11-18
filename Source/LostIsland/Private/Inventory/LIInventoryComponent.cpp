@@ -252,7 +252,7 @@ void ULIInventoryComponent::ClientNotifyConsumed_Implementation(FName ItemId)
 // Mutation (server)
 // ---------------------------------------------------------------------------
 
-int32 ULIInventoryComponent::AddItem(FName ItemId, int32 Quantity)
+int32 ULIInventoryComponent::AddItem(FName ItemId, int32 Quantity, int32 DurabilityOverride)
 {
 	if (GetOwnerRole() != ROLE_Authority || ItemId.IsNone() || Quantity <= 0)
 	{
@@ -295,7 +295,8 @@ int32 ULIInventoryComponent::AddItem(FName ItemId, int32 Quantity)
 			const int32 ToAdd = FMath::Min(Remaining, MaxStack);
 			Slot.ItemId = ItemId;
 			Slot.Quantity = ToAdd;
-			Slot.Durability = GetMaxDurability(ItemId);
+			const int32 MaxDurability = GetMaxDurability(ItemId);
+			Slot.Durability = DurabilityOverride > 0 ? FMath::Min(DurabilityOverride, MaxDurability) : MaxDurability;
 			Remaining -= ToAdd;
 		}
 	}

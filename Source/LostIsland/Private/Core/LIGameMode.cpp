@@ -6,6 +6,9 @@
 #include "Core/LIPlayerController.h"
 #include "Core/LIGameState.h"
 #include "World/LICampfire.h"
+#include "World/LIDroppedLoot.h"
+#include "World/LISleepingBag.h"
+#include "Inventory/LIInventoryComponent.h"
 #include "EngineUtils.h"
 #include "Interaction/LIInteractableActor.h"
 #include "Resources/LIResourceNode.h"
@@ -171,9 +174,12 @@ void ALIGameMode::RegenerateIsland(int32 NewSeed)
 	}
 
 	// Player structures belong to the old terrain.
-	for (TActorIterator<ALICampfire> It(GetWorld()); It; ++It)
+	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
 	{
-		It->Destroy();
+		if (It->IsA<ALICampfire>() || It->IsA<ALISleepingBag>() || It->IsA<ALIDroppedLoot>())
+		{
+			It->Destroy();
+		}
 	}
 
 	Island->GenerateIsland(NewSeed != 0 ? NewSeed : FMath::RandRange(1, MAX_int32 - 1));
@@ -294,3 +300,81 @@ void ALIGameMode::SpawnPrototypeTestActors()
 }
 
 #undef LOCTEXT_NAMESPACE
+
+// ---------------------------------------------------------------------------
+// Death and respawn
+// ---------------------------------------------------------------------------
+
+void ALIGameMode::HandlePlayerDeath(ALICharacter* DeadCharacter)
+{
+	if (!DeadCharacter)
+	{
+		return;
+	}
+
+	// Everything the survivor carried stays where they fell.
+	if (ULIInventoryComponent* Inventory = DeadCharacter->GetInventoryComponent())
+	{
+		bool bHasItems = false;
+		for (const FLIInventorySlot& Slot : Inventory->GetSlots())
+		{
+			bHasItems |= !Slot.IsEmpty();
+		}
+		if (bHasItems)
+		{
+			const FVector FeetLocation = DeadCharacter->GetActorLocation()
+				- FVector(0.f, 0.f, DeadCharacter->GetSimpleCollisionHalfHeight() - 25.f);
+			if (ALIDroppedLoot* Loot = GetWorld()->SpawnActorDeferred<ALIDroppedLoot>(ALIDroppedLoot::StaticClass(),
+				FTransform(FeetLocation), nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn))
+			{
+				Loot->SetContents(Inventory->GetSlots());
+				Loot->FinishSpawning(FTransform(FeetLocation));
+				Inventory->ClearInventory();
+				UE_LOG(LogLostIsland, Log, TEXT("%s dropped its inventory at %s."), *DeadCharacter->GetName(), *FeetLocation.ToCompactString());
+			}
+		}
+	}
+
+	AController* Controller = DeadCharacter->GetController();
+	if (!Controller)
+	{
+		return;
+	}
+	// Always deferred: this runs inside the dying pawn's death handler, which must not destroy it.
+	FTimerHandle Handle;
+	GetWorldTimerManager().SetTimer(Handle,
+		FTimerDelegate::CreateWeakLambda(this, [this, WeakController = TWeakObjectPtr<AController>(Controller)]()
+		{
+			AController* DeadController = WeakController.Get();
+			const ALICharacter* Current = DeadController ? Cast<ALICharacter>(DeadController->GetPawn()) : nullptr;
+			if (DeadController && (!Current || Current->IsDead())) // not already revived (LIRevive)
+			{
+				RespawnPlayer(DeadController);
+			}
+		}),
+		FMath::Max(RespawnDelay, 0.1f), false);
+}
+
+void ALIGameMode::RespawnPlayer(AController* Controller)
+{
+	if (!Controller)
+	{
+		return;
+	}
+	if (APawn* OldPawn = Controller->GetPawn())
+	{
+		Controller->UnPossess();
+		OldPawn->Destroy();
+	}
+
+	if (const ALISleepingBag* Bag = ALISleepingBag::FindBagFor(GetWorld(), ULISaveSubsystem::GetPlayerKey(Controller)))
+	{
+		RestartPlayerAtTransform(Controller, Bag->GetRespawnTransform());
+		UE_LOG(LogLostIsland, Log, TEXT("%s respawned at sleeping bag %s."), *GetNameSafe(Controller), *Bag->GetName());
+	}
+	else
+	{
+		RestartPlayer(Controller);
+		UE_LOG(LogLostIsland, Log, TEXT("%s respawned on the beach (no sleeping bag)."), *GetNameSafe(Controller));
+	}
+}

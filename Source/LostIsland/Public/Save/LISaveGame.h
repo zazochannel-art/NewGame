@@ -55,6 +55,10 @@ struct LOSTISLAND_API FLIStructureSaveData
 	/** Campfire fuel in seconds. */
 	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
 	float Fuel = 0.f;
+
+	/** Sleeping bag owner (save subsystem player key). Empty for other structures. */
+	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
+	FString OwnerKey;
 };
 
 /** A resource node that is not in its fresh state (v3). Nodes at full hits are not stored. */

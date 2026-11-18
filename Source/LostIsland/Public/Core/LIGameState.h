@@ -49,6 +49,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Time")
 	float GetRealSecondsPerGameHour() const { return RealSecondsPerGameHour; }
 
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Time")
+	float GetNightEndHours() const { return NightEndHours; }
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;

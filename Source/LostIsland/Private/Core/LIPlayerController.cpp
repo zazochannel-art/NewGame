@@ -1,4 +1,4 @@
-// Copyright LOST ISLAND Team. All Rights Reserved.
+﻿// Copyright LOST ISLAND Team. All Rights Reserved.
 
 #include "Core/LIPlayerController.h"
 
@@ -12,6 +12,7 @@
 #include "World/LIIslandGenerator.h"
 #include "Core/LIGameState.h"
 #include "Save/LISaveSubsystem.h"
+#include "Crafting/LICraftingComponent.h"
 
 void ALIPlayerController::BeginPlay()
 {
@@ -129,15 +130,10 @@ void ALIPlayerController::ServerDebugDamage_Implementation(float Amount)
 void ALIPlayerController::ServerDebugRevive_Implementation()
 {
 #if !UE_BUILD_SHIPPING
-	// Prototype revive: destroy the dead pawn and let the GameMode spawn a fresh one.
-	if (APawn* ExistingPawn = GetPawn())
+	// Immediate respawn (sleeping bag or beach) with fresh stats.
+	if (ALIGameMode* GameMode = GetWorld()->GetAuthGameMode<ALIGameMode>())
 	{
-		UnPossess();
-		ExistingPawn->Destroy();
-	}
-	if (AGameModeBase* GameMode = GetWorld()->GetAuthGameMode())
-	{
-		GameMode->RestartPlayer(this);
+		GameMode->RespawnPlayer(this);
 	}
 #endif
 }
@@ -232,4 +228,15 @@ void ALIPlayerController::ServerDebugGoToSea_Implementation()
 	MyPawn->TeleportTo(Location, FRotator(0.f, (-Outward).Rotation().Yaw, 0.f));
 	SetControlRotation(FRotator(-10.f, (-Outward).Rotation().Yaw, 0.f));
 #endif
+}
+
+void ALIPlayerController::LIPlace()
+{
+	if (const ALICharacter* LICharacter = Cast<ALICharacter>(GetPawn()))
+	{
+		if (ULICraftingComponent* Crafting = LICharacter->GetCraftingComponent())
+		{
+			Crafting->RequestPlace();
+		}
+	}
 }

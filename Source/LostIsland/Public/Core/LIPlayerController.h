@@ -21,6 +21,7 @@
  *     LIRegenerateIsland <Seed>      (0 = random)
  *     LIGoToCrashSite
  *     LIGoToSea                      (deep water off the start beach, to test swimming)
+ *     LIPlace                        (same as G)
  *     LISetTime <Hours>              (e.g. 21 for night)
  *
  * Save commands (all builds):  LISave, LILoad, LINewGame   (also F5 / F9 on the character)
@@ -68,6 +69,10 @@ public:
 
 	UFUNCTION(Exec)
 	void LIGoToSea();
+
+	/** Same as the G key: place the first placeable item (campfire, sleeping bag). */
+	UFUNCTION(Exec)
+	void LIPlace();
 
 	UFUNCTION(Exec)
 	void LISetTime(float Hours);

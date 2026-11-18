@@ -7,6 +7,7 @@
 #include "Inventory/LIInventoryComponent.h"
 #include "Crafting/LICraftingComponent.h"
 #include "Core/LIPlayerController.h"
+#include "Core/LIGameMode.h"
 #include "World/LIIslandGenerator.h"
 #include "LostIsland.h"
 
@@ -485,6 +486,14 @@ void ALICharacter::HandleExhaustedChanged(bool bIsExhausted)
 
 void ALICharacter::HandleDeath(AController* Killer)
 {
+	if (HasAuthority())
+	{
+		if (ALIGameMode* GameMode = GetWorld()->GetAuthGameMode<ALIGameMode>())
+		{
+			GameMode->HandlePlayerDeath(this);
+		}
+	}
+
 	ForceStopSprinting();
 	InteractionComponent->SetScanningEnabled(false);
 	GetCharacterMovement()->DisableMovement();
