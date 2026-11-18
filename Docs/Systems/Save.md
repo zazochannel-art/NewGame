@@ -32,9 +32,25 @@
 In co-op, **only the host** can save or load (the server enforces this). Each client is saved under its unique net ID.
 
 ## Versioning
-`ULISaveGame::CurrentVersion = 1`. A save from a newer version is ignored with a warning. Migration code for older versions goes in `ULISaveSubsystem::LoadFromDisk`.
+`ULISaveGame::CurrentVersion = 3`. A save from a newer version is ignored with a warning. Migration code for older versions goes in `ULISaveSubsystem::LoadFromDisk`.
 
-## Limitations (v1)
-- The state of resource nodes (depleted or respawning) isn't saved. On load the island has all its resources again.
+| Version | Adds |
+|---|---|
+| v1 | world seed; per player: position, survival stats, inventory |
+| v2 | world clock (day, hour), placed campfires (class, transform, fuel) |
+| v3 | crash-site searches left; every gathered or depleted resource node (spawn index, class, hits left, respawn countdown) |
+
+Older saves load with the defaults of the missing fields (day 1 08:00, no campfires, fresh wreck and nodes).
+
+Resource nodes are stored by their index in `ALIIslandGenerator::GetSpawnedNodes()`. That order is deterministic for a seed, and the class name is checked as well, so a node is left fresh if the spawn rules changed between versions.
+
+## Respawn after death
+Only a player's **first** spawn in a map session can restore saved state. `LIRevive` (and later a real respawn) always starts fresh on the beach, even after F5 or an autosave.
+
+## URL options after an in-game restart
+F9 and `LINewGame` restart the level and the original URL options (`?Seed=`, `?NewGame`) are carried along. They're **ignored** on those restarts, so F9 uses the save's seed and `LINewGame` really gives a new random island.
+
+## Limitations
+- Resources are saved (v3), so save + load can no longer be used to refill the wreck or the nodes.
 - The game doesn't save on exit (on purpose: at that point the pawns may already be destroyed). Use F5 or autosave.
 - No save-slot menu yet, only one slot. When a main menu exists, `bLoadSaveOnStart` should be set to false.

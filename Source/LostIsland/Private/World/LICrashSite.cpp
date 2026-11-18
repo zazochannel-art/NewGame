@@ -130,6 +130,15 @@ void ALICrashSite::BeginPlay()
 	}
 }
 
+void ALICrashSite::SetSearchesLeft(int32 NewSearchesLeft)
+{
+	if (HasAuthority())
+	{
+		SearchesLeft = FMath::Clamp(NewSearchesLeft, 0, MaxSearches);
+		ForceNetUpdate();
+	}
+}
+
 const FLILootEntry* ALICrashSite::PickLoot(FRandomStream& Random) const
 {
 	float TotalWeight = 0.f;

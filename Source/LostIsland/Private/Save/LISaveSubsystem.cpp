@@ -11,6 +11,8 @@
 #include "Survival/LISurvivalComponent.h"
 #include "World/LIIslandGenerator.h"
 #include "World/LICampfire.h"
+#include "World/LICrashSite.h"
+#include "Resources/LIResourceNode.h"
 #include "Core/LIGameState.h"
 #include "EngineUtils.h"
 
@@ -61,6 +63,12 @@ ULISaveGame* ULISaveSubsystem::LoadFromDisk() const
 		Save->Hours = 8.f;
 		Save->Structures.Reset();
 	}
+	if (Save->SaveVersion < 3)
+	{
+		// v2 -> v3: world resources were not stored; the wreck and nodes start fresh.
+		Save->CrashSiteSearchesLeft = -1;
+		Save->ResourceNodes.Reset();
+	}
 
 	return Save;
 }
@@ -69,9 +77,10 @@ ULISaveGame* ULISaveSubsystem::LoadFromDisk() const
 // Map start
 // ---------------------------------------------------------------------------
 
-void ULISaveSubsystem::PrepareForNewMap(const FString& Options)
+bool ULISaveSubsystem::PrepareForNewMap(const FString& Options)
 {
 	AppliedPlayerKeys.Reset();
+	const bool bHonourUrlOptions = PendingIntent == EPendingIntent::None;
 
 	const bool bUrlNewGame = UGameplayStatics::HasOption(Options, TEXT("NewGame"))
 		|| !UGameplayStatics::ParseOption(Options, TEXT("Seed")).IsEmpty();
@@ -96,6 +105,7 @@ void ULISaveSubsystem::PrepareForNewMap(const FString& Options)
 		UE_LOG(LogLostIsland, Log, TEXT("Continuing save '%s' (seed %d, %d player(s), saved %s)."),
 			*SlotName, PendingSave->WorldSeed, PendingSave->Players.Num(), *PendingSave->SavedAt.ToString());
 	}
+	return bHonourUrlOptions;
 }
 
 // ---------------------------------------------------------------------------
@@ -169,6 +179,32 @@ bool ULISaveSubsystem::SaveCurrentGame()
 		Structure.Fuel = It->GetFuel();
 	}
 
+	// Wreck and resource nodes, by their deterministic spawn index.
+	if (const ALIIslandGenerator* Island = GameMode->GetIsland())
+	{
+		const TArray<TObjectPtr<AActor>>& Spawned = Island->GetSpawnedNodes();
+		for (int32 Index = 0; Index < Spawned.Num(); ++Index)
+		{
+			const AActor* Actor = Spawned[Index].Get();
+			if (const ALICrashSite* Wreck = Cast<ALICrashSite>(Actor))
+			{
+				Save->CrashSiteSearchesLeft = Wreck->GetSearchesLeft();
+			}
+			else if (const ALIResourceNode* Node = Cast<ALIResourceNode>(Actor))
+			{
+				if (Node->IsDepleted() || Node->GetRemainingHits() < Node->GetHitsToDeplete())
+				{
+					FLIResourceNodeSaveData& Data = Save->ResourceNodes.AddDefaulted_GetRef();
+					Data.Index = Index;
+					Data.ClassName = Node->GetClass()->GetFName();
+					Data.RemainingHits = Node->GetRemainingHits();
+					Data.bDepleted = Node->IsDepleted();
+					Data.RespawnSecondsRemaining = Node->GetRespawnTimeRemaining();
+				}
+			}
+		}
+	}
+
 	// Keep entries of players who are offline right now (co-op), replace the rest.
 	if (PendingSave)
 	{
@@ -222,15 +258,20 @@ bool ULISaveSubsystem::SaveCurrentGame()
 void ULISaveSubsystem::ApplyToPlayer(AController* Controller)
 {
 	ALICharacter* Character = Controller ? Cast<ALICharacter>(Controller->GetPawn()) : nullptr;
-	if (!PendingSave || !Character)
+	if (!Character)
 	{
 		return;
 	}
 
+	// Only a player's FIRST spawn in this map session may restore saved state. Mark every first
+	// spawn (even in a new game without a save), so a respawn after death (LIRevive) always starts
+	// fresh, even if a save or autosave was written in the meantime.
 	const FString Key = GetPlayerKey(Controller);
-	if (AppliedPlayerKeys.Contains(Key))
+	bool bAlreadySpawned = false;
+	AppliedPlayerKeys.Add(Key, &bAlreadySpawned);
+	if (bAlreadySpawned || !PendingSave)
 	{
-		return; // respawn after death: start fresh, don't restore the old save
+		return;
 	}
 
 	const FLIPlayerSaveData* Data = PendingSave->FindPlayer(Key);
@@ -238,7 +279,6 @@ void ULISaveSubsystem::ApplyToPlayer(AController* Controller)
 	{
 		return; // new co-op player joining a saved world
 	}
-	AppliedPlayerKeys.Add(Key);
 
 	Character->TeleportTo(Data->Location, FRotator(0.f, Data->Rotation.Yaw, 0.f), false, true);
 	Controller->SetControlRotation(Data->Rotation);
@@ -292,8 +332,37 @@ void ULISaveSubsystem::ApplyWorldState()
 		}
 	}
 
-	UE_LOG(LogLostIsland, Log, TEXT("Restored world: day %d %.1fh, %d structure(s)."),
-		PendingSave->Day, PendingSave->Hours, PendingSave->Structures.Num());
+	// Wreck and resource nodes. The island was rebuilt from the same seed, so indices match.
+	int32 RestoredNodes = 0;
+	const ALIGameMode* GameMode = World->GetAuthGameMode<ALIGameMode>();
+	if (const ALIIslandGenerator* Island = GameMode ? GameMode->GetIsland() : nullptr)
+	{
+		const TArray<TObjectPtr<AActor>>& Spawned = Island->GetSpawnedNodes();
+		if (PendingSave->CrashSiteSearchesLeft >= 0)
+		{
+			for (const TObjectPtr<AActor>& Actor : Spawned)
+			{
+				if (ALICrashSite* Wreck = Cast<ALICrashSite>(Actor.Get()))
+				{
+					Wreck->SetSearchesLeft(PendingSave->CrashSiteSearchesLeft);
+					break;
+				}
+			}
+		}
+		for (const FLIResourceNodeSaveData& Data : PendingSave->ResourceNodes)
+		{
+			ALIResourceNode* Node = Spawned.IsValidIndex(Data.Index) ? Cast<ALIResourceNode>(Spawned[Data.Index].Get()) : nullptr;
+			if (!Node || Node->GetClass()->GetFName() != Data.ClassName)
+			{
+				continue; // spawn rules changed since the save: leave that node fresh
+			}
+			Node->RestoreSavedState(Data.RemainingHits, Data.bDepleted, Data.RespawnSecondsRemaining);
+			++RestoredNodes;
+		}
+	}
+
+	UE_LOG(LogLostIsland, Log, TEXT("Restored world: day %d %.1fh, %d structure(s), %d gathered node(s), wreck searches %d."),
+		PendingSave->Day, PendingSave->Hours, PendingSave->Structures.Num(), RestoredNodes, PendingSave->CrashSiteSearchesLeft);
 }
 
 bool ULISaveSubsystem::LoadAndRestart()

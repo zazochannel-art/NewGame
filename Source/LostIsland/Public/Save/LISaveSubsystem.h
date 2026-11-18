@@ -49,8 +49,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LostIsland|Save")
 	void NewGameAndRestart();
 
-	/** Called by the GameMode at InitGame. Decides whether this map session uses the save. */
-	void PrepareForNewMap(const FString& Options);
+	/**
+	 * Called by the GameMode at InitGame. Decides whether this map session uses the save.
+	 * Returns false when this map start is a restart requested by LoadAndRestart / NewGameAndRestart:
+	 * the URL options (?Seed=, ?NewGame) are left over from the original launch and must be ignored.
+	 */
+	bool PrepareForNewMap(const FString& Options);
 
 	/** The save being applied in this map session, or null for a new game. */
 	const ULISaveGame* GetPendingSave() const { return PendingSave; }

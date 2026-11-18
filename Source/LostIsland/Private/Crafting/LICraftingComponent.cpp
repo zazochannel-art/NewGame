@@ -166,13 +166,33 @@ bool ULICraftingComponent::PlaceItem(FName ItemId)
 		return false; // under the sea level (island at Z = 0) or too steep
 	}
 
+	// Free-space check above the ground. The engine's DontSpawnIfColliding would also count the
+	// terrain itself (the stone ring sits on, or on slopes slightly in, the ground) and refuse
+	// almost every spot, so test against everything EXCEPT the ground actor that was hit.
+	FCollisionQueryParams ClearanceParams(SCENE_QUERY_STAT(LIPlaceClearance), false);
+	if (AActor* Ground = Hit.GetActor())
+	{
+		ClearanceParams.AddIgnoredActor(Ground);
+	}
+	FCollisionObjectQueryParams Blockers;
+	Blockers.AddObjectTypesToQuery(ECC_WorldStatic);   // resource nodes, wreck, other campfires
+	Blockers.AddObjectTypesToQuery(ECC_WorldDynamic);
+	Blockers.AddObjectTypesToQuery(ECC_Pawn);          // never place a fire inside a player
+	Blockers.AddObjectTypesToQuery(ECC_PhysicsBody);
+	const FVector ClearanceCenter = Hit.ImpactPoint + FVector(0.f, 0.f, PlaceClearanceRadius + 5.f);
+	if (World->OverlapAnyTestByObjectType(ClearanceCenter, FQuat::Identity, Blockers,
+		FCollisionShape::MakeSphere(PlaceClearanceRadius), ClearanceParams))
+	{
+		return false; // blocked by something
+	}
+
 	FActorSpawnParameters SpawnParams;
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::DontSpawnIfColliding;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	const FRotator Rotation(0.f, Owner->GetActorRotation().Yaw, 0.f);
 	AActor* Placed = World->SpawnActor<AActor>(Def->PlaceableActorClass, Hit.ImpactPoint, Rotation, SpawnParams);
 	if (!Placed)
 	{
-		return false; // blocked by something
+		return false;
 	}
 
 	Inventory->RemoveItem(ItemId, 1);

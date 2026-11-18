@@ -41,4 +41,4 @@ The plane body is tilted nose-down (−7°) and rolled 11° onto the broken side
 `LIGoToCrashSite` teleports you 10 m from the wreck, looking at it.
 
 ### Limitations
-- The number of searches left isn't saved yet. After loading, the wreck has its 4 searches back (like resources).
+- The number of searches left is saved (save v3), so F5 + F9 doesn't refill the wreck.

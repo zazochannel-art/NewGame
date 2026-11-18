@@ -52,6 +52,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Resource")
 	int32 GetRemainingHits() const { return RemainingHits; }
 
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Resource")
+	int32 GetHitsToDeplete() const { return HitsToDeplete; }
+
+	/** Server: seconds until a depleted node regrows, or -1 if no respawn is pending. */
+	float GetRespawnTimeRemaining() const;
+
+	/** Server (save loading): restore hits left, depletion and the pending respawn countdown. */
+	void RestoreSavedState(int32 InRemainingHits, bool bInDepleted, float RespawnSecondsRemaining);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;

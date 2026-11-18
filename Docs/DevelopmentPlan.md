@@ -30,7 +30,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 7 | Food and water: consumables, berry bushes, fresh-water springs, eat key | **Code written; awaiting first compile.** See [Systems/FoodWater.md](Systems/FoodWater.md) |
 | 8 | Crafting and tools: recipes, stone axe and pickaxe, bandage, durability | **Code written; awaiting first compile.** See [Systems/Crafting.md](Systems/Crafting.md) |
 | 8b | Plane wreck: seed-placed landmark, searchable loot, Scrap Metal | **Code written; awaiting first compile.** See [Systems/CrashSite.md](Systems/CrashSite.md) |
-| 9 | Day/night cycle, cold at night, placeable campfire with fuel, save v2 | **Code written; awaiting first compile.** See [Systems/DayNight.md](Systems/DayNight.md) |
+| 9 | Day/night cycle, cold at night, placeable campfire with fuel, save v2 (v3: wreck and resources) | **Code written; awaiting first compile.** See [Systems/DayNight.md](Systems/DayNight.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -93,7 +93,7 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] Play: an island appears with water, sky and sun. The log shows `Island generated: seed X, ~195 resource nodes, T ms`.
 - [ ] The player starts on a beach, facing inland.
 - [ ] Visible terrain: sand at the edge, light green meadows, dark green forest, grey-green hills and rock on slopes, a faceted low-poly look.
-  If you only see water and fall through: set `bFlipWinding` (see Island.md).
+  If you only see water and fall through, the winding is still wrong: set `bFlipWinding` (see Island.md) and report it.
 - [ ] Trees in the forest, rocks on hills and meadows, bushes all over. All of them can be gathered.
 - [ ] `LIRegenerateIsland 42` twice gives the same island both times. `LIRegenerateIsland 7` gives a different island.
 - [ ] `?Seed=42` in the URL gives the same island as the command above.
@@ -105,9 +105,11 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] Gather a few resources, walk somewhere, note your health, food and water. Press F5: "Game saved" appears top-right, and the log shows `Save 'LostIsland_Slot0' written`.
 - [ ] Walk somewhere else, use `LIClearInventory`. Press F9: the level reloads with the same island, you're back at the save point, and your stats and inventory are restored.
 - [ ] Stop PIE and start it again: the game automatically continues the save (same island and position).
-- [ ] `LIDamage 200` then `LIRevive`: you respawn on the beach with fresh stats, not the save's.
+- [ ] `LIDamage 200` then `LIRevive`: you respawn on the beach with fresh stats, not the save's. Also after an F5 in the same session.
 - [ ] `LINewGame`: a new random island and an empty inventory. F9 shows "No save found".
 - [ ] `?Seed=5` or `?NewGame` in the URL ignores the existing save.
+- [ ] Started with `?Seed=5`: `LINewGame` gives a different (random) island, and F9 loads the save's island.
+- [ ] Chop a tree twice and deplete a bush, search the wreck once, F5, F9: the tree shows 4/6, the bush is still gone, the wreck says `3 left`.
 - [ ] Co-op: a client can't save. The host's save includes the client; when the client reconnects to the loaded world, their state comes back.
 
 ## 4f. Milestone 7 test checklist
@@ -121,13 +123,13 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 
 ## 4g. Milestone 8 test checklist
 
-- [ ] Tab: a CRAFTING panel appears to the right of the inventory with 3 recipes. Missing ingredients are red.
-- [ ] `LIGive Wood 10`, `LIGive Stone 10`, `LIGive Fiber 20`. Press 1 with the inventory open: Stone Axe appears in its own slot with a full green bar, and the ingredients are consumed exactly.
+- [ ] Tab: a CRAFTING panel appears to the right of the inventory with 4 recipes (Campfire, Stone Axe, Stone Pickaxe, Fiber Bandage). Missing ingredients are red.
+- [ ] `LIGive Wood 10`, `LIGive Stone 10`, `LIGive Fiber 20`. Press 2 with the inventory open (1 is the Campfire, which sorts first): Stone Axe appears in its own slot with a full green bar, and the ingredients are consumed exactly.
 - [ ] With the inventory closed, 1 does nothing.
 - [ ] Chop a tree with the axe: the prompt says `with Stone Axe`, you get 4–6 wood per hit, stamina drops by ~3.6, and the bar shrinks.
 - [ ] `LIGive StoneAxe 1` twice: two axes in separate slots.
 - [ ] After 40 hits: `Stone Axe broke!` and the slot empties.
-- [ ] `LIDamage 30`, craft a bandage (3): `[F] Use Fiber Bandage` appears, and F gives +15 HP.
+- [ ] `LIDamage 30`, craft a bandage (4): `[F] Use Fiber Bandage` appears, and F gives +15 HP.
 - [ ] F5, then F9: the axe keeps its remaining durability.
 - [ ] Co-op: the client crafts and uses tools correctly.
 
@@ -143,14 +145,27 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 ## 4i. Milestone 9 test checklist
 
 - [ ] Top-left shows `Day 1   08:00   Day`, and the clock advances 1 hour per minute. The sun moves across the sky.
-- [ ] `LISetTime 21`: dark, bluish moonlight, `Night`. After at most 0.25 s, `COLD - find or build a fire` appears and the food bar drops faster.
+- [ ] `LISetTime 19`: still daylight (low, warm sun), `Day`, no cold. `LISetTime 21`: dark, bluish moonlight, `Night`. After at most 0.25 s, `COLD - find or build a fire` appears and the food bar drops faster.
 - [ ] `LIGive Wood 10`, `LIGive Stone 10`, Tab, 1: Campfire in the inventory, and `[G] Place Campfire` appears.
 - [ ] G places the fire in front of you, lit (flame + orange light). Within 6 m the `COLD` message disappears. Walk away and it comes back.
 - [ ] E with wood: `Add Wood (burns m:ss)` and the time goes up. With no fuel the fire goes out, and wood relights it.
 - [ ] G in the water or on a slope does nothing, and the item stays in the inventory.
 - [ ] F5 at night next to the fire, then F9: same hour and day, the fire is in place with the same fuel.
-- [ ] An older save (v1) still loads (day 1, 08:00).
+- [ ] An older save (v1 or v2) still loads (v1: day 1, 08:00; v1/v2: fresh wreck and resources).
 - [ ] Co-op: the client sees the same time and light, the cold works on the client, and the client's fire warms both players.
+
+## 4j. Fix pass after code review (2026-11-18)
+
+| Problem | Fix |
+|---|---|
+| Terrain triangles had the reverse of Unreal's front-face winding (invisible from above, fall-through) | `AddTriangle` now emits Unreal's order; `bFlipWinding` stays as a debug fallback |
+| `LIRevive` after any save or autosave restored the save instead of a fresh spawn | every first spawn is recorded in `AppliedPlayerKeys`, save or not |
+| F5 + F9 refilled the wreck and all resource nodes (infinite loot) | save v3 stores wreck searches and gathered/depleted nodes |
+| A sprint rejected by the server could leave the client at sprint speed | `ClientCorrectSprinting` RPC when the server's result differs from the request |
+| Dark from ~18:15 but cold only from 20:30 | sun and moon follow `NightStartHours` / `NightEndHours` |
+| `?Seed=` from the launch URL overrode F9 / `LINewGame` restarts | URL options are ignored on in-game restarts |
+| Campfire placement could fail on flat ground (`DontSpawnIfColliding` counted the terrain) | own free-space test that ignores the ground |
+| `IndexOfByKey` with a const pointer on `TObjectPtr` array (compile risk) | explicit loop with `.Get()` |
 
 ## 5. Known limitations and follow-ups
 

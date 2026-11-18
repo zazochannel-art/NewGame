@@ -86,6 +86,7 @@ void ALIGameState::UpdateLighting()
 	}
 	if (Island.IsValid())
 	{
-		Island->ApplyTimeOfDay(GetTimeOfDayHours());
+		// Sunrise = end of night, sunset = start of night: darkness and cold always match.
+		Island->ApplyTimeOfDay(GetTimeOfDayHours(), NightEndHours, NightStartHours);
 	}
 }

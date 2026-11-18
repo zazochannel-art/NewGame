@@ -428,10 +428,14 @@ void ALICharacter::CraftSlot(const FInputActionInstance& Instance)
 	{
 		return;
 	}
-	const int32 Index = CraftSlotActions.IndexOfByKey(Instance.GetSourceAction());
-	if (Index != INDEX_NONE)
+	const UInputAction* Source = Instance.GetSourceAction();
+	for (int32 Index = 0; Index < CraftSlotActions.Num(); ++Index)
 	{
-		CraftingComponent->RequestCraftByIndex(Index);
+		if (CraftSlotActions[Index].Get() == Source)
+		{
+			CraftingComponent->RequestCraftByIndex(Index);
+			return;
+		}
 	}
 }
 
@@ -511,7 +515,24 @@ void ALICharacter::SetSprinting(bool bNewSprinting)
 
 void ALICharacter::ServerSetSprinting_Implementation(bool bNewSprinting)
 {
-	SetSprinting(bNewSprinting && CanSprint());
+	const bool bAccepted = bNewSprinting && CanSprint();
+	SetSprinting(bAccepted);
+
+	// The client already applied bNewSprinting. If the server ended up with something else, tell it
+	// explicitly: bIsSprinting may not have changed on the server, so replication would stay silent.
+	if (bAccepted != bNewSprinting)
+	{
+		ClientCorrectSprinting(bIsSprinting);
+	}
+}
+
+void ALICharacter::ClientCorrectSprinting_Implementation(bool bServerSprinting)
+{
+	if (!bServerSprinting)
+	{
+		bWantsToSprint = false;
+	}
+	ApplySprintStateLocal(bServerSprinting);
 }
 
 void ALICharacter::OnRep_IsSprinting()
@@ -519,6 +540,16 @@ void ALICharacter::OnRep_IsSprinting()
 	ApplyMovementSpeed();
 	SurvivalComponent->SetSprinting(bIsSprinting);
 	OnSprintStateChanged.Broadcast(bIsSprinting);
+}
+
+void ALICharacter::ApplySprintStateLocal(bool bNewSprinting)
+{
+	if (bIsSprinting == bNewSprinting)
+	{
+		return;
+	}
+	bIsSprinting = bNewSprinting;
+	OnRep_IsSprinting();
 }
 
 void ALICharacter::ApplyMovementSpeed()
