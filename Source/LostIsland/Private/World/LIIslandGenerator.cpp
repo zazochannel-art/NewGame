@@ -5,6 +5,7 @@
 #include "LostIsland.h"
 #include "Resources/LIResourceNode.h"
 #include "World/LIWaterSource.h"
+#include "World/LICrashSite.h"
 
 #include "Components/DirectionalLightComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
@@ -113,6 +114,9 @@ ALIIslandGenerator::ALIIslandGenerator()
 	Springs.MinSpacing = 6000.f;
 	Springs.MinNormalZ = 0.93f;
 
+	CrashSiteClass = ALICrashSite::StaticClass();
+	CrashSiteBiomes = { ELIIslandBiome::Beach, ELIIslandBiome::Meadow };
+
 	// Order matters: springs first so their wide spacing is guaranteed, then sparse food, then the rest.
 	SpawnRules = { Springs, Berries, Trees, Rocks, Bushes };
 }
@@ -143,8 +147,9 @@ void ALIIslandGenerator::GenerateIsland(int32 InSeed)
 	SpawnResourceNodes();
 	ForceNetUpdate();
 
-	UE_LOG(LogLostIsland, Log, TEXT("Island generated: seed %d, %d resource nodes, %.0f ms."),
-		Seed, SpawnedNodes.Num(), (FPlatformTime::Seconds() - StartTime) * 1000.0);
+	UE_LOG(LogLostIsland, Log, TEXT("Island generated: seed %d, %d actors, crash site %s, %.0f ms."),
+		Seed, SpawnedNodes.Num(), bHasCrashSite ? *GetCrashSiteTransform().GetLocation().ToCompactString() : TEXT("none"),
+		(FPlatformTime::Seconds() - StartTime) * 1000.0);
 }
 
 void ALIIslandGenerator::ClearIsland()
@@ -163,6 +168,7 @@ void ALIIslandGenerator::ClearIsland()
 	}
 	SpawnedNodes.Reset();
 	SpawnPoints.Reset();
+	bHasCrashSite = false;
 
 	TerrainMesh->ClearAllMeshSections();
 	bHasBuiltTerrain = false;
@@ -425,9 +431,83 @@ void ALIIslandGenerator::SetupEnvironment()
 // Resources (server)
 // ---------------------------------------------------------------------------
 
+FTransform ALIIslandGenerator::GetCrashSiteTransform() const
+{
+	return CrashSiteLocalTransform * GetActorTransform();
+}
+
+void ALIIslandGenerator::ChooseCrashSite()
+{
+	bHasCrashSite = false;
+	if (!CrashSiteClass)
+	{
+		return;
+	}
+
+	FRandomStream Random(static_cast<int32>(HashCombine(GetTypeHash(Seed), 0xC4A5Eu)));
+	const float Radius = GetIslandRadius();
+	const FVector2D SpawnXY = [this]()
+	{
+		const FVector Local = GetActorTransform().InverseTransformPosition(FindPlayerSpawnTransform().GetLocation());
+		return FVector2D(Local.X, Local.Y);
+	}();
+
+	// Relax the distance-from-spawn requirement if a small island has no valid spot far enough away.
+	for (const float DistanceScale : { 1.f, 0.5f, 0.f })
+	{
+		const float MinSpawnDistSq = FMath::Square(CrashSiteMinDistanceFromSpawn * DistanceScale);
+		for (int32 Attempt = 0; Attempt < 600; ++Attempt)
+		{
+			const FVector2D XY(Random.FRandRange(-Radius, Radius), Random.FRandRange(-Radius, Radius));
+			const float Yaw = Random.FRandRange(0.f, 360.f);
+
+			if (!CrashSiteBiomes.Contains(GetBiomeAt(XY)) || FVector2D::DistSquared(XY, SpawnXY) < MinSpawnDistSq)
+			{
+				continue;
+			}
+
+			// The whole footprint must be dry and reasonably flat.
+			const FVector2D Forward(FMath::Cos(FMath::DegreesToRadians(Yaw)), FMath::Sin(FMath::DegreesToRadians(Yaw)));
+			const FVector2D Right(-Forward.Y, Forward.X);
+			const FVector2D Samples[] =
+			{
+				XY, XY + Forward * CrashSiteFootprint, XY - Forward * CrashSiteFootprint * 2.f, // debris trail behind
+				XY + Right * CrashSiteFootprint, XY - Right * CrashSiteFootprint,
+			};
+
+			bool bValid = true;
+			float MinHeight = TNumericLimits<float>::Max();
+			for (const FVector2D& Sample : Samples)
+			{
+				const float Height = GetHeightAt(Sample);
+				MinHeight = FMath::Min(MinHeight, Height);
+				if (Height < 60.f || GetNormalAt(Sample).Z < 0.88f)
+				{
+					bValid = false;
+					break;
+				}
+			}
+			if (!bValid)
+			{
+				continue;
+			}
+
+			// Sit on the lowest sampled point so nothing floats; the wreck is "dug in" anyway.
+			CrashSiteLocalTransform = FTransform(FRotator(0.f, Yaw, 0.f), FVector(XY.X, XY.Y, FMath::Min(GetHeightAt(XY), MinHeight)));
+			bHasCrashSite = true;
+			return;
+		}
+	}
+
+	UE_LOG(LogLostIsland, Warning, TEXT("Island seed %d: no valid crash site location found."), Seed);
+}
+
 void ALIIslandGenerator::BuildSpawnPoints()
 {
 	SpawnPoints.Reset();
+	ChooseCrashSite();
+	const FVector2D CrashXY(CrashSiteLocalTransform.GetLocation().X, CrashSiteLocalTransform.GetLocation().Y);
+	const float CrashClearanceSq = FMath::Square(CrashSiteClearance);
 
 	// Different stream from the terrain offsets, still derived from the seed.
 	FRandomStream Random(static_cast<int32>(HashCombine(GetTypeHash(Seed), 0x2C1B3C6Du)));
@@ -455,6 +535,10 @@ void ALIIslandGenerator::BuildSpawnPoints()
 				continue;
 			}
 			if (GetNormalAt(XY).Z < Rule.MinNormalZ)
+			{
+				continue;
+			}
+			if (bHasCrashSite && FVector2D::DistSquared(XY, CrashXY) < CrashClearanceSq)
 			{
 				continue;
 			}
@@ -503,7 +587,15 @@ void ALIIslandGenerator::SpawnResourceNodes()
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
 	const FTransform& ActorTransform = GetActorTransform();
-	SpawnedNodes.Reserve(SpawnPoints.Num());
+	SpawnedNodes.Reserve(SpawnPoints.Num() + 1);
+
+	if (bHasCrashSite && CrashSiteClass)
+	{
+		if (AActor* Wreck = World->SpawnActor<AActor>(CrashSiteClass, GetCrashSiteTransform(), Params))
+		{
+			SpawnedNodes.Add(Wreck);
+		}
+	}
 
 	for (const FLIResourceSpawnPoint& Point : SpawnPoints)
 	{

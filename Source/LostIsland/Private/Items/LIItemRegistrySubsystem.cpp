@@ -53,6 +53,7 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 		{ LIItems::Fiber,   LOCTEXT("Fiber",   "Fiber"),   LOCTEXT("FiberDesc",   "Plant fibres for rope and bindings."),        80, ELIItemCategory::Resource, 0.f,  0.f },
 		{ LIItems::Berries, LOCTEXT("Berries", "Berries"), LOCTEXT("BerriesDesc", "Tart wild berries. A little food, a little water."), 20, ELIItemCategory::Food, 8.f, 2.f },
 		{ LIItems::FiberBandage, LOCTEXT("FiberBandage", "Fiber Bandage"), LOCTEXT("FiberBandageDesc", "Crude plant-fibre wrap. Stops some bleeding."), 10, ELIItemCategory::Misc, 0.f, 0.f },
+		{ LIItems::ScrapMetal, LOCTEXT("ScrapMetal", "Scrap Metal"), LOCTEXT("ScrapMetalDesc", "Twisted aluminium from the wreck. Better tools will need it."), 30, ELIItemCategory::Resource, 0.f, 0.f },
 		{ LIItems::StoneAxe, LOCTEXT("StoneAxe", "Stone Axe"), LOCTEXT("StoneAxeDesc", "Sharp stone lashed to a branch. Fells trees faster."), 1, ELIItemCategory::Tool, 0.f, 0.f },
 		{ LIItems::StonePickaxe, LOCTEXT("StonePickaxe", "Stone Pickaxe"), LOCTEXT("StonePickaxeDesc", "Heavy pointed stone on a haft. Breaks rock faster."), 1, ELIItemCategory::Tool, 0.f, 0.f },
 	};

@@ -19,6 +19,7 @@
  *     LIGive <ItemId> <Quantity>
  *     LIClearInventory
  *     LIRegenerateIsland <Seed>      (0 = random)
+ *     LIGoToCrashSite
  *
  * Save commands (all builds):  LISave, LILoad, LINewGame   (also F5 / F9 on the character)
  */
@@ -61,6 +62,9 @@ public:
 	void LIRegenerateIsland(int32 Seed);
 
 	UFUNCTION(Exec)
+	void LIGoToCrashSite();
+
+	UFUNCTION(Exec)
 	void LISetStat(const FString& StatName, float Value);
 
 	UFUNCTION(Exec)
@@ -90,6 +94,9 @@ private:
 
 	UFUNCTION(Server, Reliable)
 	void ServerDebugRegenerateIsland(int32 Seed);
+
+	UFUNCTION(Server, Reliable)
+	void ServerDebugGoToCrashSite();
 
 	UFUNCTION(Server, Reliable)
 	void ServerSaveGame();

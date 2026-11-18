@@ -29,6 +29,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 6 | SaveGame: player transform, survival values, inventory, world seed | **Code written; awaiting first compile.** See [Systems/Save.md](Systems/Save.md) |
 | 7 | Food and water: consumables, berry bushes, fresh-water springs, eat key | **Code written; awaiting first compile.** See [Systems/FoodWater.md](Systems/FoodWater.md) |
 | 8 | Crafting and tools: recipes, stone axe and pickaxe, bandage, durability | **Code written; awaiting first compile.** See [Systems/Crafting.md](Systems/Crafting.md) |
+| 8b | Plane wreck: seed-placed landmark, searchable loot, Scrap Metal | **Code written; awaiting first compile.** See [Systems/CrashSite.md](Systems/CrashSite.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -128,6 +129,15 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] `LIDamage 30`, craft a bandage (3): `[F] Use Fiber Bandage` appears, and F gives +15 HP.
 - [ ] F5, then F9: the axe keeps its remaining durability.
 - [ ] Co-op: the client crafts and uses tools correctly.
+
+## 4h. Plane wreck test checklist
+
+- [ ] The log shows `crash site X=... Y=... Z=...` after `Island generated`.
+- [ ] `LIGoToCrashSite`: the plane sits on a beach or meadow, not floating or buried too deep, with no trees or rocks through it.
+- [ ] `[E] Search Wreckage (4 left)`: 2 random items per search, −3 stamina. After 4 searches the prompt disappears.
+- [ ] `LIRegenerateIsland 42` twice gives the wreck in the same place. A different seed puts it elsewhere.
+- [ ] It's at least ~60 m from the start point (see the preview: `Tools/IslandPreview`).
+- [ ] Co-op: both players see the wreck in the same place, and the search counter is shared.
 
 ## 5. Known limitations and follow-ups
 

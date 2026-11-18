@@ -9,6 +9,7 @@
 #include "Survival/LISurvivalComponent.h"
 #include "Inventory/LIInventoryComponent.h"
 #include "Core/LIGameMode.h"
+#include "World/LIIslandGenerator.h"
 #include "Save/LISaveSubsystem.h"
 
 void ALIPlayerController::BeginPlay()
@@ -86,6 +87,7 @@ void ALIPlayerController::LIRevive() { ServerDebugRevive(); }
 void ALIPlayerController::LIGive(const FString& ItemId, int32 Quantity) { ServerDebugGive(ItemId, Quantity); }
 void ALIPlayerController::LIClearInventory() { ServerDebugClearInventory(); }
 void ALIPlayerController::LIRegenerateIsland(int32 Seed) { ServerDebugRegenerateIsland(Seed); }
+void ALIPlayerController::LIGoToCrashSite() { ServerDebugGoToCrashSite(); }
 
 // --- Debug commands (server) ---
 
@@ -165,5 +167,25 @@ void ALIPlayerController::ServerDebugRegenerateIsland_Implementation(int32 Seed)
 	{
 		GameMode->RegenerateIsland(Seed);
 	}
+#endif
+}
+
+void ALIPlayerController::ServerDebugGoToCrashSite_Implementation()
+{
+#if !UE_BUILD_SHIPPING
+	const ALIGameMode* GameMode = GetWorld()->GetAuthGameMode<ALIGameMode>();
+	const ALIIslandGenerator* Island = GameMode ? GameMode->GetIsland() : nullptr;
+	APawn* MyPawn = GetPawn();
+	if (!Island || !Island->HasCrashSite() || !MyPawn)
+	{
+		return;
+	}
+
+	// Stand 10 m to the side of the wreck, a little above ground, looking at it.
+	const FTransform Wreck = Island->GetCrashSiteTransform();
+	const FVector Location = Wreck.GetLocation() + Wreck.GetRotation().GetRightVector() * -1000.f + FVector(0.f, 0.f, 300.f);
+	const FRotator LookAt = (Wreck.GetLocation() - Location).Rotation();
+	MyPawn->TeleportTo(Location, FRotator(0.f, LookAt.Yaw, 0.f));
+	SetControlRotation(FRotator(-10.f, LookAt.Yaw, 0.f));
 #endif
 }

@@ -121,6 +121,13 @@ public:
 
 	const TArray<FLIResourceSpawnPoint>& GetSpawnPoints() const { return SpawnPoints; }
 
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Island")
+	bool HasCrashSite() const { return bHasCrashSite; }
+
+	/** World transform of the wreck (origin on the ground). Only valid if HasCrashSite(). */
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Island")
+	FTransform GetCrashSiteTransform() const;
+
 	/** Half the width of the generated grid (cm). */
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Island")
 	float GetHalfExtent() const { return GridResolution * CellSize * 0.5f; }
@@ -222,6 +229,26 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Resources")
 	TArray<FLIResourceSpawnRule> SpawnRules;
 
+	// ---------------- Crash site ----------------
+	/** The plane wreck landmark. Null = no crash site. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|CrashSite")
+	TSubclassOf<AActor> CrashSiteClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|CrashSite")
+	TArray<ELIIslandBiome> CrashSiteBiomes;
+
+	/** No resources spawn within this distance of the wreck (keeps the landmark readable). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|CrashSite", meta = (ClampMin = "0.0", Units = "cm"))
+	float CrashSiteClearance = 1800.f;
+
+	/** Half-length of the area that must be flat and dry for the wreck. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|CrashSite", meta = (ClampMin = "100.0", Units = "cm"))
+	float CrashSiteFootprint = 700.f;
+
+	/** Minimum distance from the player's beach spawn, so finding the wreck is a small expedition. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|CrashSite", meta = (ClampMin = "0.0", Units = "cm"))
+	float CrashSiteMinDistanceFromSpawn = 6000.f;
+
 	/** Minimum distance between spawn points of different types. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Resources", meta = (ClampMin = "0.0", Units = "cm"))
 	float OtherTypeClearance = 350.f;
@@ -248,6 +275,7 @@ private:
 	/** Builds terrain + water + environment for the current Seed (all machines). */
 	void BuildTerrain();
 	void BuildSpawnPoints();
+	void ChooseCrashSite();
 	void SpawnResourceNodes();
 	void SetupEnvironment();
 
@@ -269,6 +297,9 @@ private:
 	FVector2D ForestOffset = FVector2D::ZeroVector;
 
 	TArray<FLIResourceSpawnPoint> SpawnPoints;
+
+	bool bHasCrashSite = false;
+	FTransform CrashSiteLocalTransform;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AActor>> SpawnedNodes;

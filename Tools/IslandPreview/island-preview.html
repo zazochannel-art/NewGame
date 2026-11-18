@@ -151,7 +151,7 @@ button:hover { filter: brightness(1.05); }
     <label><input type="checkbox" id="t-spin" checked> Slow rotation</label>
   </div>
 
-  <p class="note">The red pillar marks the player's start point on the beach. The noise is the same Perlin type as Unreal's, so the shape and proportions match. Exact positions may differ slightly from the game.</p>
+  <p class="note">The red pillar marks the player's start point on the beach. The crashed plane (with a smoke column) spawns at a seed-determined spot: on a beach or meadow, at least 60 m from the start, and always in the same place for the same seed. The noise is the same Perlin type as Unreal's, so the shape and proportions match. Exact positions may differ slightly from the game.</p>
 </aside>
 
 <div class="hint">drag: rotate · right-drag: pan · scroll: zoom</div>
@@ -170,6 +170,7 @@ const P = {
   HillNoiseFrequency: 1.6, DetailNoiseFrequency: 6, CoastNoiseFrequency: 2.5, CoastNoiseStrength: 0.2,
   BeachMaxHeight: 300, HillsMinHeight: 1500, ForestNoiseFrequency: 3, ForestThreshold: -0.05,
   RockSlopeNormalZ: 0.75, OtherTypeClearance: 350,
+  CrashSiteClearance: 1800, CrashSiteFootprint: 700, CrashSiteMinDistanceFromSpawn: 6000,
 };
 const COLORS = { // linear, from the C++ defaults
   Seabed: [0.55, 0.48, 0.32], Sand: [0.93, 0.82, 0.55], Meadow: [0.45, 0.70, 0.28],
@@ -284,9 +285,36 @@ function surfaceColor(I, x, y, nz) {
   return [c[0] * variation, c[1] * variation, c[2] * variation];
 }
 
+// Port of ALIIslandGenerator::ChooseCrashSite
+function chooseCrashSite(I) {
+  const r = new FRandomStream(hashCombine(I.seed >>> 0, 0xC4A5E));
+  const spawn = findPlayerSpawn(I);
+  for (const scale of [1, 0.5, 0]) {
+    const minSq = (P.CrashSiteMinDistanceFromSpawn * scale) ** 2;
+    for (let a = 0; a < 600; a++) {
+      const x = r.range(-I.radius, I.radius), y = r.range(-I.radius, I.radius);
+      const yaw = r.range(0, 360);
+      const b = I.biome(x, y);
+      if (!(b === BIOME.Beach || b === BIOME.Meadow) || (x - spawn.x) ** 2 + (y - spawn.y) ** 2 < minSq) continue;
+      const fx = Math.cos(yaw * Math.PI / 180), fy = Math.sin(yaw * Math.PI / 180), rx = -fy, ry = fx, F = P.CrashSiteFootprint;
+      const samples = [[x, y], [x + fx * F, y + fy * F], [x - fx * F * 2, y - fy * F * 2], [x + rx * F, y + ry * F], [x - rx * F, y - ry * F]];
+      let ok = true, minH = Infinity;
+      for (const [sx, sy] of samples) {
+        const h = I.height(sx, sy); minH = Math.min(minH, h);
+        if (h < 60 || I.normalZ(sx, sy) < 0.88) { ok = false; break; }
+      }
+      if (!ok) continue;
+      return { x, y, z: Math.min(I.height(x, y), minH), yaw };
+    }
+  }
+  return null;
+}
+
 function buildSpawnPoints(I) {
   const r = new FRandomStream(hashCombine(I.seed >>> 0, 0x2C1B3C6D));
   const points = [], placedByRule = {};
+  const crash = chooseCrashSite(I);
+  const crashSq = P.CrashSiteClearance ** 2;
   for (const rule of RULES) {
     const minSq = rule.spacing * rule.spacing, otherSq = P.OtherTypeClearance ** 2;
     let placed = 0;
@@ -296,6 +324,7 @@ function buildSpawnPoints(I) {
       const b = I.biome(x, y);
       if (!rule.biomes.includes(b)) continue;
       if (I.normalZ(x, y) < rule.minNZ) continue;
+      if (crash && (x - crash.x) ** 2 + (y - crash.y) ** 2 < crashSq) continue;
       let tooClose = false;
       for (const p of points) {
         const req = p.key === rule.key ? minSq : otherSq;
@@ -307,7 +336,7 @@ function buildSpawnPoints(I) {
     }
     placedByRule[rule.key] = placed;
   }
-  return { points, placedByRule };
+  return { points, placedByRule, crash };
 }
 
 function findPlayerSpawn(I) {
@@ -364,7 +393,7 @@ water.rotation.x = -Math.PI / 2;
 water.receiveShadow = true;
 scene.add(water);
 
-let terrainMesh = null, resourceGroup = null, spawnMarker = null, current = null;
+let terrainMesh = null, resourceGroup = null, spawnMarker = null, crashModel = null, current = null;
 const M = 0.01; // cm -> m
 
 function buildTerrainGeometry(I) {
@@ -451,6 +480,50 @@ function buildResources(points, proto) {
   return group;
 }
 
+// Plane wreck, same layout as ALICrashSite's placeholder parts (cm in UE -> m here).
+// Built in "UE space" (x fwd, y right, z up) inside a group, then mapped to three's Y-up.
+function buildCrashSite(c) {
+  const ue = new THREE.Group(); // children positioned in UE axes (metres)
+  // DoubleSide: the UE->three basis change below is a mirror, which flips triangle winding.
+  const mat = col => new THREE.MeshLambertMaterial({ color: col, flatShading: true, side: THREE.DoubleSide });
+  const hull = mat(0xc9c5b8), stripe = mat(0xb2412c), burnt = mat(0x1b1918);
+  const pivot = new THREE.Group();
+  pivot.position.set(0, 0, 0.55);
+  // UE FRotator(pitch -7, yaw 0, roll 11): roll about X, pitch about Y (nose down = negative pitch).
+  pivot.rotation.order = "ZYX";
+  pivot.rotation.set(11 * Math.PI / 180, 7 * Math.PI / 180, 0);
+  ue.add(pivot);
+  const part = (geo, m, parent, pos, rot) => {
+    const mesh = new THREE.Mesh(geo, m); mesh.position.set(...pos);
+    if (rot) mesh.rotation.set(...rot);
+    mesh.castShadow = true; mesh.receiveShadow = true; parent.add(mesh); return mesh;
+  };
+  // Fuselage: cylinder along X (UE), 9 m long, 1.6 m wide
+  part(new THREE.CylinderGeometry(0.8, 0.8, 9, 14).rotateZ(Math.PI / 2), hull, pivot, [0, 0, 0]);
+  part(new THREE.ConeGeometry(0.8, 1.3, 14).rotateZ(-Math.PI / 2), stripe, pivot, [5.1, 0, 0]);
+  part(new THREE.BoxGeometry(2.2, 5.6, 0.14), hull, pivot, [0.6, -3.4, -0.2], [-3 * Math.PI / 180, 0, 0]);
+  part(new THREE.BoxGeometry(2.2, 2.2, 0.14), burnt, pivot, [0.6, 1.9, -0.2], [6 * Math.PI / 180, 0, 8 * Math.PI / 180]);
+  part(new THREE.BoxGeometry(1.3, 0.14, 1.8), stripe, pivot, [-4.1, 0, 1.4]);
+  part(new THREE.BoxGeometry(1.0, 3.2, 0.1), hull, pivot, [-4.2, 0, 0.6]);
+  part(new THREE.BoxGeometry(2.1, 3.2, 0.14), hull, ue, [-2.6, 7.2, 0.12], [9 * Math.PI / 180, 4 * Math.PI / 180, 38 * Math.PI / 180]);
+  const debris = [[-7.8, -1.6, 0.1, 0.5, 0.35, 0.2], [-10.5, 1.2, 0.08, 0.35, 0.6, 0.15], [-13.5, -0.6, 0.06, 0.25, 0.25, 0.12],
+                  [7.8, 2.6, 0.12, 0.45, 0.3, 0.25], [-6, 4.2, 0.08, 0.3, 0.5, 0.12]];
+  for (const [x, y, z, sx, sy, sz] of debris) part(new THREE.BoxGeometry(sx, sy, sz), burnt, ue, [x, y, z], [0.4, 0.2, 0.7]);
+  // Map UE axes (x, y, z-up) to three (x, y-up, z): swap y/z via a parent with a basis change.
+  const wrapper = new THREE.Group();
+  ue.matrixAutoUpdate = false;
+  ue.matrix.set(1, 0, 0, 0,  0, 0, 1, 0,  0, 1, 0, 0,  0, 0, 0, 1);
+  wrapper.add(ue);
+  wrapper.position.set(c.x * M, c.z * M, c.y * M);
+  wrapper.rotation.y = -c.yaw * Math.PI / 180;
+  // Smoke marker so the wreck is easy to spot from the overview.
+  const smoke = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 2.2, 22, 10, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x3a3a3a, transparent: true, opacity: 0.28, depthWrite: false }));
+  smoke.position.y = 12;
+  wrapper.add(smoke);
+  return wrapper;
+}
+
 function setText(id, v) { document.getElementById(id).textContent = v; }
 
 function generate(seed) {
@@ -468,6 +541,10 @@ function generate(seed) {
 
   current = { I, sp, spawn };
   rebuildResources();
+
+  if (crashModel) scene.remove(crashModel);
+  crashModel = sp.crash ? buildCrashSite(sp.crash) : null;
+  if (crashModel) scene.add(crashModel);
 
   if (spawnMarker) scene.remove(spawnMarker);
   spawnMarker = new THREE.Group();
@@ -516,6 +593,11 @@ function generate(seed) {
     tr.innerHTML = '<td><span class="dot" style="background:' + rule.color + '"></span>' + rule.name + '</td><td>' + placed + ' / ' + rule.count + '</td>';
     tbl.appendChild(tr);
   }
+  const crashRow = document.createElement("tr");
+  const dist = sp.crash ? Math.round(Math.hypot(sp.crash.x - spawn.x, sp.crash.y - spawn.y) * M) : 0;
+  crashRow.innerHTML = '<td><span class="dot" style="background:#b2412c"></span>Plane wreck</td><td>' +
+    (sp.crash ? dist + " m from start" : "no spot") + '</td>';
+  tbl.appendChild(crashRow);
 }
 
 function rebuildResources() {
