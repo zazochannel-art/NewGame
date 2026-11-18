@@ -14,6 +14,10 @@ namespace LIItems
 	inline const FName Berries(TEXT("Berries"));
 	inline const FName RawMeat(TEXT("RawMeat"));
 	inline const FName CookedMeat(TEXT("CookedMeat"));
+	inline const FName EmptyFlask(TEXT("EmptyFlask"));
+	inline const FName WaterFlask(TEXT("WaterFlask"));
+	inline const FName MetalAxe(TEXT("MetalAxe"));
+	inline const FName MetalPickaxe(TEXT("MetalPickaxe"));
 	inline const FName StoneAxe(TEXT("StoneAxe"));
 	inline const FName StonePickaxe(TEXT("StonePickaxe"));
 	inline const FName FiberBandage(TEXT("FiberBandage"));

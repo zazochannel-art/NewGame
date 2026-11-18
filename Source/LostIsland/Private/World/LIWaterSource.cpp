@@ -5,6 +5,7 @@
 #include "LostIsland.h"
 #include "Survival/LISurvivalComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "EngineUtils.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/Pawn.h"
@@ -83,3 +84,19 @@ void ALIWaterSource::OnFocusEnd_Implementation(APawn* InstigatorPawn)
 }
 
 #undef LOCTEXT_NAMESPACE
+
+bool ALIWaterSource::IsNearWater(const UWorld* World, const FVector& Location, float Radius)
+{
+	if (!World)
+	{
+		return false;
+	}
+	for (TActorIterator<ALIWaterSource> It(World); It; ++It)
+	{
+		if (FVector::DistSquared(It->GetActorLocation(), Location) <= FMath::Square(Radius))
+		{
+			return true;
+		}
+	}
+	return false;
+}

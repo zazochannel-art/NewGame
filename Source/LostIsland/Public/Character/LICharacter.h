@@ -68,6 +68,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Building")
 	bool IsInBuildMode() const { return bBuildMode; }
 
+	/** Recipes per crafting page (number keys 1-9, 0). */
+	static constexpr int32 CraftKeysPerPage = 10;
+
+	/** Local: which page of recipes the number keys craft from (Q cycles while the inventory is open). */
+	int32 GetCraftPage() const { return CraftPage; }
+
 	/** Whether the character is currently allowed to sprint. Stamina will override this. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "LostIsland|Movement")
 	bool CanSprint() const;
@@ -127,6 +133,7 @@ protected:
 	void QuickSave();
 	void QuickLoad();
 	void ToggleBuildMode();
+	void NextCraftPage();
 
 	// ---- Components ----
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
@@ -199,6 +206,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
 	TObjectPtr<UInputAction> BuildModeAction;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
+	TObjectPtr<UInputAction> CraftPageAction;
+
 	// ---- Movement tuning ----
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Movement", meta = (ClampMin = "0.0", Units = "cm/s"))
 	float WalkSpeed = 380.f;
@@ -255,6 +265,7 @@ private:
 	void UpdateBuildPreview();
 	void DestroyBuildPreview();
 	bool bBuildMode = false;
+	int32 CraftPage = 0;
 
 	UPROPERTY(Transient)
 	TObjectPtr<class ALIBuildingPiece> BuildPreview;

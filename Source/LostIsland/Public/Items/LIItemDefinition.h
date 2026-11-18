@@ -58,6 +58,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Consumable")
 	float HealthValue = 0.f;
 
+	/** Item given back after consuming this one (e.g. a Water Flask leaves an Empty Flask). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Consumable")
+	FName ConsumeReturnsItem = NAME_None;
+
 	UFUNCTION(BlueprintPure, Category = "Item")
 	bool IsConsumable() const { return FoodValue > 0.f || WaterValue > 0.f || HealthValue != 0.f; }
 

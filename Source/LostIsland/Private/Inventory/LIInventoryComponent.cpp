@@ -236,7 +236,13 @@ bool ULIInventoryComponent::ConsumeItem(FName ItemId)
 	Survival->ModifyStat(ELISurvivalStat::Hunger, Def->FoodValue);
 	Survival->ModifyStat(ELISurvivalStat::Thirst, Def->WaterValue);
 	Survival->ModifyStat(ELISurvivalStat::Health, Def->HealthValue);
+	if (!Def->ConsumeReturnsItem.IsNone())
+	{
+		AddItem(Def->ConsumeReturnsItem, 1); // lost only if the inventory is completely full
+	}
 
+	UE_LOG(LogLostIsland, Log, TEXT("%s consumed %s%s."), *GetNameSafe(GetOwner()), *ItemId.ToString(),
+		Def->ConsumeReturnsItem.IsNone() ? TEXT("") : *FString::Printf(TEXT(" (got %s back)"), *Def->ConsumeReturnsItem.ToString()));
 	ClientNotifyConsumed(ItemId);
 	return true;
 }

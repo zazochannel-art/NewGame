@@ -226,6 +226,10 @@ void ALICharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	{
 		EIC->BindAction(BuildModeAction, ETriggerEvent::Started, this, &ALICharacter::ToggleBuildMode);
 	}
+	if (CraftPageAction)
+	{
+		EIC->BindAction(CraftPageAction, ETriggerEvent::Started, this, &ALICharacter::NextCraftPage);
+	}
 }
 
 void ALICharacter::EnsureDefaultInput()
@@ -259,6 +263,7 @@ void ALICharacter::EnsureDefaultInput()
 	if (!QuickSaveAction) { QuickSaveAction = MakeAction(TEXT("IA_QuickSave_Runtime"), EInputActionValueType::Boolean); }
 	if (!QuickLoadAction) { QuickLoadAction = MakeAction(TEXT("IA_QuickLoad_Runtime"), EInputActionValueType::Boolean); }
 	if (!BuildModeAction) { BuildModeAction = MakeAction(TEXT("IA_BuildMode_Runtime"), EInputActionValueType::Boolean); }
+	if (!CraftPageAction) { CraftPageAction = MakeAction(TEXT("IA_CraftPage_Runtime"), EInputActionValueType::Boolean); }
 
 	if (DefaultMappingContext)
 	{
@@ -335,6 +340,7 @@ void ALICharacter::EnsureDefaultInput()
 	IMC->MapKey(QuickSaveAction, EKeys::F5);
 	IMC->MapKey(QuickLoadAction, EKeys::F9);
 	IMC->MapKey(BuildModeAction, EKeys::B);
+	IMC->MapKey(CraftPageAction, EKeys::Q);
 	IMC->MapKey(BuildModeAction, EKeys::Gamepad_DPad_Left);
 
 	DefaultMappingContext = IMC;
@@ -448,7 +454,7 @@ void ALICharacter::CraftSlot(const FInputActionInstance& Instance)
 	{
 		if (CraftSlotActions[Index].Get() == Source)
 		{
-			CraftingComponent->RequestCraftByIndex(Index);
+			CraftingComponent->RequestCraftByIndex(CraftPage * CraftKeysPerPage + Index);
 			return;
 		}
 	}
@@ -745,4 +751,16 @@ void ALICharacter::UpdateBuildPreview()
 	{
 		BuildPreview->SetActorTransform(Transform);
 	}
+}
+
+void ALICharacter::NextCraftPage()
+{
+	const ALIPlayerController* PC = Cast<ALIPlayerController>(Controller);
+	const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
+	if (!PC || !PC->IsInventoryOpen() || !Registry)
+	{
+		return;
+	}
+	const int32 NumPages = FMath::Max(1, FMath::DivideAndRoundUp(Registry->GetRecipes().Num(), CraftKeysPerPage));
+	CraftPage = (CraftPage + 1) % NumPages;
 }

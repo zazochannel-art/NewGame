@@ -50,6 +50,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 12 | Building: wooden floor, wall and roof on a 3 m grid with snapping; a roof overhead blocks the night cold; G places the last crafted placeable | **Compiles; placement tested (screenshot); awaiting PIE test.** See [Systems/Building.md](Systems/Building.md) |
 | 13 | Build mode (B) with a green placement preview, dismantle pieces with E (item back), wooden doorway | **Compiles; preview and doorway checked (screenshot); awaiting PIE test.** See [Systems/Building.md](Systems/Building.md) |
 | 14 | Crabs on the beaches (wander, flee, catch with E) -> Raw Crab Meat; cooking at a lit campfire -> Cooked Crab Meat; recipes on keys 1-9 and 0 | **Compiles; headless test passed (14 crabs spawned, cooking only at a fire); awaiting PIE test.** See [Systems/FoodWater.md](Systems/FoodWater.md) |
+| 15 | Scrap Axe and Scrap Pickaxe (metal tools), Empty Flask filled at springs into a Water Flask (drink returns the flask), crafting pages (Q) | **Compiles; headless test passed (metal tools, fill only at a spring, drink returns flask); awaiting PIE test.** See [Systems/Crafting.md](Systems/Crafting.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -249,3 +250,12 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] Crafting list shows 10 recipes: building pieces moved to keys 7, 8, 9 and the doorway to 0.
 - [ ] `LICraft CookedMeat` does the same without opening the inventory.
 - [ ] Co-op: crabs move the same for both players.
+
+## 4p. Milestone 15 test checklist (metal tools, flask, crafting pages)
+
+- [ ] Tab: the crafting panel title shows `1/2  [Q] next page`; Q switches pages and the number keys craft from the visible page.
+- [ ] Search the wreck for Scrap Metal (2-4 per find). Scrap Axe = 2 Wood + 4 Scrap + 2 Fiber, Scrap Pickaxe = 2 Wood + 5 Scrap + 2 Fiber.
+- [ ] With both a stone and a scrap axe, chopping uses the scrap axe (prompt `with Scrap Axe`): about 6-9 wood per hit and less stamina. It lasts 120 hits.
+- [ ] Empty Flask = 2 Scrap + 2 Fiber. `Water Flask (at a spring)` is grey away from a spring and works next to one.
+- [ ] F with low water drinks the flask (+30 water) and the Empty Flask comes back.
+- [ ] Debug: `LIGoToSpring`, `LIConsume`, `LICraft <RecipeId>`.

@@ -10,6 +10,8 @@
 #include "Inventory/LIInventoryComponent.h"
 #include "Core/LIGameMode.h"
 #include "World/LIIslandGenerator.h"
+#include "World/LIWaterSource.h"
+#include "EngineUtils.h"
 #include "Core/LIGameState.h"
 #include "Save/LISaveSubsystem.h"
 #include "Crafting/LICraftingComponent.h"
@@ -257,5 +259,37 @@ void ALIPlayerController::LICraft(const FString& RecipeId)
 		{
 			Crafting->RequestCraft(FName(*RecipeId));
 		}
+	}
+}
+
+void ALIPlayerController::LIGoToSpring() { ServerDebugGoToSpring(); }
+
+void ALIPlayerController::ServerDebugGoToSpring_Implementation()
+{
+#if !UE_BUILD_SHIPPING
+	APawn* MyPawn = GetPawn();
+	const ALIWaterSource* Nearest = nullptr;
+	float BestDistSq = TNumericLimits<float>::Max();
+	for (TActorIterator<ALIWaterSource> It(GetWorld()); MyPawn && It; ++It)
+	{
+		const float DistSq = FVector::DistSquared(It->GetActorLocation(), MyPawn->GetActorLocation());
+		if (DistSq < BestDistSq)
+		{
+			BestDistSq = DistSq;
+			Nearest = *It;
+		}
+	}
+	if (Nearest)
+	{
+		MyPawn->TeleportTo(Nearest->GetActorLocation() + FVector(200.f, 0.f, 120.f), FRotator(0.f, 180.f, 0.f));
+	}
+#endif
+}
+
+void ALIPlayerController::LIConsume()
+{
+	if (const ALICharacter* LICharacter = Cast<ALICharacter>(GetPawn()))
+	{
+		LICharacter->GetInventoryComponent()->RequestConsumeBest();
 	}
 }

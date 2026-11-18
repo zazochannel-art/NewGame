@@ -82,6 +82,17 @@ public:
 	UFUNCTION(Exec)
 	void LICraft(const FString& RecipeId);
 
+	/** Teleport next to the nearest fresh-water spring. */
+	UFUNCTION(Exec)
+	void LIGoToSpring();
+
+	UFUNCTION(Server, Reliable)
+	void ServerDebugGoToSpring();
+
+	/** Same as F: eat or drink the best consumable. */
+	UFUNCTION(Exec)
+	void LIConsume();
+
 	UFUNCTION(Exec)
 	void LISetTime(float Hours);
 

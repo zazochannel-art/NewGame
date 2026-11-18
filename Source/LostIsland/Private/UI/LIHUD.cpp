@@ -277,15 +277,20 @@ void ALIHUD::DrawCraftingPanel(const ALICharacter* Character, float X, float Y, 
 	const float Width = 300.f;
 	const float Padding = 14.f;
 	const float RowHeight = 40.f;
-	const int32 NumRows = FMath::Min(Registry->GetRecipes().Num(), 10);
+	const int32 PerPage = ALICharacter::CraftKeysPerPage;
+	const int32 NumRecipes = Registry->GetRecipes().Num();
+	const int32 NumPages = FMath::Max(1, FMath::DivideAndRoundUp(NumRecipes, PerPage));
+	const int32 Page = FMath::Clamp(Character->GetCraftPage(), 0, NumPages - 1);
+	const int32 FirstRecipe = Page * PerPage;
+	const int32 NumRows = FMath::Min(NumRecipes - FirstRecipe, PerPage);
 	const float Height = FMath::Max(PanelHeight, 40.f + NumRows * RowHeight + 30.f); // grow to fit every recipe
 
 	DrawRect(FLinearColor(0.05f, 0.04f, 0.03f, 0.85f), X, Y, Width, Height);
-	DrawText(LOCTEXT("CraftingTitle", "CRAFTING").ToString(), PromptColor, X + Padding, Y + 8.f, MediumFont, 1.f);
+	DrawText(NumPages > 1 ? FString::Printf(TEXT("CRAFTING  %d/%d  [Q] next page"), Page + 1, NumPages) : LOCTEXT("CraftingTitle", "CRAFTING").ToString(), PromptColor, X + Padding, Y + 8.f, MediumFont, 1.f);
 
 	const TArray<TObjectPtr<ULIRecipeDefinition>>& Recipes = Registry->GetRecipes();
 	float RowY = Y + 40.f;
-	for (int32 Index = 0; Index < Recipes.Num() && Index < 10; ++Index)
+	for (int32 Index = FirstRecipe; Index < Recipes.Num() && Index < FirstRecipe + PerPage; ++Index)
 	{
 		const ULIRecipeDefinition* Recipe = Recipes[Index];
 		if (!Recipe || RowY + RowHeight > Y + Height)
@@ -297,7 +302,7 @@ void ALIHUD::DrawCraftingPanel(const ALICharacter* Character, float X, float Y, 
 		const FString Name = !Recipe->DisplayName.IsEmpty()
 			? Recipe->DisplayName.ToString()
 			: Registry->GetDisplayName(Recipe->Output.ItemId).ToString();
-		DrawText(FString::Printf(TEXT("[%d] %s%s"), (Index + 1) % 10, *Name, Recipe->bRequiresFire ? TEXT("  (at a fire)") : TEXT("")), bCanCraft ? FLinearColor::White : FLinearColor(0.6f, 0.6f, 0.6f, 1.f),
+		DrawText(FString::Printf(TEXT("[%d] %s%s"), (Index - FirstRecipe + 1) % 10, *Name, Recipe->bRequiresFire ? TEXT("  (at a fire)") : (Recipe->bRequiresWater ? TEXT("  (at a spring)") : TEXT(""))), bCanCraft ? FLinearColor::White : FLinearColor(0.6f, 0.6f, 0.6f, 1.f),
 			X + Padding, RowY, SmallFont, 1.f);
 
 		// Ingredients: "3/3 Wood  1/2 Stone" (red when missing).
