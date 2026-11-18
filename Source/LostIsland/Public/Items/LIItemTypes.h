@@ -18,6 +18,9 @@ namespace LIItems
 	inline const FName ScrapMetal(TEXT("ScrapMetal"));
 	inline const FName Campfire(TEXT("Campfire"));
 	inline const FName SleepingBag(TEXT("SleepingBag"));
+	inline const FName WoodenFloor(TEXT("WoodenFloor"));
+	inline const FName WoodenWall(TEXT("WoodenWall"));
+	inline const FName WoodenRoof(TEXT("WoodenRoof"));
 }
 
 /** What a tool is good at. Resource nodes declare which tool type helps them. */

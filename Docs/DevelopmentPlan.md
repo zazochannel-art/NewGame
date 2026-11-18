@@ -47,6 +47,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 9 | Day/night cycle, cold at night, placeable campfire with fuel, save v2 (v3: wreck and resources) | **Compiles; awaiting PIE test.** See [Systems/DayNight.md](Systems/DayNight.md) |
 | 10 | Swimming: deep water, swim stamina, sinking when exhausted, breath and drowning, `LIGoToSea` | **Compiles; headless test passed (swim + drown); awaiting PIE test.** See [Systems/Swimming.md](Systems/Swimming.md) |
 | 11 | Death and respawn: dropped inventory bundle, respawn after 6 s, sleeping bag (craft, place, respawn point, sleep through the night) | **Compiles; headless test passed (place bag, die, drop, respawn at bag); awaiting PIE test.** See [Systems/DeathRespawn.md](Systems/DeathRespawn.md) |
+| 12 | Building: wooden floor, wall and roof on a 3 m grid with snapping; a roof overhead blocks the night cold; G places the last crafted placeable | **Compiles; placement tested (screenshot); awaiting PIE test.** See [Systems/Building.md](Systems/Building.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -216,3 +217,15 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] Place a second bag: it becomes the respawn point and the first one stops being yours.
 - [ ] F5, F9: the bag is still there and still your respawn point.
 - [ ] Co-op: each player respawns at their own bag. Sleeping does not skip the night with 2 players.
+
+## 4m. Milestone 12 test checklist (building)
+
+- [ ] Tab: Wooden Floor (8 Wood), Wooden Wall (6 Wood + 2 Fiber), Wooden Roof (6 Wood + 4 Fiber) at the end of the list (keys 6, 7, 8).
+- [ ] Craft a floor, G: a 3 x 3 m plank floor appears in front of where the camera looks. On water or steep slopes G does nothing.
+- [ ] A second floor snaps next to the first, on the side you look at, at the same height.
+- [ ] Walls snap to the floor edge nearest to where you look, standing on the floor. The same edge can't get two walls.
+- [ ] A roof goes 3 m above the floor cell you look at.
+- [ ] Night (`LISetTime 22`): under a roof the COLD message disappears; step out and it comes back.
+- [ ] After crafting walls, G places walls even if a campfire or bag sits earlier in the inventory.
+- [ ] F5, F9: all pieces come back in place.
+- [ ] Co-op: both players see the same pieces and can build on each other's floors.

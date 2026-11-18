@@ -72,6 +72,7 @@ ALIIslandGenerator::ALIIslandGenerator()
 	SkyLight->SetupAttachment(TerrainMesh);
 	SkyLight->SetMobility(EComponentMobility::Movable);
 	SkyLight->bRealTimeCapture = true;
+	SkyLight->SetIntensity(8.f); // fill light for shadowed sides under the -3 EV exposure (see ExposureCompensation)
 
 	HeightFog = CreateDefaultSubobject<UExponentialHeightFogComponent>(TEXT("HeightFog"));
 	HeightFog->SetupAttachment(TerrainMesh);

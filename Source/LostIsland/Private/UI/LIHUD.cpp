@@ -56,7 +56,7 @@ void ALIHUD::DrawHUD()
 		if (Survival->IsCold() && !Survival->IsDead())
 		{
 			const float Spacing = BarSize.Y + 10.f;
-			DrawText(LOCTEXT("Cold", "COLD - find or build a fire").ToString(), ThirstColor,
+			DrawText(LOCTEXT("Cold", "COLD - get to a fire or under a roof").ToString(), ThirstColor,
 				24.f, Canvas->ClipY - 24.f - Spacing * 4.f - 24.f, GEngine ? GEngine->GetSmallFont() : nullptr, 1.f);
 		}
 	}

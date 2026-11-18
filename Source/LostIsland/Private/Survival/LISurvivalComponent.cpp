@@ -5,6 +5,7 @@
 #include "LostIsland.h"
 #include "Core/LIGameState.h"
 #include "World/LICampfire.h"
+#include "World/LIBuildingPiece.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Net/UnrealNetwork.h"
@@ -269,7 +270,8 @@ void ULISurvivalComponent::UpdateSurvival()
 
 	// --- Temperature ---
 	const ALIGameState* GameState = GetWorld() ? GetWorld()->GetGameState<ALIGameState>() : nullptr;
-	SetCold(GameState && GameState->IsNight() && Owner && !ALICampfire::IsWarmAt(GetWorld(), Owner->GetActorLocation()));
+	SetCold(GameState && GameState->IsNight() && Owner && !ALICampfire::IsWarmAt(GetWorld(), Owner->GetActorLocation())
+		&& !ALIBuildingPiece::IsSheltered(GetWorld(), Owner->GetActorLocation()));
 
 	// --- Needs ---
 	const float NeedsMultiplier = bSprintingAndMoving ? SprintNeedsDecayMultiplier : 1.f;

@@ -8,6 +8,7 @@
 #include "World/LICampfire.h"
 #include "World/LIDroppedLoot.h"
 #include "World/LISleepingBag.h"
+#include "World/LIBuildingPiece.h"
 #include "Inventory/LIInventoryComponent.h"
 #include "EngineUtils.h"
 #include "Interaction/LIInteractableActor.h"
@@ -176,7 +177,7 @@ void ALIGameMode::RegenerateIsland(int32 NewSeed)
 	// Player structures belong to the old terrain.
 	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
 	{
-		if (It->IsA<ALICampfire>() || It->IsA<ALISleepingBag>() || It->IsA<ALIDroppedLoot>())
+		if (It->IsA<ALICampfire>() || It->IsA<ALISleepingBag>() || It->IsA<ALIDroppedLoot>() || It->IsA<ALIBuildingPiece>())
 		{
 			It->Destroy();
 		}
