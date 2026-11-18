@@ -3,6 +3,7 @@
 #include "Character/LICharacter.h"
 
 #include "Interaction/LIInteractionComponent.h"
+#include "Survival/LISurvivalComponent.h"
 #include "LostIsland.h"
 
 #include "Camera/CameraComponent.h"
@@ -10,6 +11,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
+#include "Engine/DamageEvents.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/StaticMesh.h"
 #include "EnhancedInputComponent.h"
@@ -60,6 +62,7 @@ ALICharacter::ALICharacter()
 	FollowCamera->bUsePawnControlRotation = false;
 
 	InteractionComponent = CreateDefaultSubobject<ULIInteractionComponent>(TEXT("Interaction"));
+	SurvivalComponent = CreateDefaultSubobject<ULISurvivalComponent>(TEXT("Survival"));
 
 	// Standard UE mannequin alignment for when a skeletal mesh is assigned.
 	GetMesh()->SetRelativeLocationAndRotation(FVector(0.f, 0.f, -96.f), FRotator(0.f, -90.f, 0.f));
@@ -82,6 +85,14 @@ void ALICharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ALICharacter, bIsSprinting);
+}
+
+void ALICharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+
+	SurvivalComponent->OnExhaustedChanged.AddDynamic(this, &ALICharacter::HandleExhaustedChanged);
+	SurvivalComponent->OnDeath.AddDynamic(this, &ALICharacter::HandleDeath);
 }
 
 void ALICharacter::BeginPlay()
@@ -309,13 +320,51 @@ void ALICharacter::ForceStopSprinting()
 
 void ALICharacter::Interact()
 {
+	if (IsDead())
+	{
+		return;
+	}
+
 	InteractionComponent->TryInteract();
 }
 
 bool ALICharacter::CanSprint_Implementation() const
 {
 	const UCharacterMovementComponent* Movement = GetCharacterMovement();
-	return Movement && !Movement->IsCrouching();
+	return Movement && !Movement->IsCrouching() && SurvivalComponent && SurvivalComponent->CanSprint();
+}
+
+bool ALICharacter::IsDead() const
+{
+	return SurvivalComponent && SurvivalComponent->IsDead();
+}
+
+float ALICharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+{
+	const float Incoming = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+	return SurvivalComponent ? SurvivalComponent->ApplyDamage(Incoming, EventInstigator) : 0.f;
+}
+
+void ALICharacter::HandleExhaustedChanged(bool bIsExhausted)
+{
+	if (bIsExhausted)
+	{
+		ForceStopSprinting();
+	}
+}
+
+void ALICharacter::HandleDeath(AController* Killer)
+{
+	ForceStopSprinting();
+	InteractionComponent->SetScanningEnabled(false);
+	GetCharacterMovement()->DisableMovement();
+
+	if (APlayerController* PC = Cast<APlayerController>(Controller))
+	{
+		DisableInput(PC);
+	}
+
+	BP_OnDied();
 }
 
 void ALICharacter::SetSprinting(bool bNewSprinting)
@@ -328,6 +377,7 @@ void ALICharacter::SetSprinting(bool bNewSprinting)
 	// Apply locally right away for responsiveness, then let the server confirm.
 	bIsSprinting = bNewSprinting;
 	ApplyMovementSpeed();
+	SurvivalComponent->SetSprinting(bIsSprinting);
 	OnSprintStateChanged.Broadcast(bIsSprinting);
 
 	if (!HasAuthority())
@@ -344,6 +394,7 @@ void ALICharacter::ServerSetSprinting_Implementation(bool bNewSprinting)
 void ALICharacter::OnRep_IsSprinting()
 {
 	ApplyMovementSpeed();
+	SurvivalComponent->SetSprinting(bIsSprinting);
 	OnSprintStateChanged.Broadcast(bIsSprinting);
 }
 

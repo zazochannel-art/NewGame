@@ -10,6 +10,7 @@ class UCameraComponent;
 class UInputAction;
 class UInputMappingContext;
 class ULIInteractionComponent;
+class ULISurvivalComponent;
 class USpringArmComponent;
 class UStaticMeshComponent;
 struct FInputActionValue;
@@ -70,11 +71,21 @@ public:
 	UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 	ULIInteractionComponent* GetInteractionComponent() const { return InteractionComponent; }
 
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Survival")
+	ULISurvivalComponent* GetSurvivalComponent() const { return SurvivalComponent; }
+
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Survival")
+	bool IsDead() const;
+
+	/** Routes engine damage (ApplyDamage, damage volumes...) into the survival component. */
+	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+
 	/** Fired on server and all clients whenever sprint state changes. */
 	UPROPERTY(BlueprintAssignable, Category = "LostIsland|Movement")
 	FLIOnSprintStateChanged OnSprintStateChanged;
 
 protected:
+	virtual void PostInitializeComponents() override;
 	virtual void BeginPlay() override;
 	virtual void NotifyControllerChanged() override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
@@ -96,6 +107,13 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULIInteractionComponent> InteractionComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<ULISurvivalComponent> SurvivalComponent;
+
+	/** Blueprint hook for death presentation (ragdoll, camera, UI). Runs on all machines. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "LostIsland|Survival", meta = (DisplayName = "On Died"))
+	void BP_OnDied();
 
 	/** Visible stand-in body until a skeletal mesh is assigned. Hidden automatically at BeginPlay if one is. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
@@ -155,6 +173,12 @@ private:
 
 	UFUNCTION()
 	void OnRep_IsSprinting();
+
+	UFUNCTION()
+	void HandleExhaustedChanged(bool bIsExhausted);
+
+	UFUNCTION()
+	void HandleDeath(AController* Killer);
 
 	UPROPERTY(ReplicatedUsing = OnRep_IsSprinting)
 	bool bIsSprinting = false;

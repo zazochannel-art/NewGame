@@ -23,6 +23,28 @@ public:
 	virtual void DrawHUD() override;
 
 protected:
+	void DrawInteractionPrompt(const class ALICharacter* Character, float CenterX, float CenterY);
+	void DrawSurvivalBars(const class ALICharacter* Character);
+	void DrawBar(float X, float Y, float Percent, const FLinearColor& Color, const FString& Label);
+
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|HUD")
+	FLinearColor HealthColor = FLinearColor(0.80f, 0.15f, 0.12f, 1.f);
+
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|HUD")
+	FLinearColor HungerColor = FLinearColor(0.85f, 0.55f, 0.15f, 1.f);
+
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|HUD")
+	FLinearColor ThirstColor = FLinearColor(0.20f, 0.55f, 0.90f, 1.f);
+
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|HUD")
+	FLinearColor StaminaColor = FLinearColor(0.35f, 0.80f, 0.30f, 1.f);
+
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|HUD")
+	FLinearColor ExhaustedColor = FLinearColor(0.45f, 0.45f, 0.45f, 1.f);
+
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|HUD")
+	FVector2D BarSize = FVector2D(220.f, 14.f);
+
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|HUD")
 	FLinearColor PromptColor = FLinearColor(1.f, 0.95f, 0.8f, 1.f);
 

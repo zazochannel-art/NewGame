@@ -5,7 +5,7 @@ Windows PC / Steam · Unreal Engine 5 · C++ with Blueprint configuration · sin
 
 ## Status
 
-**Milestone 1: Third Person character, camera and interaction foundation.** The code is written. It has **not been compiled yet**; see [Docs/DevelopmentPlan.md](Docs/DevelopmentPlan.md).
+**Milestone 1 (character + interaction) and Milestone 2 (survival: health, hunger, thirst, stamina).** The code is written. It has **not been compiled yet**; see [Docs/DevelopmentPlan.md](Docs/DevelopmentPlan.md).
 
 ## Getting started (Windows)
 
@@ -38,7 +38,8 @@ Source/LostIsland/
   Public|Private/Core/        GameMode, PlayerController
   Public|Private/Character/   ALICharacter, ULIAnimInstance
   Public|Private/Interaction/ ILIInteractable, ULIInteractionComponent, ALIInteractableActor
-  Public|Private/UI/          ALIHUD (prototype canvas HUD)
+  Public|Private/Survival/    ULISurvivalComponent, survival types
+  Public|Private/UI/          ALIHUD (prototype canvas HUD: bars + prompt)
 Docs/                         Development plan and per-system documentation
 ```
 
