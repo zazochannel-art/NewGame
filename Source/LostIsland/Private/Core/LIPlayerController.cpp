@@ -8,6 +8,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "Survival/LISurvivalComponent.h"
 #include "Inventory/LIInventoryComponent.h"
+#include "Core/LIGameMode.h"
 
 void ALIPlayerController::BeginPlay()
 {
@@ -27,6 +28,7 @@ void ALIPlayerController::LIDamage(float Amount) { ServerDebugDamage(Amount); }
 void ALIPlayerController::LIRevive() { ServerDebugRevive(); }
 void ALIPlayerController::LIGive(const FString& ItemId, int32 Quantity) { ServerDebugGive(ItemId, Quantity); }
 void ALIPlayerController::LIClearInventory() { ServerDebugClearInventory(); }
+void ALIPlayerController::LIRegenerateIsland(int32 Seed) { ServerDebugRegenerateIsland(Seed); }
 
 // --- Debug commands (server) ---
 
@@ -95,6 +97,16 @@ void ALIPlayerController::ServerDebugClearInventory_Implementation()
 	if (const ALICharacter* LICharacter = Cast<ALICharacter>(GetPawn()))
 	{
 		LICharacter->GetInventoryComponent()->ClearInventory();
+	}
+#endif
+}
+
+void ALIPlayerController::ServerDebugRegenerateIsland_Implementation(int32 Seed)
+{
+#if !UE_BUILD_SHIPPING
+	if (ALIGameMode* GameMode = GetWorld()->GetAuthGameMode<ALIGameMode>())
+	{
+		GameMode->RegenerateIsland(Seed);
 	}
 #endif
 }

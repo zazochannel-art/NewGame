@@ -20,7 +20,8 @@ public class LostIsland : ModuleRules
 		// Added per milestone as systems need them (UMG for UI, etc.).
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
-			"AnimGraphRuntime" // UKismetAnimationLibrary (ULIAnimInstance)
+			"AnimGraphRuntime",        // UKismetAnimationLibrary (ULIAnimInstance)
+			"ProceduralMeshComponent"  // island terrain (ALIIslandGenerator)
 		});
 	}
 }

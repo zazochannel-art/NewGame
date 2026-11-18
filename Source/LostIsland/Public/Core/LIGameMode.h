@@ -8,6 +8,8 @@
 
 class ALIInteractableActor;
 class ALIResourceNode;
+class ALIIslandGenerator;
+class APlayerStart;
 
 /**
  * ALIGameMode
@@ -28,11 +30,32 @@ class LOSTISLAND_API ALIGameMode : public AGameModeBase
 public:
 	ALIGameMode();
 
+	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
 	virtual void StartPlay() override;
+	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
+
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Island")
+	ALIIslandGenerator* GetIsland() const { return Island; }
+
+	/** Server: rebuild the island with a new seed (0 = random) and move all players to the new beach spawn. */
+	UFUNCTION(BlueprintCallable, Category = "LostIsland|Island")
+	void RegenerateIsland(int32 NewSeed);
 
 protected:
+	/** Generate the procedural island at game start. */
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Island")
+	bool bGenerateIsland = true;
+
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Island", meta = (EditCondition = "bGenerateIsland"))
+	TSubclassOf<ALIIslandGenerator> IslandGeneratorClass;
+
+	/** Fixed world seed. 0 = random each new game. Overridden by the "?Seed=123" URL option. */
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Island", meta = (EditCondition = "bGenerateIsland"))
+	int32 IslandSeed = 0;
+
+	/** Spawn the test crates / resource ring. Always on when the island is disabled. */
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Prototype")
-	bool bSpawnPrototypeTestActors = true;
+	bool bSpawnPrototypeTestActors = false;
 
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Prototype", meta = (EditCondition = "bSpawnPrototypeTestActors"))
 	TSubclassOf<ALIInteractableActor> PrototypeTestActorClass;
@@ -44,7 +67,22 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Prototype", meta = (EditCondition = "bSpawnPrototypeTestActors", ClampMin = "0"))
 	int32 PrototypeNodesPerClass = 3;
 
+	/** Seed to use for a new island. Save loading (Milestone 6) hooks in here. */
+	virtual int32 ChooseIslandSeed() const;
+
+	/** Creates and generates the island once. Safe to call repeatedly. */
+	void EnsureIslandGenerated();
+
 private:
+	UPROPERTY(Transient)
+	TObjectPtr<ALIIslandGenerator> Island;
+
+	UPROPERTY(Transient)
+	TObjectPtr<APlayerStart> IslandPlayerStart;
+
+	/** Seed from the "?Seed=" URL option (0 = none). */
+	int32 UrlSeed = 0;
+
 	void SpawnPrototypeTestActors();
 	AActor* SpawnOnGround(TSubclassOf<AActor> Class, const FVector& Location, const FRotator& Rotation, float GroundOffset, bool bDeferred = false);
 };

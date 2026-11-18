@@ -5,7 +5,7 @@ Windows PC / Steam · Unreal Engine 5 · C++ with Blueprint configuration · sin
 
 ## Status
 
-**Milestones 1–4: character + interaction, survival (health/hunger/thirst/stamina), resource gathering, inventory.** The code is written. It has **not been compiled yet**; see [Docs/DevelopmentPlan.md](Docs/DevelopmentPlan.md).
+**Milestones 1–5: character + interaction, survival (health/hunger/thirst/stamina), resource gathering, inventory, procedural island.** The code is written. It has **not been compiled yet**; see [Docs/DevelopmentPlan.md](Docs/DevelopmentPlan.md).
 
 ## Getting started (Windows)
 
@@ -16,7 +16,7 @@ Windows PC / Steam · Unreal Engine 5 · C++ with Blueprint configuration · sin
 4. Open `LostIsland.sln`, select **Development Editor | Win64**, and build.
 5. Open the project and press **Play**.
 
-The project contains no `.uasset` content yet. It starts in the engine's Basic template map. Input bindings are generated in C++, and placeholder shapes stand in for the character and objects, so it runs as soon as it compiles.
+The project contains no `.uasset` content yet. It starts in the empty engine map and generates the island from a seed (`?Seed=123`). Input bindings are generated in C++, and placeholder shapes stand in for the character and objects, so it runs as soon as it compiles.
 
 ## Controls
 
@@ -43,6 +43,7 @@ Source/LostIsland/
   Public|Private/Items/       ULIItemDefinition, ULIItemRegistrySubsystem, item types
   Public|Private/Inventory/   ULIInventoryComponent
   Public|Private/Resources/   ALIResourceNode + Tree / Rock / FiberBush presets
+  Public|Private/World/       ALIIslandGenerator (procedural island)
   Public|Private/UI/          ALIHUD (prototype canvas HUD: bars + prompt)
 Docs/                         Development plan and per-system documentation
 ```

@@ -20,7 +20,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 2 | Survival component: health, hunger, thirst, stamina (timer-driven, configurable, replicated) | **Code written; awaiting first compile.** See [Systems/Survival.md](Systems/Survival.md) |
 | 3 | Resource nodes: wood, stone and fiber; gathering through `ILIInteractable` | **Code written; awaiting first compile.** See [Systems/Resources.md](Systems/Resources.md) |
 | 4 | Inventory component: item definitions (Data Assets), IDs, stacks, add/remove, basic UI | **Code written; awaiting first compile.** See [Systems/Inventory.md](Systems/Inventory.md) |
-| 5 | Procedural island: seeded heightmap (beach, forest, hills), instanced trees and rocks, resource spawn points | Planned |
+| 5 | Procedural island: seeded terrain (beach, meadow, forest, hills), water, environment, resource spawn points | **Code written; awaiting first compile.** See [Systems/Island.md](Systems/Island.md) |
 | 6 | SaveGame: player transform, survival values, inventory, world seed | Planned |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
@@ -79,6 +79,18 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] `LIClearInventory` empties the inventory.
 - [ ] Co-op: the client gathers, sees its own inventory, and the tree disappears for both players.
 
+## 4d. Milestone 5 test checklist
+
+- [ ] Play: an island appears with water, sky and sun. The log shows `Island generated: seed X, ~195 resource nodes, T ms`.
+- [ ] The player starts on a beach, facing inland.
+- [ ] Visible terrain: sand at the edge, light green meadows, dark green forest, grey-green hills and rock on slopes, a faceted low-poly look.
+  If you only see water and fall through: set `bFlipWinding` (see Island.md).
+- [ ] Trees in the forest, rocks on hills and meadows, bushes all over. All of them can be gathered.
+- [ ] `LIRegenerateIsland 42` twice gives the same island both times. `LIRegenerateIsland 7` gives a different island.
+- [ ] `?Seed=42` in the URL gives the same island as the command above.
+- [ ] Co-op: the client sees the same terrain and the same resources as the host.
+- [ ] Measure the generation time (log) and FPS on the target PC.
+
 ## 5. Known limitations and follow-ups
 
 - **Animations:** there is no skeletal mesh or Anim Blueprint in the repo, and no `.uasset` can be authored outside the editor. To set one up, migrate or import a mannequin, create `ABP_Survivor` with parent `LIAnimInstance`, and create `BP_Survivor` (parent `LICharacter`) with the mesh and AnimBP assigned. Then point the GameMode's `DefaultPawnClass` at it through a `BP_LIGameMode`.
@@ -87,4 +99,6 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - **HUD:** the canvas HUD is temporary until the UMG inventory and HUD milestone.
 - **Death:** no respawn or loot drop yet, only the `LIRevive` debug command. The Blueprint event `On Died` is where ragdoll goes.
 - **Survival difficulty:** values live on the component. A `ULIDifficultySettings` Data Asset (Easy/Normal/Hard) can come later.
-- **Prototype crates:** turn off `bSpawnPrototypeTestActors` on the GameMode once real content exists.
+- **Prototype crates:** they now spawn only when the island is disabled (`bGenerateIsland = false`) or `bSpawnPrototypeTestActors` is on.
+- **Water:** it's a visual plane only, with no swimming or drowning. The player can walk on the seabed.
+- **Island scale:** resource nodes are separate actors (~195). HISM is the plan if performance or bandwidth requires it.

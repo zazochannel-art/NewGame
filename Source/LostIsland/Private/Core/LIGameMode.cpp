@@ -6,10 +6,13 @@
 #include "Core/LIPlayerController.h"
 #include "Interaction/LIInteractableActor.h"
 #include "Resources/LIResourceNode.h"
+#include "World/LIIslandGenerator.h"
 #include "LostIsland.h"
 #include "UI/LIHUD.h"
 
 #include "Engine/World.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerStart.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -22,15 +25,115 @@ ALIGameMode::ALIGameMode()
 	HUDClass = ALIHUD::StaticClass();
 	PrototypeTestActorClass = ALIInteractableActor::StaticClass();
 	PrototypeResourceClasses = { ALITreeNode::StaticClass(), ALIRockNode::StaticClass(), ALIFiberBushNode::StaticClass() };
+	IslandGeneratorClass = ALIIslandGenerator::StaticClass();
+}
+
+void ALIGameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
+{
+	Super::InitGame(MapName, Options, ErrorMessage);
+
+	const FString SeedOption = UGameplayStatics::ParseOption(Options, TEXT("Seed"));
+	if (!SeedOption.IsEmpty())
+	{
+		UrlSeed = FCString::Atoi(*SeedOption);
+	}
 }
 
 void ALIGameMode::StartPlay()
 {
+	// Local players can be spawned before StartPlay, so ChoosePlayerStart may already have built the island.
+	EnsureIslandGenerated();
+
 	Super::StartPlay();
 
-	if (bSpawnPrototypeTestActors)
+	if (bSpawnPrototypeTestActors || !bGenerateIsland)
 	{
 		SpawnPrototypeTestActors();
+	}
+}
+
+int32 ALIGameMode::ChooseIslandSeed() const
+{
+	if (UrlSeed != 0)
+	{
+		return UrlSeed;
+	}
+	if (IslandSeed != 0)
+	{
+		return IslandSeed;
+	}
+	return FMath::RandRange(1, MAX_int32 - 1);
+}
+
+void ALIGameMode::EnsureIslandGenerated()
+{
+	if (!bGenerateIsland || Island || !IslandGeneratorClass)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	Island = World->SpawnActor<ALIIslandGenerator>(IslandGeneratorClass, FTransform::Identity, Params);
+	if (!Island)
+	{
+		UE_LOG(LogLostIsland, Error, TEXT("Failed to spawn the island generator."));
+		return;
+	}
+
+	Island->GenerateIsland(ChooseIslandSeed());
+
+	IslandPlayerStart = World->SpawnActor<APlayerStart>(APlayerStart::StaticClass(), Island->FindPlayerSpawnTransform(), Params);
+}
+
+AActor* ALIGameMode::ChoosePlayerStart_Implementation(AController* Player)
+{
+	EnsureIslandGenerated();
+	if (IslandPlayerStart)
+	{
+		return IslandPlayerStart;
+	}
+	return Super::ChoosePlayerStart_Implementation(Player);
+}
+
+void ALIGameMode::RegenerateIsland(int32 NewSeed)
+{
+	if (!Island)
+	{
+		EnsureIslandGenerated();
+		if (!Island)
+		{
+			return;
+		}
+	}
+
+	Island->GenerateIsland(NewSeed != 0 ? NewSeed : FMath::RandRange(1, MAX_int32 - 1));
+
+	// PlayerStart has a static root and cannot be moved at runtime: replace it.
+	const FTransform Spawn = Island->FindPlayerSpawnTransform();
+	if (IslandPlayerStart)
+	{
+		IslandPlayerStart->Destroy();
+	}
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	IslandPlayerStart = GetWorld()->SpawnActor<APlayerStart>(APlayerStart::StaticClass(), Spawn, Params);
+
+	// Move everyone to the new beach, spaced out so capsules don't overlap.
+	int32 Index = 0;
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		if (APawn* Pawn = It->IsValid() ? (*It)->GetPawn() : nullptr)
+		{
+			const FVector Offset = Spawn.GetRotation().GetRightVector() * (Index++ * 150.f);
+			Pawn->TeleportTo(Spawn.GetLocation() + Offset, Spawn.Rotator());
+		}
 	}
 }
 

@@ -18,6 +18,7 @@
  *     LIRevive
  *     LIGive <ItemId> <Quantity>
  *     LIClearInventory
+ *     LIRegenerateIsland <Seed>      (0 = random)
  */
 UCLASS()
 class LOSTISLAND_API ALIPlayerController : public APlayerController
@@ -37,6 +38,9 @@ public:
 
 	UFUNCTION(Exec)
 	void LIClearInventory();
+
+	UFUNCTION(Exec)
+	void LIRegenerateIsland(int32 Seed);
 
 	UFUNCTION(Exec)
 	void LISetStat(const FString& StatName, float Value);
@@ -65,6 +69,9 @@ private:
 
 	UFUNCTION(Server, Reliable)
 	void ServerDebugClearInventory();
+
+	UFUNCTION(Server, Reliable)
+	void ServerDebugRegenerateIsland(int32 Seed);
 
 	bool bInventoryOpen = false;
 };
