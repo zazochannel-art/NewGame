@@ -250,7 +250,7 @@ void ALICharacter::EnsureDefaultInput()
 	const bool bGenerateCraftActions = CraftSlotActions.Num() == 0;
 	if (bGenerateCraftActions)
 	{
-		for (int32 Index = 0; Index < 9; ++Index)
+		for (int32 Index = 0; Index < 10; ++Index) // keys 1-9, then 0
 		{
 			const FString Name = FString::Printf(TEXT("IA_Craft%d_Runtime"), Index + 1);
 			CraftSlotActions.Add(MakeAction(*Name, EInputActionValueType::Boolean));
@@ -317,7 +317,7 @@ void ALICharacter::EnsureDefaultInput()
 	IMC->MapKey(InventoryAction, EKeys::Tab);
 	IMC->MapKey(InventoryAction, EKeys::Gamepad_Special_Right);
 
-	const FKey NumberKeys[] = { EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five, EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine };
+	const FKey NumberKeys[] = { EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five, EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine, EKeys::Zero };
 	for (int32 Index = 0; Index < CraftSlotActions.Num() && Index < static_cast<int32>(UE_ARRAY_COUNT(NumberKeys)); ++Index)
 	{
 		if (CraftSlotActions[Index])

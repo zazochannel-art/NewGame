@@ -121,8 +121,15 @@ ALIIslandGenerator::ALIIslandGenerator()
 	CrashSiteClass = ALICrashSite::StaticClass();
 	CrashSiteBiomes = { ELIIslandBiome::Beach, ELIIslandBiome::Meadow };
 
+	FLIResourceSpawnRule Crabs;
+	Crabs.NodeClass = ALICrabNode::StaticClass();
+	Crabs.AllowedBiomes = { ELIIslandBiome::Beach };
+	Crabs.Count = 14;
+	Crabs.MinSpacing = 900.f;
+	Crabs.MinNormalZ = 0.85f;
+
 	// Order matters: springs first so their wide spacing is guaranteed, then sparse food, then the rest.
-	SpawnRules = { Springs, Berries, Trees, Rocks, Bushes };
+	SpawnRules = { Springs, Berries, Trees, Rocks, Bushes, Crabs }; // new rules go last: saves store nodes by index
 }
 
 void ALIIslandGenerator::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

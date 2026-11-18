@@ -78,6 +78,10 @@ public:
 	UFUNCTION(Exec)
 	void LIBuildMode();
 
+	/** Craft a recipe by id without opening the inventory (e.g. LICraft CookedMeat). */
+	UFUNCTION(Exec)
+	void LICraft(const FString& RecipeId);
+
 	UFUNCTION(Exec)
 	void LISetTime(float Hours);
 

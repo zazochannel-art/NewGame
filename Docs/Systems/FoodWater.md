@@ -34,3 +34,10 @@ The island places **18 bushes** in forest and meadow, at least 9 m apart.
 ## Spawn spacing (generator change)
 `FLIResourceSpawnRule::NodeClass` is now `TSubclassOf<AActor>`, so it can place any type of actor whose origin is at ground level.
 The minimum spacing of a rule only applies **between points of the same type**. Different types only need `OtherTypeClearance` (3.5 m). Without this change, the springs' 60 m spacing would have blocked trees around them.
+
+## Crabs and cooking (Milestone 14)
+
+- `ALICrabNode` is a resource node (Raw Crab Meat, 2 hits, 1-2 per hit, respawn 600 s) that moves: it wanders within 6 m of its beach spawn point (70 cm/s, short pauses) and runs from any player within 4 m (200 cm/s). It stays on ground above Z = 15 cm (never in the sea). Movement is server-side and replicated. 14 crabs spawn on Beach (spawn rule appended last so old saves keep their node indices).
+- Raw Crab Meat: +3 food. Cooked Crab Meat: +22 food, -2 water.
+- Recipe `CookedMeat` (1 Raw Crab Meat) has `bRequiresFire`: craftable only within a lit campfire's warmth radius. The HUD marks such recipes `(at a fire)`.
+- Debug: `LICraft <RecipeId>`.

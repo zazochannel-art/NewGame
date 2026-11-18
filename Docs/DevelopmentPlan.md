@@ -49,6 +49,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 11 | Death and respawn: dropped inventory bundle, respawn after 6 s, sleeping bag (craft, place, respawn point, sleep through the night) | **Compiles; headless test passed (place bag, die, drop, respawn at bag); awaiting PIE test.** See [Systems/DeathRespawn.md](Systems/DeathRespawn.md) |
 | 12 | Building: wooden floor, wall and roof on a 3 m grid with snapping; a roof overhead blocks the night cold; G places the last crafted placeable | **Compiles; placement tested (screenshot); awaiting PIE test.** See [Systems/Building.md](Systems/Building.md) |
 | 13 | Build mode (B) with a green placement preview, dismantle pieces with E (item back), wooden doorway | **Compiles; preview and doorway checked (screenshot); awaiting PIE test.** See [Systems/Building.md](Systems/Building.md) |
+| 14 | Crabs on the beaches (wander, flee, catch with E) -> Raw Crab Meat; cooking at a lit campfire -> Cooked Crab Meat; recipes on keys 1-9 and 0 | **Compiles; headless test passed (14 crabs spawned, cooking only at a fire); awaiting PIE test.** See [Systems/FoodWater.md](Systems/FoodWater.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -238,3 +239,13 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] Looking at a placed piece: `[E] Dismantle Wooden Wall`; E removes it and gives the item back. With a full inventory nothing happens.
 - [ ] Wooden Doorway (5 Wood + 2 Fiber, key 9) snaps like a wall; you can walk through the opening.
 - [ ] Co-op: the ghost is only visible to its owner (also for the host), and it is never saved.
+
+## 4o. Milestone 14 test checklist (crabs and cooking)
+
+- [ ] Orange flat crabs walk around the beaches, pausing now and then, and never go into the sea.
+- [ ] Walking toward a crab makes it run away (200 cm/s); sprinting catches it. `[E] Catch Crab (2/2)`: two hits give 1-2 Raw Crab Meat each, then the crab disappears and comes back home after 10 min.
+- [ ] Raw meat can be eaten with F (+3 food).
+- [ ] Tab: `[5] Cooked Crab Meat  (at a fire)` is grey away from a fire, even with raw meat. Next to a lit campfire it turns white; crafting gives Cooked Crab Meat (+22 food, -2 water).
+- [ ] Crafting list shows 10 recipes; the tenth is on key 0.
+- [ ] `LICraft CookedMeat` does the same without opening the inventory.
+- [ ] Co-op: crabs move the same for both players.

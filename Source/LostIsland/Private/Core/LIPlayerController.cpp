@@ -248,3 +248,14 @@ void ALIPlayerController::LIBuildMode()
 		LICharacter->ToggleBuildMode();
 	}
 }
+
+void ALIPlayerController::LICraft(const FString& RecipeId)
+{
+	if (const ALICharacter* LICharacter = Cast<ALICharacter>(GetPawn()))
+	{
+		if (ULICraftingComponent* Crafting = LICharacter->GetCraftingComponent())
+		{
+			Crafting->RequestCraft(FName(*RecipeId));
+		}
+	}
+}

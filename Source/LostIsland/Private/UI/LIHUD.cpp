@@ -262,7 +262,7 @@ void ALIHUD::DrawInventoryPanel(const ALICharacter* Character)
 	DrawCraftingPanel(Character, PanelX + PanelW + 12.f, PanelY, PanelH);
 }
 
-void ALIHUD::DrawCraftingPanel(const ALICharacter* Character, float X, float Y, float Height)
+void ALIHUD::DrawCraftingPanel(const ALICharacter* Character, float X, float Y, float PanelHeight)
 {
 	const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
 	const ULICraftingComponent* Crafting = Character->GetCraftingComponent();
@@ -277,13 +277,15 @@ void ALIHUD::DrawCraftingPanel(const ALICharacter* Character, float X, float Y, 
 	const float Width = 300.f;
 	const float Padding = 14.f;
 	const float RowHeight = 40.f;
+	const int32 NumRows = FMath::Min(Registry->GetRecipes().Num(), 10);
+	const float Height = FMath::Max(PanelHeight, 40.f + NumRows * RowHeight + 30.f); // grow to fit every recipe
 
 	DrawRect(FLinearColor(0.05f, 0.04f, 0.03f, 0.85f), X, Y, Width, Height);
 	DrawText(LOCTEXT("CraftingTitle", "CRAFTING").ToString(), PromptColor, X + Padding, Y + 8.f, MediumFont, 1.f);
 
 	const TArray<TObjectPtr<ULIRecipeDefinition>>& Recipes = Registry->GetRecipes();
 	float RowY = Y + 40.f;
-	for (int32 Index = 0; Index < Recipes.Num() && Index < 9; ++Index)
+	for (int32 Index = 0; Index < Recipes.Num() && Index < 10; ++Index)
 	{
 		const ULIRecipeDefinition* Recipe = Recipes[Index];
 		if (!Recipe || RowY + RowHeight > Y + Height)
@@ -295,7 +297,7 @@ void ALIHUD::DrawCraftingPanel(const ALICharacter* Character, float X, float Y, 
 		const FString Name = !Recipe->DisplayName.IsEmpty()
 			? Recipe->DisplayName.ToString()
 			: Registry->GetDisplayName(Recipe->Output.ItemId).ToString();
-		DrawText(FString::Printf(TEXT("[%d] %s"), Index + 1, *Name), bCanCraft ? FLinearColor::White : FLinearColor(0.6f, 0.6f, 0.6f, 1.f),
+		DrawText(FString::Printf(TEXT("[%d] %s%s"), (Index + 1) % 10, *Name, Recipe->bRequiresFire ? TEXT("  (at a fire)") : TEXT("")), bCanCraft ? FLinearColor::White : FLinearColor(0.6f, 0.6f, 0.6f, 1.f),
 			X + Padding, RowY, SmallFont, 1.f);
 
 		// Ingredients: "3/3 Wood  1/2 Stone" (red when missing).

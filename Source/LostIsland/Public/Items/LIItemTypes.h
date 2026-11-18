@@ -12,6 +12,8 @@ namespace LIItems
 	inline const FName Stone(TEXT("Stone"));
 	inline const FName Fiber(TEXT("Fiber"));
 	inline const FName Berries(TEXT("Berries"));
+	inline const FName RawMeat(TEXT("RawMeat"));
+	inline const FName CookedMeat(TEXT("CookedMeat"));
 	inline const FName StoneAxe(TEXT("StoneAxe"));
 	inline const FName StonePickaxe(TEXT("StonePickaxe"));
 	inline const FName FiberBandage(TEXT("FiberBandage"));

@@ -55,6 +55,8 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 		{ LIItems::Stone,   LOCTEXT("Stone",   "Stone"),   LOCTEXT("StoneDesc",   "Heavy chunks of island rock."),               40, ELIItemCategory::Resource, 0.f,  0.f },
 		{ LIItems::Fiber,   LOCTEXT("Fiber",   "Fiber"),   LOCTEXT("FiberDesc",   "Plant fibres for rope and bindings."),        80, ELIItemCategory::Resource, 0.f,  0.f },
 		{ LIItems::Berries, LOCTEXT("Berries", "Berries"), LOCTEXT("BerriesDesc", "Tart wild berries. A little food, a little water."), 20, ELIItemCategory::Food, 8.f, 2.f },
+		{ LIItems::RawMeat,    LOCTEXT("RawMeat", "Raw Crab Meat"),    LOCTEXT("RawMeatDesc", "Stringy and cold. Better cooked at a fire."), 10, ELIItemCategory::Food, 3.f, 0.f },
+		{ LIItems::CookedMeat, LOCTEXT("CookedMeat", "Cooked Crab Meat"), LOCTEXT("CookedMeatDesc", "Hot, salty and filling."), 10, ELIItemCategory::Food, 22.f, -2.f },
 		{ LIItems::FiberBandage, LOCTEXT("FiberBandage", "Fiber Bandage"), LOCTEXT("FiberBandageDesc", "Crude plant-fibre wrap. Stops some bleeding."), 10, ELIItemCategory::Misc, 0.f, 0.f },
 		{ LIItems::Campfire, LOCTEXT("Campfire", "Campfire"), LOCTEXT("CampfireDesc", "Stones and dry wood. Place it (G) to keep warm through the night."), 5, ELIItemCategory::Misc, 0.f, 0.f },
 		{ LIItems::SleepingBag, LOCTEXT("SleepingBag", "Sleeping Bag"), LOCTEXT("SleepingBagDesc", "A fibre bed roll. Place it (G): you respawn here, and can sleep through the night."), 1, ELIItemCategory::Misc, 0.f, 0.f },
@@ -117,6 +119,7 @@ void ULIItemRegistrySubsystem::RegisterBuiltInRecipes()
 		TArray<FLIItemQuantity> Ingredients;
 		FLIItemQuantity Output;
 		int32 SortOrder;
+		bool bRequiresFire = false;
 	};
 
 	const FBuiltInRecipe BuiltIns[] =
@@ -124,6 +127,7 @@ void ULIItemRegistrySubsystem::RegisterBuiltInRecipes()
 		{ LIItems::StoneAxe,     { { LIItems::Wood, 3 }, { LIItems::Stone, 2 }, { LIItems::Fiber, 4 } }, { LIItems::StoneAxe, 1 },     10 },
 		{ LIItems::StonePickaxe, { { LIItems::Wood, 3 }, { LIItems::Stone, 4 }, { LIItems::Fiber, 4 } }, { LIItems::StonePickaxe, 1 }, 20 },
 		{ LIItems::FiberBandage, { { LIItems::Fiber, 6 } },                                              { LIItems::FiberBandage, 1 }, 30 },
+		{ LIItems::CookedMeat,   { { LIItems::RawMeat, 1 } },                                            { LIItems::CookedMeat, 1 },   35, true },
 		{ LIItems::Campfire,     { { LIItems::Wood, 5 }, { LIItems::Stone, 6 } },                        { LIItems::Campfire, 1 },     5 },
 		{ LIItems::SleepingBag,  { { LIItems::Fiber, 20 }, { LIItems::Wood, 4 } },                       { LIItems::SleepingBag, 1 },  6 },
 		{ LIItems::WoodenFloor,  { { LIItems::Wood, 8 } },                                              { LIItems::WoodenFloor, 1 },  40 },
@@ -139,6 +143,7 @@ void ULIItemRegistrySubsystem::RegisterBuiltInRecipes()
 		Recipe->Ingredients = BuiltIn.Ingredients;
 		Recipe->Output = BuiltIn.Output;
 		Recipe->SortOrder = BuiltIn.SortOrder;
+		Recipe->bRequiresFire = BuiltIn.bRequiresFire;
 		RegisterRecipe(Recipe);
 	}
 }

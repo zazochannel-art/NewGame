@@ -168,3 +168,41 @@ class LOSTISLAND_API ALIFiberBushNode : public ALIResourceNode
 public:
 	ALIFiberBushNode();
 };
+
+/**
+ * Crab -> Raw Crab Meat. A resource node that scuttles around its beach spawn point and runs from
+ * nearby players (server-side movement, replicated). Two hits; respawns at home after RespawnTime.
+ */
+UCLASS()
+class LOSTISLAND_API ALICrabNode : public ALIResourceNode
+{
+	GENERATED_BODY()
+public:
+	ALICrabNode();
+	virtual void Tick(float DeltaSeconds) override;
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Crab", meta = (Units = "cm/s"))
+	float WanderSpeed = 70.f;
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Crab", meta = (Units = "cm/s"))
+	float FleeSpeed = 200.f;
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Crab", meta = (Units = "cm"))
+	float FleeRadius = 400.f;
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Crab", meta = (Units = "cm"))
+	float WanderRadius = 600.f;
+
+private:
+	bool PickWanderTarget();
+	/** Ground height under XY, or false if it is under water / no ground. */
+	bool FindGround(const FVector& XY, FVector& OutGround) const;
+
+	FVector Home = FVector::ZeroVector;
+	FVector WanderTarget = FVector::ZeroVector;
+	float PauseTime = 0.f;
+	bool bWasDepleted = false;
+};

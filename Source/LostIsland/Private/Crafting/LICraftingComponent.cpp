@@ -9,6 +9,7 @@
 #include "Save/LISaveSubsystem.h"
 #include "World/LISleepingBag.h"
 #include "World/LIBuildingPiece.h"
+#include "World/LICampfire.h"
 #include "GameFramework/Pawn.h"
 #include "Engine/World.h"
 #include "LostIsland.h"
@@ -39,6 +40,10 @@ bool ULICraftingComponent::CanCraft(FName RecipeId) const
 	if (!Recipe || !Inventory)
 	{
 		return false;
+	}
+	if (Recipe->bRequiresFire && (!GetOwner() || !ALICampfire::IsWarmAt(GetWorld(), GetOwner()->GetActorLocation())))
+	{
+		return false; // cooking needs a lit campfire within its warmth radius
 	}
 
 	for (const FLIItemQuantity& Ingredient : Recipe->Ingredients)
