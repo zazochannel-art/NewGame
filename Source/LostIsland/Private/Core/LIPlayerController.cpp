@@ -11,6 +11,7 @@
 #include "Core/LIGameMode.h"
 #include "World/LIIslandGenerator.h"
 #include "World/LIWaterSource.h"
+#include "World/LIStorageChest.h"
 #include "EngineUtils.h"
 #include "Core/LIGameState.h"
 #include "Save/LISaveSubsystem.h"
@@ -337,5 +338,37 @@ void ALIPlayerController::ServerDebugGoToShore_Implementation()
 	const float Yaw = Outward.Rotation().Yaw;
 	MyPawn->TeleportTo(Dry + FVector(0.f, 0.f, 110.f), FRotator(0.f, Yaw, 0.f));
 	SetControlRotation(FRotator(-10.f, Yaw, 0.f));
+#endif
+}
+
+void ALIPlayerController::LIChest(const FString& Action) { ServerDebugChest(Action); }
+
+void ALIPlayerController::ServerDebugChest_Implementation(const FString& Action)
+{
+#if !UE_BUILD_SHIPPING
+	const ALICharacter* LICharacter = Cast<ALICharacter>(GetPawn());
+	ALIStorageChest* Nearest = nullptr;
+	float BestDistSq = TNumericLimits<float>::Max();
+	for (TActorIterator<ALIStorageChest> It(GetWorld()); LICharacter && It; ++It)
+	{
+		const float DistSq = FVector::DistSquared(It->GetActorLocation(), LICharacter->GetActorLocation());
+		if (DistSq < BestDistSq)
+		{
+			BestDistSq = DistSq;
+			Nearest = *It;
+		}
+	}
+	if (!Nearest)
+	{
+		return;
+	}
+	if (Action.Equals(TEXT("take"), ESearchCase::IgnoreCase))
+	{
+		Nearest->TakeAllInto(LICharacter->GetInventoryComponent());
+	}
+	else
+	{
+		Nearest->StoreFrom(LICharacter->GetInventoryComponent());
+	}
 #endif
 }

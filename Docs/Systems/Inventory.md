@@ -35,3 +35,11 @@ A fixed-size inventory (`DefaultSlotCount` = 20). Each slot is an `FLIInventoryS
 LIGive Wood 25
 LIClearInventory
 ```
+
+## Storage chest (Milestone 17)
+
+`ALIStorageChest` keeps its own replicated `TArray<FLIInventorySlot>` (30 stacks; stacks merge up to each item's `MaxStackSize`). It does not use `ULIInventoryComponent`, because that component replicates only to its owner and a chest has none.
+
+- **E** (`Interact`): `StoreFrom` moves every Resource and Food stack (not placeables) from the player's inventory.
+- **R** (`TakeAllAction`, while the chest is in focus): `ALICharacter::ServerTakeAllFromChest` (reach check 4.5 m) calls `TakeAllInto`; tools keep their durability.
+- Saved in `FLIStructureSaveData::Slots`; cleared by `LIRegenerateIsland`.

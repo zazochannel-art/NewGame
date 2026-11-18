@@ -101,6 +101,13 @@ public:
 	UFUNCTION(Exec)
 	void LIGoToShore();
 
+	/** Nearest storage chest: LIChest store | LIChest take (same as E / R). */
+	UFUNCTION(Exec)
+	void LIChest(const FString& Action);
+
+	UFUNCTION(Server, Reliable)
+	void ServerDebugChest(const FString& Action);
+
 	UFUNCTION(Server, Reliable)
 	void ServerDebugGoToShore();
 
