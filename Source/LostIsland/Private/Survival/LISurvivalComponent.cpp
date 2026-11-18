@@ -29,6 +29,7 @@ void ULISurvivalComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 	DOREPLIFETIME_CONDITION(ULISurvivalComponent, Stamina, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(ULISurvivalComponent, bIsExhausted, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(ULISurvivalComponent, bIsCold, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(ULISurvivalComponent, Breath, COND_OwnerOnly);
 }
 
 void ULISurvivalComponent::BeginPlay()
@@ -191,6 +192,7 @@ void ULISurvivalComponent::ResetStats()
 
 	SetExhausted(false);
 	TimeSinceStaminaDrain = StaminaRegenDelay;
+	Breath = MaxBreathSeconds;
 	bStatsInitialized = true;
 
 	if (bWasDead && !UpdateTimerHandle.IsValid() && GetWorld())
@@ -202,6 +204,12 @@ void ULISurvivalComponent::ResetStats()
 void ULISurvivalComponent::SetSprinting(bool bNewSprinting)
 {
 	bIsSprinting = bNewSprinting;
+}
+
+void ULISurvivalComponent::SetWaterState(bool bNewSwimming, bool bNewSubmerged)
+{
+	bIsSwimming = bNewSwimming;
+	bIsSubmerged = bNewSubmerged;
 }
 
 void ULISurvivalComponent::SetStatInternal(ELISurvivalStat Stat, float NewValue)
@@ -273,13 +281,16 @@ void ULISurvivalComponent::UpdateSurvival()
 		&& GetStatPercent(ELISurvivalStat::Thirst) >= WellFedThreshold;
 
 	// --- Stamina ---
-	if (bSprintingAndMoving)
+	if (bSprintingAndMoving || bIsSwimming)
 	{
+		// Deep water: swimming costs stamina and there is no regeneration until back on land.
+		const float Drain = bSprintingAndMoving ? SprintStaminaDrainPerSecond
+			: (bMoving ? SwimStaminaDrainPerSecond : TreadWaterStaminaDrainPerSecond);
 		TimeSinceStaminaDrain = 0.f;
-		SetStatInternal(ELISurvivalStat::Stamina, Stamina - SprintStaminaDrainPerSecond * Dt);
+		SetStatInternal(ELISurvivalStat::Stamina, Stamina - Drain * Dt);
 		if (Stamina <= 0.f)
 		{
-			SetExhausted(true); // owner listens and stops sprinting
+			SetExhausted(true); // owner listens: stops sprinting, and sinks if swimming
 		}
 	}
 	else
@@ -310,6 +321,20 @@ void ULISurvivalComponent::UpdateSurvival()
 	if (bWellFed)
 	{
 		HealthDelta += WellFedHealthRegenPerSecond;
+	}
+
+	// --- Breath ---
+	if (bIsSubmerged)
+	{
+		Breath = FMath::Max(0.f, Breath - Dt);
+		if (Breath <= 0.f)
+		{
+			HealthDelta -= DrowningDamagePerSecond;
+		}
+	}
+	else
+	{
+		Breath = FMath::Min(MaxBreathSeconds, Breath + BreathRecoveryPerSecond * Dt);
 	}
 
 	if (HealthDelta < 0.f)

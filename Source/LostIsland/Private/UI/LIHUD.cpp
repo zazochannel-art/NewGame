@@ -153,6 +153,13 @@ void ALIHUD::DrawSurvivalBars(const ALICharacter* Character)
 	const float Spacing = BarSize.Y + 10.f;
 	float Y = Canvas->ClipY - 24.f - Spacing * 4.f;
 
+	// Breath only shows while it is being used (under water) or refilling.
+	const float BreathPercent = Survival->GetBreathPercent();
+	if (BreathPercent < 0.999f)
+	{
+		DrawBar(X, Y - Spacing, BreathPercent, BreathPercent > 0.f ? ThirstColor : HealthColor, TEXT("AIR"));
+	}
+
 	DrawBar(X, Y, Survival->GetStatPercent(ELISurvivalStat::Health), HealthColor, TEXT("HP"));
 	Y += Spacing;
 	DrawBar(X, Y, Survival->GetStatPercent(ELISurvivalStat::Hunger), HungerColor, TEXT("FOOD"));

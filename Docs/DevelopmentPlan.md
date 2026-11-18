@@ -45,6 +45,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 8 | Crafting and tools: recipes, stone axe and pickaxe, bandage, durability | **Compiles; awaiting PIE test.** See [Systems/Crafting.md](Systems/Crafting.md) |
 | 8b | Plane wreck: seed-placed landmark, searchable loot, Scrap Metal | **Compiles; awaiting PIE test.** See [Systems/CrashSite.md](Systems/CrashSite.md) |
 | 9 | Day/night cycle, cold at night, placeable campfire with fuel, save v2 (v3: wreck and resources) | **Compiles; awaiting PIE test.** See [Systems/DayNight.md](Systems/DayNight.md) |
+| 10 | Swimming: deep water, swim stamina, sinking when exhausted, breath and drowning, `LIGoToSea` | **Compiles; headless test passed (swim + drown); awaiting PIE test.** See [Systems/Swimming.md](Systems/Swimming.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -190,5 +191,15 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - **Death:** no respawn or loot drop yet, only the `LIRevive` debug command. The Blueprint event `On Died` is where ragdoll goes.
 - **Survival difficulty:** values live on the component. A `ULIDifficultySettings` Data Asset (Easy/Normal/Hard) can come later.
 - **Prototype crates:** they now spawn only when the island is disabled (`bGenerateIsland = false`) or `bSpawnPrototypeTestActors` is on.
-- **Water:** it's a visual plane only, with no swimming or drowning. The player can walk on the seabed.
+- **Water:** swimming is faked with `MOVE_Flying` (no water volume exists). There is no diving input yet, and the sea has no waves or underwater fog.
 - **Island scale:** resource nodes are separate actors (~195). HISM is the plan if performance or bandwidth requires it.
+
+## 4k. Milestone 10 test checklist (swimming)
+
+- [ ] `LIGoToSea`: you appear in deep water off the start beach and float with the head above the surface. The log shows `started swimming`.
+- [ ] WASD swims at ~260 cm/s. Shift does not sprint in water.
+- [ ] STAMINA drains slowly while swimming (faster when moving) and does not regenerate in deep water.
+- [ ] Swim to the beach: once the water is shallow you walk again (`stopped swimming`), and stamina regenerates.
+- [ ] `LISetStat Stamina 0` in deep water: you sink, an AIR bar appears and empties in ~15 s, then HP drops ~10/s until you die.
+- [ ] Back at the surface the AIR bar refills and disappears.
+- [ ] Co-op: the client swims and sinks the same way, and the host sees the client in the water.

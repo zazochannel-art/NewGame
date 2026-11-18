@@ -91,6 +91,16 @@ public:
 	/** Owner reports sprint state changes. Called on server (and harmlessly on clients). */
 	void SetSprinting(bool bNewSprinting);
 
+	/** Owner reports water state: swimming in deep water, and whether the head is under the surface. */
+	void SetWaterState(bool bNewSwimming, bool bNewSubmerged);
+
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Survival")
+	bool IsSwimming() const { return bIsSwimming; }
+
+	/** Breath left, 0..1. Below 1 only after being under water. */
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Survival")
+	float GetBreathPercent() const { return MaxBreathSeconds > 0.f ? Breath / MaxBreathSeconds : 1.f; }
+
 	/** Restore all stats to their start values and clear death. Server only. */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "LostIsland|Survival")
 	void ResetStats();
@@ -186,6 +196,26 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Survival|Stamina", meta = (ClampMin = "0.0"))
 	float SprintMinSpeed = 50.f;
 
+	/** Stamina drained per second while swimming and moving. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Survival|Water", meta = (ClampMin = "0.0"))
+	float SwimStaminaDrainPerSecond = 4.f;
+
+	/** Stamina drained per second while treading water in place (no regeneration in deep water). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Survival|Water", meta = (ClampMin = "0.0"))
+	float TreadWaterStaminaDrainPerSecond = 1.f;
+
+	/** Seconds of air while the head is under water. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Survival|Water", meta = (ClampMin = "1.0", Units = "s"))
+	float MaxBreathSeconds = 15.f;
+
+	/** Breath regained per second at the surface (in seconds of air). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Survival|Water", meta = (ClampMin = "0.0"))
+	float BreathRecoveryPerSecond = 5.f;
+
+	/** Health lost per second once breath is gone. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Survival|Water", meta = (ClampMin = "0.0"))
+	float DrowningDamagePerSecond = 10.f;
+
 private:
 	void UpdateSurvival();
 	void SetStatInternal(ELISurvivalStat Stat, float NewValue);
@@ -226,6 +256,12 @@ private:
 	bool bIsCold = false;
 
 	bool bIsSprinting = false;
+	bool bIsSwimming = false;
+	bool bIsSubmerged = false;
+
+	/** Seconds of air left. Replicated so the owner's HUD can show the breath bar. */
+	UPROPERTY(Replicated)
+	float Breath = 15.f;
 	float TimeSinceStaminaDrain = 0.f;
 
 	/** True once stats were set (ResetStats or a save load), so BeginPlay doesn't overwrite loaded values. */

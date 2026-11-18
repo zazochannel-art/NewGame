@@ -7,6 +7,7 @@
 #include "Inventory/LIInventoryComponent.h"
 #include "Crafting/LICraftingComponent.h"
 #include "Core/LIPlayerController.h"
+#include "World/LIIslandGenerator.h"
 #include "LostIsland.h"
 
 #include "Camera/CameraComponent.h"
@@ -17,6 +18,7 @@
 #include "Engine/DamageEvents.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/StaticMesh.h"
+#include "EngineUtils.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -31,9 +33,10 @@
 
 ALICharacter::ALICharacter()
 {
-	// Character logic is fully event/input driven.
-	PrimaryActorTick.bCanEverTick = false;
-	PrimaryActorTick.bStartWithTickEnabled = false;
+	// Ticks only for swimming (water depth check); everything else is event/input driven.
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = true;
+	PrimaryActorTick.TickInterval = 0.f;
 
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.f);
 
@@ -458,7 +461,7 @@ void ALICharacter::QuickLoad()
 bool ALICharacter::CanSprint_Implementation() const
 {
 	const UCharacterMovementComponent* Movement = GetCharacterMovement();
-	return Movement && !Movement->IsCrouching() && SurvivalComponent && SurvivalComponent->CanSprint();
+	return Movement && !Movement->IsCrouching() && !bIsSwimmingLocal && SurvivalComponent && SurvivalComponent->CanSprint();
 }
 
 bool ALICharacter::IsDead() const
@@ -557,5 +560,98 @@ void ALICharacter::ApplyMovementSpeed()
 	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
 	{
 		Movement->MaxWalkSpeed = bIsSprinting ? SprintSpeed : WalkSpeed;
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Swimming
+// ---------------------------------------------------------------------------
+
+void ALICharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	// Server and owning client run the same depth test; simulated proxies get the movement mode replicated.
+	if (HasAuthority() || IsLocallyControlled())
+	{
+		UpdateSwimming(DeltaSeconds);
+	}
+}
+
+float ALICharacter::GetSeaLevelZ()
+{
+	if (!bSearchedIsland || (!CachedIsland.IsValid() && GetWorld()))
+	{
+		bSearchedIsland = true;
+		for (TActorIterator<ALIIslandGenerator> It(GetWorld()); It; ++It)
+		{
+			CachedIsland = *It;
+			break;
+		}
+	}
+	// The island's water plane sits at the generator's origin.
+	return CachedIsland.IsValid() ? CachedIsland->GetActorLocation().Z : DefaultSeaLevelZ;
+}
+
+void ALICharacter::UpdateSwimming(float DeltaSeconds)
+{
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	if (!Movement || IsDead())
+	{
+		return;
+	}
+
+	const float SeaLevel = GetSeaLevelZ();
+	const float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	const FVector Location = GetActorLocation();
+	const float FeetDepth = SeaLevel - (Location.Z - HalfHeight);
+
+	const bool bWasSwimming = bIsSwimmingLocal;
+	if (!bIsSwimmingLocal && FeetDepth > SwimStartDepth)
+	{
+		bIsSwimmingLocal = true;
+	}
+	else if (bIsSwimmingLocal && FeetDepth < SwimStartDepth - 30.f)
+	{
+		bIsSwimmingLocal = false;
+	}
+
+	if (bIsSwimmingLocal != bWasSwimming)
+	{
+		UE_LOG(LogLostIsland, Log, TEXT("%s: %s swimming (depth %.0f cm)."), *GetName(), bIsSwimmingLocal ? TEXT("started") : TEXT("stopped"), FeetDepth);
+	}
+	if (bIsSwimmingLocal != bWasSwimming)
+	{
+		if (bIsSwimmingLocal)
+		{
+			if (bIsSprinting)
+			{
+				ForceStopSprinting();
+			}
+			// Flying = free 3D movement without gravity; Z is driven below (no water volume exists).
+			Movement->MaxFlySpeed = SwimSpeed;
+			Movement->BrakingDecelerationFlying = 600.f;
+			Movement->SetMovementMode(MOVE_Flying);
+		}
+		else if (Movement->MovementMode == MOVE_Flying)
+		{
+			Movement->SetMovementMode(MOVE_Falling); // lands and switches to walking by itself
+		}
+	}
+
+	const bool bExhausted = SurvivalComponent && SurvivalComponent->IsExhausted();
+	if (bIsSwimmingLocal && Movement->MovementMode == MOVE_Flying)
+	{
+		// Float with the head above water; an exhausted swimmer slowly sinks.
+		const float TargetZ = bExhausted ? SeaLevel - HalfHeight * 2.f - 100.f : SeaLevel - FloatDepth;
+		const float MaxVertical = bExhausted ? 60.f : 150.f;
+		Movement->Velocity.Z = FMath::Clamp((TargetZ - Location.Z) * 2.f, -MaxVertical, MaxVertical);
+	}
+
+	// Breath: the head (top of the capsule, minus a little) is under the surface.
+	const bool bSubmerged = (Location.Z + HalfHeight * 0.8f) < SeaLevel;
+	if (SurvivalComponent && HasAuthority())
+	{
+		SurvivalComponent->SetWaterState(bIsSwimmingLocal, bSubmerged);
 	}
 }

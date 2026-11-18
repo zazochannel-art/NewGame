@@ -89,6 +89,7 @@ void ALIPlayerController::LIGive(const FString& ItemId, int32 Quantity) { Server
 void ALIPlayerController::LIClearInventory() { ServerDebugClearInventory(); }
 void ALIPlayerController::LIRegenerateIsland(int32 Seed) { ServerDebugRegenerateIsland(Seed); }
 void ALIPlayerController::LIGoToCrashSite() { ServerDebugGoToCrashSite(); }
+void ALIPlayerController::LIGoToSea() { ServerDebugGoToSea(); }
 void ALIPlayerController::LISetTime(float Hours) { ServerDebugSetTime(Hours); }
 
 // --- Debug commands (server) ---
@@ -199,5 +200,36 @@ void ALIPlayerController::ServerDebugSetTime_Implementation(float Hours)
 	{
 		GameState->SetTime(GameState->GetDayNumber(), FMath::Fmod(FMath::Max(0.f, Hours), 24.f));
 	}
+#endif
+}
+
+void ALIPlayerController::ServerDebugGoToSea_Implementation()
+{
+#if !UE_BUILD_SHIPPING
+	const ALIGameMode* GameMode = GetWorld()->GetAuthGameMode<ALIGameMode>();
+	const ALIIslandGenerator* Island = GameMode ? GameMode->GetIsland() : nullptr;
+	APawn* MyPawn = GetPawn();
+	if (!Island || !MyPawn)
+	{
+		return;
+	}
+
+	// Walk outward from the island centre through the start beach until the seabed is at least 5 m deep.
+	const FVector Center = Island->GetActorLocation();
+	const FVector Spawn = Island->FindPlayerSpawnTransform().GetLocation();
+	const FVector Outward = FVector(Spawn.X - Center.X, Spawn.Y - Center.Y, 0.f).GetSafeNormal();
+	FVector Location = Spawn;
+	for (int32 Step = 0; Step < 100; ++Step)
+	{
+		Location += Outward * 200.f;
+		const FVector Local = Island->GetActorTransform().InverseTransformPosition(Location);
+		if (Island->GetHeightAt(FVector2D(Local.X, Local.Y)) < -500.f)
+		{
+			break;
+		}
+	}
+	Location.Z = Center.Z + 50.f;
+	MyPawn->TeleportTo(Location, FRotator(0.f, (-Outward).Rotation().Yaw, 0.f));
+	SetControlRotation(FRotator(-10.f, (-Outward).Rotation().Yaw, 0.f));
 #endif
 }

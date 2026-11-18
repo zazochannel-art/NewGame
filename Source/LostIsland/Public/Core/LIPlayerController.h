@@ -20,6 +20,7 @@
  *     LIClearInventory
  *     LIRegenerateIsland <Seed>      (0 = random)
  *     LIGoToCrashSite
+ *     LIGoToSea                      (deep water off the start beach, to test swimming)
  *     LISetTime <Hours>              (e.g. 21 for night)
  *
  * Save commands (all builds):  LISave, LILoad, LINewGame   (also F5 / F9 on the character)
@@ -66,6 +67,9 @@ public:
 	void LIGoToCrashSite();
 
 	UFUNCTION(Exec)
+	void LIGoToSea();
+
+	UFUNCTION(Exec)
 	void LISetTime(float Hours);
 
 	UFUNCTION(Exec)
@@ -101,6 +105,9 @@ private:
 
 	UFUNCTION(Server, Reliable)
 	void ServerDebugGoToCrashSite();
+
+	UFUNCTION(Server, Reliable)
+	void ServerDebugGoToSea();
 
 	UFUNCTION(Server, Reliable)
 	void ServerDebugSetTime(float Hours);
