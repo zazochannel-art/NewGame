@@ -91,8 +91,33 @@ ALICharacter::ALICharacter()
 	{
 		// Engine cylinder is 100x100x100 cm with a centred pivot -> scale to the capsule.
 		PlaceholderBody->SetStaticMesh(CylinderMesh.Object);
-		PlaceholderBody->SetRelativeScale3D(FVector(0.8f, 0.8f, 1.9f));
+		PlaceholderBody->SetRelativeScale3D(FVector(0.55f, 0.38f, 0.7f)); // torso
+		PlaceholderBody->SetRelativeLocation(FVector(0.f, 0.f, 12.f));
 	}
+
+	// A simple low-poly survivor built from engine shapes (hidden once a skeletal mesh is assigned).
+	auto AddPart = [this](const TCHAR* Name, const TCHAR* Shape, const FVector& Location, const FVector& Scale, const FLinearColor& Color, const FRotator& Rotation)
+	{
+		UStaticMeshComponent* Part = CreateDefaultSubobject<UStaticMeshComponent>(Name);
+		Part->SetupAttachment(GetCapsuleComponent());
+		Part->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Engine/BasicShapes/%s.%s"), Shape, Shape)));
+		Part->SetRelativeLocation(Location);
+		Part->SetRelativeRotation(Rotation);
+		Part->SetRelativeScale3D(Scale);
+		Part->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+		Part->SetGenerateOverlapEvents(false);
+		Part->SetCanEverAffectNavigation(false);
+		PlaceholderParts.Add(Part);
+		PlaceholderPartColors.Add(Color);
+	};
+	const FLinearColor Skin(0.85f, 0.62f, 0.48f), Pants(0.20f, 0.25f, 0.35f), Hair(0.20f, 0.12f, 0.06f);
+	AddPart(TEXT("PH_Head"), TEXT("Sphere"), FVector(0.f, 0.f, 72.f), FVector(0.36f), Skin, FRotator::ZeroRotator);
+	AddPart(TEXT("PH_Hair"), TEXT("Sphere"), FVector(-3.f, 0.f, 82.f), FVector(0.37f, 0.37f, 0.2f), Hair, FRotator::ZeroRotator);
+	AddPart(TEXT("PH_LegL"), TEXT("Cylinder"), FVector(0.f, -12.f, -60.f), FVector(0.17f, 0.17f, 0.72f), Pants, FRotator::ZeroRotator);
+	AddPart(TEXT("PH_LegR"), TEXT("Cylinder"), FVector(0.f, 12.f, -60.f), FVector(0.17f, 0.17f, 0.72f), Pants, FRotator::ZeroRotator);
+	AddPart(TEXT("PH_ArmL"), TEXT("Cylinder"), FVector(0.f, -33.f, 10.f), FVector(0.12f, 0.12f, 0.62f), Skin, FRotator(0.f, 0.f, -8.f));
+	AddPart(TEXT("PH_ArmR"), TEXT("Cylinder"), FVector(0.f, 33.f, 10.f), FVector(0.12f, 0.12f, 0.62f), Skin, FRotator(0.f, 0.f, 8.f));
+	AddPart(TEXT("PH_Pack"), TEXT("Cube"), FVector(-24.f, 0.f, 15.f), FVector(0.18f, 0.4f, 0.45f), FLinearColor(0.35f, 0.28f, 0.15f), FRotator::ZeroRotator);
 }
 
 void ALICharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -121,6 +146,18 @@ void ALICharacter::BeginPlay()
 	{
 		PlaceholderBody->SetVisibility(false);
 		PlaceholderBody->SetHiddenInGame(true);
+		for (UStaticMeshComponent* Part : PlaceholderParts)
+		{
+			Part->SetHiddenInGame(true);
+		}
+	}
+	else
+	{
+		LITintPlaceholder(PlaceholderBody, FLinearColor(0.75f, 0.62f, 0.45f)); // worn beige shirt
+		for (int32 Index = 0; Index < PlaceholderParts.Num() && Index < PlaceholderPartColors.Num(); ++Index)
+		{
+			LITintPlaceholder(PlaceholderParts[Index], PlaceholderPartColors[Index]);
+		}
 	}
 }
 

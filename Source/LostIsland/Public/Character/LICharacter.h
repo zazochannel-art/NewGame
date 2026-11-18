@@ -166,6 +166,13 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> PlaceholderBody;
 
+	/** Head, limbs and backpack of the placeholder survivor. */
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	TArray<TObjectPtr<UStaticMeshComponent>> PlaceholderParts;
+
+	UPROPERTY()
+	TArray<FLinearColor> PlaceholderPartColors;
+
 	// ---- Input assets (optional; runtime defaults are generated when left empty) ----
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
 	TObjectPtr<UInputMappingContext> DefaultMappingContext;

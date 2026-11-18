@@ -53,6 +53,20 @@ void ALIResourceNode::BeginPlay()
 	{
 		LITintPlaceholder(Mesh, PlaceholderColor);
 	}
+	for (int32 Index = 0; Index < Decorations.Num() && Index < DecorationColors.Num(); ++Index)
+	{
+		LITintPlaceholder(Decorations[Index], DecorationColors[Index]);
+	}
+
+	// Natural variety: size and yaw from the spawn position (identical on server and clients).
+	if (bRandomizeLook)
+	{
+		const FVector Snapped = GetActorLocation().GridSnap(10.f);
+		FRandomStream Look(static_cast<int32>(HashCombine(GetTypeHash(Snapped.X), GetTypeHash(Snapped.Y))));
+		const float Size = Look.FRandRange(SizeVariation.X, SizeVariation.Y);
+		SceneRoot->SetRelativeScale3D(FVector(Size));
+		SceneRoot->SetRelativeRotation(FRotator(0.f, Look.FRandRange(0.f, 360.f), 0.f));
+	}
 
 	if (HasAuthority())
 	{
@@ -236,7 +250,7 @@ void ALIResourceNode::OnRep_Depleted()
 
 void ALIResourceNode::ApplyDepletedState()
 {
-	Mesh->SetVisibility(!bDepleted, true);
+	SceneRoot->SetVisibility(!bDepleted, true); // mesh and decorations
 	Mesh->SetCollisionEnabled(bDepleted ? ECollisionEnabled::NoCollision : ECollisionEnabled::QueryAndPhysics);
 	BP_OnDepletedChanged(bDepleted);
 }
@@ -245,6 +259,23 @@ void ALIResourceNode::ApplyDepletedState()
 // Presets (engine basic shapes until low-poly art exists)
 // ---------------------------------------------------------------------------
 
+UStaticMeshComponent* ALIResourceNode::AddDecoration(FName Name, const TCHAR* Shape, const FVector& Location, const FVector& Scale,
+	const FLinearColor& Color, const FRotator& Rotation)
+{
+	UStaticMeshComponent* Part = CreateDefaultSubobject<UStaticMeshComponent>(Name);
+	Part->SetupAttachment(SceneRoot);
+	Part->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Engine/BasicShapes/%s.%s"), Shape, Shape)));
+	Part->SetRelativeLocation(Location);
+	Part->SetRelativeRotation(Rotation);
+	Part->SetRelativeScale3D(Scale);
+	Part->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+	Part->SetCanEverAffectNavigation(false);
+	Decorations.Add(Part);
+	DecorationColors.Add(Color);
+	return Part;
+}
+
+
 ALITreeNode::ALITreeNode()
 {
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> ShapeMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
@@ -252,8 +283,12 @@ ALITreeNode::ALITreeNode()
 	{
 		Mesh->SetStaticMesh(ShapeMesh.Object);
 	}
-	Mesh->SetRelativeScale3D(FVector(0.5f, 0.5f, 4.f));   // 50 cm wide, 400 cm tall
-	Mesh->SetRelativeLocation(FVector(0.f, 0.f, 200.f));  // origin at the base
+	Mesh->SetRelativeScale3D(FVector(0.35f, 0.35f, 2.8f));  // trunk: 35 cm wide, 280 cm tall
+	Mesh->SetRelativeLocation(FVector(0.f, 0.f, 140.f));    // origin at the base
+	// Low-poly pine: three stacked cones, darker at the bottom.
+	AddDecoration(TEXT("Canopy1"), TEXT("Cone"), FVector(0.f, 0.f, 300.f), FVector(2.6f, 2.6f, 2.2f), FLinearColor(0.10f, 0.28f, 0.10f));
+	AddDecoration(TEXT("Canopy2"), TEXT("Cone"), FVector(0.f, 0.f, 420.f), FVector(2.0f, 2.0f, 1.9f), FLinearColor(0.13f, 0.34f, 0.12f));
+	AddDecoration(TEXT("Canopy3"), TEXT("Cone"), FVector(0.f, 0.f, 520.f), FVector(1.2f, 1.2f, 1.4f), FLinearColor(0.17f, 0.40f, 0.14f));
 
 	ResourceItemId = LIItems::Wood;
 	EffectiveTool = ELIToolType::Axe;
@@ -268,13 +303,17 @@ ALITreeNode::ALITreeNode()
 
 ALIRockNode::ALIRockNode()
 {
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> ShapeMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> ShapeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	if (ShapeMesh.Succeeded())
 	{
 		Mesh->SetStaticMesh(ShapeMesh.Object);
 	}
-	Mesh->SetRelativeScale3D(FVector(1.4f, 1.2f, 0.9f));
-	Mesh->SetRelativeLocation(FVector(0.f, 0.f, 35.f));
+	// Faceted boulder: tilted cubes read as chipped low-poly rock.
+	Mesh->SetRelativeScale3D(FVector(1.2f, 0.95f, 0.75f));
+	Mesh->SetRelativeLocation(FVector(0.f, 0.f, 25.f));
+	Mesh->SetRelativeRotation(FRotator(14.f, 20.f, 9.f));
+	AddDecoration(TEXT("Chunk"), TEXT("Cube"), FVector(60.f, 40.f, 15.f), FVector(0.55f, 0.5f, 0.45f), FLinearColor(0.48f, 0.47f, 0.45f), FRotator(-20.f, 50.f, 25.f));
+	AddDecoration(TEXT("Cap"), TEXT("Cube"), FVector(-15.f, -10.f, 62.f), FVector(0.7f, 0.6f, 0.3f), FLinearColor(0.66f, 0.64f, 0.60f), FRotator(8.f, -35.f, -12.f));
 
 	ResourceItemId = LIItems::Stone;
 	EffectiveTool = ELIToolType::Pickaxe;
@@ -294,8 +333,12 @@ ALIFiberBushNode::ALIFiberBushNode()
 	{
 		Mesh->SetStaticMesh(ShapeMesh.Object);
 	}
-	Mesh->SetRelativeScale3D(FVector(0.8f, 0.8f, 0.7f));
-	Mesh->SetRelativeLocation(FVector(0.f, 0.f, 35.f));
+	Mesh->SetRelativeScale3D(FVector(0.5f, 0.5f, 0.9f));
+	Mesh->SetRelativeLocation(FVector(0.f, 0.f, 45.f));
+	// Tuft of tall grass: a few leaning cones.
+	AddDecoration(TEXT("Blade1"), TEXT("Cone"), FVector(25.f, 10.f, 35.f), FVector(0.35f, 0.35f, 0.75f), FLinearColor(0.50f, 0.58f, 0.22f), FRotator(0.f, 0.f, 18.f));
+	AddDecoration(TEXT("Blade2"), TEXT("Cone"), FVector(-20.f, 18.f, 32.f), FVector(0.35f, 0.35f, 0.7f), FLinearColor(0.60f, 0.66f, 0.28f), FRotator(15.f, 0.f, -12.f));
+	AddDecoration(TEXT("Blade3"), TEXT("Cone"), FVector(0.f, -25.f, 30.f), FVector(0.3f, 0.3f, 0.65f), FLinearColor(0.45f, 0.55f, 0.20f), FRotator(-16.f, 0.f, 0.f));
 
 	ResourceItemId = LIItems::Fiber;
 	MinYield = 2;
@@ -316,6 +359,12 @@ ALIBerryBushNode::ALIBerryBushNode()
 	}
 	Mesh->SetRelativeScale3D(FVector(0.9f, 0.9f, 0.7f));
 	Mesh->SetRelativeLocation(FVector(0.f, 0.f, 35.f));
+	// Green bush dotted with red berries.
+	const FVector BerrySpots[] = { {38.f, 10.f, 45.f}, {-30.f, 25.f, 50.f}, {5.f, -40.f, 42.f}, {-15.f, -20.f, 65.f}, {20.f, 30.f, 62.f} };
+	for (int32 Index = 0; Index < UE_ARRAY_COUNT(BerrySpots); ++Index)
+	{
+		AddDecoration(*FString::Printf(TEXT("Berry%d"), Index), TEXT("Sphere"), BerrySpots[Index], FVector(0.14f), FLinearColor(0.75f, 0.06f, 0.10f));
+	}
 
 	// Hard difficulty: ~18 bushes x ~3 berries per 15 min ~= 430 food vs ~37 needed per player,
 	// but bushes are spread out, so travel time (and its hunger/thirst cost) is the real price.
@@ -326,7 +375,7 @@ ALIBerryBushNode::ALIBerryBushNode()
 	RespawnTime = 900.f;
 	StaminaCostPerHit = 1.f;
 	PromptText = LOCTEXT("PickBerries", "Pick Berries");
-	PlaceholderColor = FLinearColor(0.70f, 0.08f, 0.10f, 1.f); // berry red
+	PlaceholderColor = FLinearColor(0.12f, 0.32f, 0.12f, 1.f); // leafy green (berries are decorations)
 }
 
 #undef LOCTEXT_NAMESPACE
@@ -342,6 +391,7 @@ ALIAnimalNode::ALIAnimalNode()
 	PrimaryActorTick.bCanEverTick = true;
 	SetReplicateMovement(true);
 	Mesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore); // players do not get stuck on animals
+	bRandomizeLook = false; // they move: their yaw is the walking direction
 }
 
 void ALIAnimalNode::BeginPlay()
@@ -485,6 +535,8 @@ ALICrabNode::ALICrabNode()
 	}
 	Mesh->SetRelativeScale3D(FVector(0.45f, 0.6f, 0.22f));
 	Mesh->SetRelativeLocation(FVector(0.f, 0.f, 12.f));
+	AddDecoration(TEXT("ClawL"), TEXT("Sphere"), FVector(28.f, -22.f, 12.f), FVector(0.16f, 0.12f, 0.1f), FLinearColor(0.90f, 0.35f, 0.15f));
+	AddDecoration(TEXT("ClawR"), TEXT("Sphere"), FVector(28.f, 22.f, 12.f), FVector(0.16f, 0.12f, 0.1f), FLinearColor(0.90f, 0.35f, 0.15f));
 
 	ResourceItemId = LIItems::RawMeat;
 	MinYield = 1;
@@ -511,6 +563,16 @@ ALIBoarNode::ALIBoarNode()
 	}
 	Mesh->SetRelativeScale3D(FVector(1.3f, 0.7f, 0.75f)); // long body
 	Mesh->SetRelativeLocation(FVector(0.f, 0.f, 40.f));
+	const FLinearColor Bristle(0.22f, 0.15f, 0.10f);
+	AddDecoration(TEXT("Head"), TEXT("Sphere"), FVector(70.f, 0.f, 48.f), FVector(0.5f, 0.42f, 0.45f), Bristle);
+	AddDecoration(TEXT("Snout"), TEXT("Cylinder"), FVector(98.f, 0.f, 40.f), FVector(0.2f, 0.2f, 0.12f), FLinearColor(0.45f, 0.30f, 0.26f), FRotator(90.f, 0.f, 0.f));
+	AddDecoration(TEXT("TuskL"), TEXT("Cone"), FVector(95.f, -10.f, 34.f), FVector(0.05f, 0.05f, 0.15f), FLinearColor(0.85f, 0.82f, 0.72f), FRotator(-30.f, 0.f, 0.f));
+	AddDecoration(TEXT("TuskR"), TEXT("Cone"), FVector(95.f, 10.f, 34.f), FVector(0.05f, 0.05f, 0.15f), FLinearColor(0.85f, 0.82f, 0.72f), FRotator(-30.f, 0.f, 0.f));
+	for (int32 Leg = 0; Leg < 4; ++Leg)
+	{
+		const FVector LegPos((Leg < 2 ? 40.f : -40.f), (Leg % 2 == 0 ? -20.f : 20.f), 12.f);
+		AddDecoration(*FString::Printf(TEXT("Leg%d"), Leg), TEXT("Cylinder"), LegPos, FVector(0.12f, 0.12f, 0.25f), Bristle);
+	}
 
 	ResourceItemId = LIItems::RawMeat;
 	MinYield = 1;

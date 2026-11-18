@@ -83,6 +83,25 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Resource")
 	FLinearColor PlaceholderColor = FLinearColor(0.f, 0.f, 0.f, 0.f);
 
+	/** Random size range per instance (picked from the spawn location, so it is the same on every machine). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Resource|Look")
+	FVector2D SizeVariation = FVector2D(0.85f, 1.2f);
+
+	/** Random yaw and size per instance. Off for moving animals. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Resource|Look")
+	bool bRandomizeLook = true;
+
+	/** Extra placeholder parts (canopy, berries...): no collision, hidden with the node when depleted. */
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	TArray<TObjectPtr<UStaticMeshComponent>> Decorations;
+
+	UPROPERTY()
+	TArray<FLinearColor> DecorationColors;
+
+	/** Constructor helper: adds a tinted engine basic shape (Cube, Sphere, Cone, Cylinder) under the root. */
+	UStaticMeshComponent* AddDecoration(FName Name, const TCHAR* Shape, const FVector& Location, const FVector& Scale,
+		const FLinearColor& Color, const FRotator& Rotation = FRotator::ZeroRotator);
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Resource")
 	FName ResourceItemId = NAME_None;
 

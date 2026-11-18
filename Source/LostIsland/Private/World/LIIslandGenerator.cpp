@@ -67,15 +67,20 @@ ALIIslandGenerator::ALIIslandGenerator()
 
 	SkyAtmosphere = CreateDefaultSubobject<USkyAtmosphereComponent>(TEXT("SkyAtmosphere"));
 	SkyAtmosphere->SetupAttachment(TerrainMesh);
+	// Brighter, bluer sky under the -3 EV exposure (the physical sky reads navy otherwise).
+	SkyAtmosphere->SetSkyLuminanceFactor(FLinearColor(3.5f, 3.6f, 4.f));
 
 	SkyLight = CreateDefaultSubobject<USkyLightComponent>(TEXT("SkyLight"));
 	SkyLight->SetupAttachment(TerrainMesh);
 	SkyLight->SetMobility(EComponentMobility::Movable);
 	SkyLight->bRealTimeCapture = true;
-	SkyLight->SetIntensity(8.f); // fill light for shadowed sides under the -3 EV exposure (see ExposureCompensation)
+	SkyLight->SetIntensity(2.5f); // fill light for shadowed sides (the sky itself is boosted by SkyLuminanceFactor)
 
 	HeightFog = CreateDefaultSubobject<UExponentialHeightFogComponent>(TEXT("HeightFog"));
 	HeightFog->SetupAttachment(TerrainMesh);
+	// Thin sea haze: distant hills fade toward the horizon.
+	HeightFog->SetFogDensity(0.012f);
+	HeightFog->SetFogHeightFalloff(0.03f);
 
 	PostProcess = CreateDefaultSubobject<UPostProcessComponent>(TEXT("PostProcess"));
 	PostProcess->SetupAttachment(TerrainMesh);
@@ -492,6 +497,20 @@ void ALIIslandGenerator::SetupEnvironment()
 	Settings.AutoExposureApplyPhysicalCameraExposure = false;
 	Settings.bOverride_AutoExposureBias = true;
 	Settings.AutoExposureBias = ExposureCompensation;
+
+	// Stylised grade: a little more colour and contrast, soft bloom, ambient occlusion in creases, light vignette.
+	Settings.bOverride_ColorSaturation = true;
+	Settings.ColorSaturation = FVector4(1.15f, 1.15f, 1.15f, 1.f);
+	Settings.bOverride_ColorContrast = true;
+	Settings.ColorContrast = FVector4(1.06f, 1.06f, 1.06f, 1.f);
+	Settings.bOverride_BloomIntensity = true;
+	Settings.BloomIntensity = 0.4f;
+	Settings.bOverride_AmbientOcclusionIntensity = true;
+	Settings.AmbientOcclusionIntensity = 0.7f;
+	Settings.bOverride_AmbientOcclusionRadius = true;
+	Settings.AmbientOcclusionRadius = 150.f;
+	Settings.bOverride_VignetteIntensity = true;
+	Settings.VignetteIntensity = 0.35f;
 }
 
 // ---------------------------------------------------------------------------
