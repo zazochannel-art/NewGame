@@ -74,6 +74,19 @@ public:
 	/** Normal map for moving waves on the sea (optional). */
 	UPROPERTY(config, EditAnywhere, Category = "Water") FSoftObjectPath WaterNormalTexture;
 
+	// ---------------- Surface materials (code-built models: buildings, raft, chest, wreck) ----------------
+	/** Light wood: floors, walls, doorways, raft, chest planks. */
+	UPROPERTY(config, EditAnywhere, Category = "Materials") FSoftObjectPath WoodMaterial;
+
+	/** Dark wood: roofs, beams, chest lid. */
+	UPROPERTY(config, EditAnywhere, Category = "Materials") FSoftObjectPath DarkWoodMaterial;
+
+	/** Bare aluminium: the plane's hull. */
+	UPROPERTY(config, EditAnywhere, Category = "Materials") FSoftObjectPath MetalMaterial;
+
+	/** Rusty / burnt metal: wreck debris, chest bands. */
+	UPROPERTY(config, EditAnywhere, Category = "Materials") FSoftObjectPath RustMaterial;
+
 	// ---------------- Meshes ----------------
 	/** Real tree meshes; one is picked per tree. Empty = code-built trees. */
 	UPROPERTY(config, EditAnywhere, Category = "Meshes") TArray<FSoftObjectPath> TreeMeshes;

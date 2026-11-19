@@ -8,6 +8,7 @@
 #include "Math/RandomStream.h"
 #include "ProceduralMeshComponent.h"
 #include "UObject/Package.h"
+#include "GameFramework/Actor.h"
 #include "UObject/UObjectGlobals.h"
 
 // ---------------------------------------------------------------------------
@@ -392,6 +393,59 @@ void FLILowPolyMesh::AddBlob(const FTransform& Transform, const FVector& Radii, 
 	}
 }
 
+namespace
+{
+	uint32 LIColorKey(const FLinearColor& Color)
+	{
+		return Color.ToFColor(/*bSRGB*/ false).ToPackedARGB();
+	}
+
+	/** Planar UVs (1 repeat per metre) projected along the normal's dominant axis, for textured materials. */
+	FVector2D LIPlanarUV(const FVector& Vertex, const FVector& Normal)
+	{
+		const FVector Abs = Normal.GetAbs();
+		if (Abs.Z >= Abs.X && Abs.Z >= Abs.Y)
+		{
+			return FVector2D(Vertex.X, Vertex.Y) / 100.f;
+		}
+		if (Abs.X >= Abs.Y)
+		{
+			return FVector2D(Vertex.Y, Vertex.Z) / 100.f;
+		}
+		return FVector2D(Vertex.X, Vertex.Z) / 100.f;
+	}
+}
+
+void FLILowPolyMesh::SetSurfaceMaterial(const FLinearColor& Color, UMaterialInterface* Material)
+{
+	auto Q = [](float V) { return FMath::RoundToFloat(FMath::Clamp(V, 0.f, 1.f) * 64.f) / 64.f; };
+	const uint32 Key = LIColorKey(FLinearColor(Q(Color.R), Q(Color.G), Q(Color.B), 1.f));
+	if (Material)
+	{
+		SurfaceMaterials.Add(Key, Material);
+	}
+	else
+	{
+		SurfaceMaterials.Remove(Key);
+	}
+}
+
+UProceduralMeshComponent* LICreateVisualComponent(AActor* Owner, USceneComponent* Parent)
+{
+	if (!Owner)
+	{
+		return nullptr;
+	}
+	UProceduralMeshComponent* Component = NewObject<UProceduralMeshComponent>(Owner, NAME_None, RF_Transient);
+	Component->SetupAttachment(Parent ? Parent : Owner->GetRootComponent());
+	Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Component->SetCanEverAffectNavigation(false);
+	Component->SetGenerateOverlapEvents(false);
+	Component->RegisterComponent();
+	Owner->AddInstanceComponent(Component);
+	return Component;
+}
+
 bool FLILowPolyMesh::ApplyTo(UProceduralMeshComponent* Component) const
 {
 	if (!Component || IsEmpty())
@@ -403,8 +457,32 @@ bool FLILowPolyMesh::ApplyTo(UProceduralMeshComponent* Component) const
 	const TArray<FVector2D> NoUVs;
 	const TArray<FLinearColor> NoColors;
 	const TArray<FProcMeshTangent> NoTangents;
+	int32 NextSection = 0;
 
-	// Realistic style: a single section, colour per vertex.
+	// Surfaces with a real material (e.g. Starter Content wood): own section with planar UVs.
+	auto FindSurfaceMaterial = [this](const FSection& Section) -> UMaterialInterface*
+	{
+		UMaterialInterface* const* Found = SurfaceMaterials.Find(LIColorKey(Section.Color));
+		return Found ? *Found : nullptr;
+	};
+	for (const FSection& Section : Sections)
+	{
+		if (UMaterialInterface* Material = FindSurfaceMaterial(Section))
+		{
+			TArray<FVector2D> UVs;
+			UVs.Reserve(Section.Vertices.Num());
+			for (int32 Index = 0; Index < Section.Vertices.Num(); ++Index)
+			{
+				UVs.Add(LIPlanarUV(Section.Vertices[Index], Section.Normals[Index]));
+			}
+			Component->CreateMeshSection_LinearColor(NextSection, Section.Vertices, Section.Triangles, Section.Normals,
+				UVs, NoColors, NoTangents, /*bCreateCollision*/ false);
+			Component->SetMaterial(NextSection, Material);
+			++NextSection;
+		}
+	}
+
+	// Realistic style: everything else in one section, colour per vertex.
 	UMaterialInterface* VertexColorMaterial = LIUseRealisticStyle() ? LIGetVertexColorMaterial() : nullptr;
 	if (VertexColorMaterial)
 	{
@@ -414,6 +492,10 @@ bool FLILowPolyMesh::ApplyTo(UProceduralMeshComponent* Component) const
 		TArray<FLinearColor> Colors;
 		for (const FSection& Section : Sections)
 		{
+			if (FindSurfaceMaterial(Section))
+			{
+				continue;
+			}
 			const int32 BaseIndex = Vertices.Num();
 			Vertices.Append(Section.Vertices);
 			Normals.Append(Section.Normals);
@@ -435,21 +517,28 @@ bool FLILowPolyMesh::ApplyTo(UProceduralMeshComponent* Component) const
 				Colors.Add(FLinearColor(Section.Color.R * Shade, Section.Color.G * Shade, Section.Color.B * Shade, 1.f));
 			}
 		}
-		Component->CreateMeshSection_LinearColor(0, Vertices, Triangles, Normals, NoUVs, Colors, NoTangents,
-			/*bCreateCollision*/ false, /*bSRGBConversion*/ false);
-		Component->SetMaterial(0, VertexColorMaterial);
+		if (Vertices.Num() > 0)
+		{
+			Component->CreateMeshSection_LinearColor(NextSection, Vertices, Triangles, Normals, NoUVs, Colors, NoTangents,
+				/*bCreateCollision*/ false, /*bSRGBConversion*/ false);
+			Component->SetMaterial(NextSection, VertexColorMaterial);
+		}
 		return true;
 	}
 
-	for (int32 Index = 0; Index < Sections.Num(); ++Index)
+	for (const FSection& Section : Sections)
 	{
-		const FSection& Section = Sections[Index];
-		Component->CreateMeshSection_LinearColor(Index, Section.Vertices, Section.Triangles, Section.Normals,
+		if (FindSurfaceMaterial(Section))
+		{
+			continue;
+		}
+		Component->CreateMeshSection_LinearColor(NextSection, Section.Vertices, Section.Triangles, Section.Normals,
 			NoUVs, NoColors, NoTangents, /*bCreateCollision*/ false);
 		if (UMaterialInterface* Material = LIGetTintedMaterial(Section.Color))
 		{
-			Component->SetMaterial(Index, Material);
+			Component->SetMaterial(NextSection, Material);
 		}
+		++NextSection;
 	}
 	return true;
 }

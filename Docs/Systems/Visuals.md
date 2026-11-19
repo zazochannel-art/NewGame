@@ -1,4 +1,4 @@
-# Visuals: art built in code, real art when available (Milestones 18–20)
+# Visuals: art built in code, real art when available (Milestones 18–21)
 
 The project still has no `.uasset` art, and none can be authored outside the editor. Every model is therefore
 built in C++ at runtime as **flat-shaded, faceted low-poly geometry**, using the engine's lit
@@ -58,8 +58,7 @@ Assigning a skeletal mesh in a Blueprint subclass hides all of this automaticall
 - Models: roughly 150–700 triangles each, ~250 actors, about 2–3 colour sections each.
 - Ground cover: on the order of 20–25k instances of engine cones and spheres, culled beyond 70 m. If FPS is low,
   lower `DecorationDensity` or `DecorationCullDistance` on a Blueprint subclass of the generator.
-- Not done yet: the plane wreck, building pieces, raft, chest, sleeping bag and dropped loot still use tinted
-  engine shapes, and the HUD is still the canvas prototype.
+- The HUD is still the canvas prototype.
 
 ## Realistic style (Milestone 19, default on)
 Console variable **`li.RealisticStyle`** (1 = realistic, default; 0 = the faceted low-poly look). It applies to
@@ -108,3 +107,26 @@ anything missing falls back to the code-built art. Step-by-step guide (Romanian)
 Real meshes go into a new `DetailMesh` component on resource nodes. The engine shape stays as the hidden
 collision proxy, so gathering, depletion and saving are unchanged. Content packs are `.gitignore`d (large) and
 added per machine; players without them see the code-built art.
+
+## Detailed props and real surface materials (Milestone 21)
+Every remaining placeholder now has a detailed model built in code. The box shapes stay as hidden collision, so
+placement, snapping, interaction and saving are unchanged. Build-mode previews keep the plain green ghost.
+
+| Object | Model |
+|---|---|
+| Wooden floor | 3 joists + 10 planks with gaps, slight random offsets |
+| Wooden wall | 10 stacked logs overhanging the ends (log-cabin style) |
+| Doorway | logs split around the 1 × 2.2 m opening, two jambs and a header board |
+| Roof | 3 rafters + 8 rows of overlapping shingle boards, alternate rows offset |
+| Raft | 7 lashed logs, cross beams, rope lashings, a supply crate, mast, yard and a curved, double-sided sail |
+| Storage chest | plank walls and lid, rusty iron bands, lock plate and padlock |
+| Sleeping bag | padded bag, open hood, zip, rolled fibre pillow with ties |
+| Dropped loot | tied leather sack |
+| Plane wreck | tapered fuselage, cowling and spinner, a bent propeller, side stripes, cabin windows, a slanted windshield, a bent left wing with strut and aileron, a torn right stub with jagged shards, fin with rudder, stabiliser; ground debris drawn exactly over its collision shapes plus loose scraps |
+
+**Real surface materials** (`FLILowPolyMesh::SetSurfaceMaterial`, planar UVs, 1 repeat per metre). With Starter
+Content, wood surfaces use `M_Wood_Pine` (light) and `M_Wood_Walnut` (dark), the plane's hull `M_Metal_Brushed_Nickel`,
+and burnt parts and iron bands `M_Metal_Rust` (`ULIVisualAssets::WoodMaterial`, `DarkWoodMaterial`, `MetalMaterial`,
+`RustMaterial`). Without it they keep their colours.
+
+`LICreateVisualComponent` adds the cosmetic model as a runtime component, so these actors need no new properties.

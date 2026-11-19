@@ -9,7 +9,7 @@ Dacă lipsesc, jocul rămâne cu grafica construită din cod, fără erori.
 2. Jos, **Content Drawer**, apoi butonul **+ Add**, apoi **Add Feature or Content Pack…**
 3. Tab-ul **Content**, apoi **Starter Content**, apoi **Add to Project**.
 
-Rezultat: pământ cu iarbă, mușchi, nisip și stâncă texturate (în loc de culori plate), stânci și tufișuri 3D reale, valuri care se mișcă pe mare.
+Rezultat: pământ cu iarbă, mușchi, nisip și stâncă texturate (în loc de culori plate), stânci și tufișuri 3D reale, valuri care se mișcă pe mare, lemn adevărat pe construcții, plută și cufăr, metal periat și ruginit pe epava avionului.
 
 ## 2. Third Person (omul animat)
 1. Tot din **Add Feature or Content Pack…**, tab-ul **Blueprint**, apoi **Third Person**, apoi **Add to Project**.

@@ -24,6 +24,16 @@ ULIVisualAssets::ULIVisualAssets()
 	MacroVariationTexture    = Texture(TEXT("T_MacroVariation"));
 	WaterNormalTexture       = Texture(TEXT("T_Water_N"));
 
+	const TCHAR* Materials = TEXT("/Game/StarterContent/Materials/");
+	auto Material = [Materials](const TCHAR* Name)
+	{
+		return FSoftObjectPath(FString::Printf(TEXT("%s%s.%s"), Materials, Name, Name));
+	};
+	WoodMaterial     = Material(TEXT("M_Wood_Pine"));
+	DarkWoodMaterial = Material(TEXT("M_Wood_Walnut"));
+	MetalMaterial    = Material(TEXT("M_Metal_Brushed_Nickel"));
+	RustMaterial     = Material(TEXT("M_Metal_Rust"));
+
 	RockMeshes.Add(FSoftObjectPath(TEXT("/Game/StarterContent/Props/SM_Rock.SM_Rock")));
 	BushMeshes.Add(FSoftObjectPath(TEXT("/Game/StarterContent/Props/SM_Bush.SM_Bush")));
 

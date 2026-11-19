@@ -2,6 +2,11 @@
 
 #include "World/LIStorageChest.h"
 
+#include "Math/RandomStream.h"
+#include "ProceduralMeshComponent.h"
+#include "Visuals/LILowPolyMesh.h"
+#include "Visuals/LIVisualAssets.h"
+#include "Materials/MaterialInterface.h"
 #include "LostIsland.h"
 #include "Inventory/LIInventoryComponent.h"
 #include "Items/LIItemDefinition.h"
@@ -50,6 +55,53 @@ void ALIStorageChest::BeginPlay()
 	Super::BeginPlay();
 	LITintPlaceholder(Box, FLinearColor(0.40f, 0.26f, 0.12f));
 	LITintPlaceholder(Lid, FLinearColor(0.30f, 0.19f, 0.09f));
+
+	// Detailed model (cosmetic): plank walls, a three-plank lid and rusty iron bands with a lock plate.
+	const FLinearColor PlankA(0.50f, 0.34f, 0.17f);
+	const FLinearColor PlankB(0.44f, 0.29f, 0.14f);
+	const FLinearColor LidColor(0.33f, 0.21f, 0.10f);
+	const FLinearColor Iron(0.22f, 0.18f, 0.15f);
+	FRandomStream Random(LIVisualSeed(GetActorLocation(), 0xC4E5));
+	FLILowPolyMesh Model;
+	Model.bSmooth = false;
+
+	Model.AddBox(FTransform(FVector(0.f, 0.f, 2.f)), FVector(49.f, 29.f, 2.f), LidColor); // bottom
+	const int32 Rows = 4;
+	for (int32 Row = 0; Row < Rows; ++Row)
+	{
+		const float Z = 4.f + 51.f / Rows * (Row + 0.5f);
+		const float HalfHeight = 51.f / Rows * 0.5f - 0.6f;
+		const FLinearColor& Color = (Row % 2) ? PlankA : PlankB;
+		for (const float Side : { -1.f, 1.f })
+		{
+			Model.AddBox(FTransform(FVector(Random.FRandRange(-0.5f, 0.5f), Side * 28.5f, Z)), FVector(50.f, 1.6f, HalfHeight), Color);
+			Model.AddBox(FTransform(FVector(Side * 48.5f, 0.f, Z)), FVector(1.6f, 27.f, HalfHeight), Color);
+		}
+	}
+	for (int32 Board = -1; Board <= 1; ++Board)
+	{
+		Model.AddBox(FTransform(FVector(0.f, Board * 21.6f, 60.f + Random.FRandRange(-0.3f, 0.3f))), FVector(52.5f, 10.4f, 5.f), LidColor);
+	}
+	for (const float X : { -32.f, 32.f })
+	{
+		Model.AddBox(FTransform(FVector(X, 30.6f, 30.f)), FVector(3.f, 0.8f, 30.f), Iron);
+		Model.AddBox(FTransform(FVector(X, -30.6f, 30.f)), FVector(3.f, 0.8f, 30.f), Iron);
+		Model.AddBox(FTransform(FVector(X, 0.f, 65.6f)), FVector(3.f, 33.f, 0.8f), Iron);
+	}
+	Model.AddBox(FTransform(FVector(0.f, 31.f, 50.f)), FVector(6.f, 1.2f, 7.f), Iron);   // lock plate
+	Model.AddBox(FTransform(FVector(0.f, 32.6f, 46.f)), FVector(2.5f, 1.2f, 3.5f), Iron); // padlock
+
+	const ULIVisualAssets& Assets = ULIVisualAssets::Get();
+	UMaterialInterface* Wood = ULIVisualAssets::LoadOptional<UMaterialInterface>(Assets.WoodMaterial);
+	Model.SetSurfaceMaterial(PlankA, Wood);
+	Model.SetSurfaceMaterial(PlankB, Wood);
+	Model.SetSurfaceMaterial(LidColor, ULIVisualAssets::LoadOptional<UMaterialInterface>(Assets.DarkWoodMaterial));
+	Model.SetSurfaceMaterial(Iron, ULIVisualAssets::LoadOptional<UMaterialInterface>(Assets.RustMaterial));
+	if (Model.ApplyTo(LICreateVisualComponent(this)))
+	{
+		Box->SetHiddenInGame(true);
+		Lid->SetHiddenInGame(true);
+	}
 }
 
 int32 ALIStorageChest::GetUsedSlots() const

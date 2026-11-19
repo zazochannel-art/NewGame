@@ -13,6 +13,27 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Math/RandomStream.h"
+#include "ProceduralMeshComponent.h"
+#include "Visuals/LILowPolyMesh.h"
+#include "Visuals/LIVisualAssets.h"
+#include "Materials/MaterialInterface.h"
+
+namespace LIBuildingVisuals
+{
+	// Two shades each, so neighbouring planks differ; each maps to a real wood material when available.
+	const FLinearColor PlankA(0.56f, 0.39f, 0.21f);
+	const FLinearColor PlankB(0.48f, 0.33f, 0.17f);
+	const FLinearColor BeamA(0.32f, 0.21f, 0.11f);
+	const FLinearColor BeamB(0.27f, 0.18f, 0.09f);
+
+	/** A log lying along local +Y from Y0, centred at (X, Z). */
+	void AddLog(FLILowPolyMesh& Out, FRandomStream& Random, float X, float Y0, float Z, float Length, float Radius, const FLinearColor& Color)
+	{
+		const float R = Radius * Random.FRandRange(0.93f, 1.07f);
+		Out.AddFrustum(FTransform(FRotator(0.f, 0.f, -90.f), FVector(X, Y0, Z)), 8, R, R * Random.FRandRange(0.9f, 1.0f), Length, Color, 0.04f, &Random);
+	}
+}
 
 namespace
 {
@@ -73,6 +94,33 @@ void ALIBuildingPiece::BeginPlay()
 	for (UStaticMeshComponent* Part : ExtraParts)
 	{
 		LITintPlaceholder(Part, Color);
+	}
+
+	// Detailed wooden model (cosmetic, every machine); the boxes stay as hidden collision.
+	if (!bIsPreview)
+	{
+		FLILowPolyMesh Model;
+		Model.bSmooth = false; // sawn timber: keep crisp edges
+		FRandomStream Random(LIVisualSeed(GetActorLocation(), static_cast<int32>(PieceType) + 77));
+		BuildVisual(Model, Random);
+		if (!Model.IsEmpty())
+		{
+			const ULIVisualAssets& Assets = ULIVisualAssets::Get();
+			UMaterialInterface* Wood = ULIVisualAssets::LoadOptional<UMaterialInterface>(Assets.WoodMaterial);
+			UMaterialInterface* DarkWood = ULIVisualAssets::LoadOptional<UMaterialInterface>(Assets.DarkWoodMaterial);
+			Model.SetSurfaceMaterial(LIBuildingVisuals::PlankA, Wood);
+			Model.SetSurfaceMaterial(LIBuildingVisuals::PlankB, Wood);
+			Model.SetSurfaceMaterial(LIBuildingVisuals::BeamA, DarkWood);
+			Model.SetSurfaceMaterial(LIBuildingVisuals::BeamB, DarkWood);
+			if (Model.ApplyTo(LICreateVisualComponent(this)))
+			{
+				Mesh->SetHiddenInGame(true);
+				for (UStaticMeshComponent* Part : ExtraParts)
+				{
+					Part->SetHiddenInGame(true);
+				}
+			}
+		}
 	}
 }
 
@@ -281,3 +329,101 @@ bool ALIBuildingPiece::IsSheltered(const UWorld* World, const FVector& Location)
 	}
 	return false;
 }
+
+// ---------------------------------------------------------------------------
+// Detailed models (cosmetic). Pieces are placed by their bottom centre; walls are thin along local X.
+// ---------------------------------------------------------------------------
+
+void ALIWoodenFloor::BuildVisual(FLILowPolyMesh& Out, FRandomStream& Random) const
+{
+	using namespace LIBuildingVisuals;
+	const float Half = GridSize * 0.5f;
+
+	// Three joists underneath, ten planks on top with small gaps.
+	for (int32 Index = -1; Index <= 1; ++Index)
+	{
+		Out.AddBox(FTransform(FVector(Index * 120.f, 0.f, 6.f)), FVector(8.f, Half, 6.f), Index == 0 ? BeamA : BeamB);
+	}
+	const int32 Planks = 10;
+	const float PlankWidth = GridSize / Planks;
+	for (int32 Index = 0; Index < Planks; ++Index)
+	{
+		const float Y = -Half + PlankWidth * (Index + 0.5f);
+		const float Length = Half - Random.FRandRange(0.f, 3.f);
+		const FVector Center(Random.FRandRange(-1.5f, 1.5f), Y, FloorThickness - 4.f + Random.FRandRange(-0.4f, 0.4f));
+		Out.AddBox(FTransform(FRotator(0.f, Random.FRandRange(-0.4f, 0.4f), 0.f), Center), FVector(Length, PlankWidth * 0.5f - 0.8f, 4.f),
+			(Index % 2) ? PlankA : PlankB);
+	}
+}
+
+void ALIWoodenWall::BuildVisual(FLILowPolyMesh& Out, FRandomStream& Random) const
+{
+	using namespace LIBuildingVisuals;
+	// Ten stacked logs, overhanging the ends a little like a log cabin.
+	const int32 Logs = 10;
+	const float Radius = WallHeight / Logs * 0.5f;
+	for (int32 Index = 0; Index < Logs; ++Index)
+	{
+		AddLog(Out, Random, 0.f, -GridSize * 0.5f - 10.f, Radius + Index * Radius * 2.f, GridSize + 20.f, Radius, (Index % 2) ? PlankA : PlankB);
+	}
+}
+
+void ALIWoodenDoorway::BuildVisual(FLILowPolyMesh& Out, FRandomStream& Random) const
+{
+	using namespace LIBuildingVisuals;
+	const float Half = GridSize * 0.5f;
+	const float OpeningHalf = 50.f;
+	const float OpeningTop = 220.f;
+	const int32 Logs = 10;
+	const float Radius = WallHeight / Logs * 0.5f;
+	for (int32 Index = 0; Index < Logs; ++Index)
+	{
+		const float Z = Radius + Index * Radius * 2.f;
+		const FLinearColor& Color = (Index % 2) ? PlankA : PlankB;
+		if (Z - Radius < OpeningTop)
+		{
+			// Split around the opening.
+			AddLog(Out, Random, 0.f, -Half - 10.f, Z, Half + 10.f - OpeningHalf, Radius, Color);
+			AddLog(Out, Random, 0.f, OpeningHalf, Z, Half + 10.f - OpeningHalf, Radius, Color);
+		}
+		else
+		{
+			AddLog(Out, Random, 0.f, -Half - 10.f, Z, GridSize + 20.f, Radius, Color);
+		}
+	}
+
+	// Door frame: two jambs and a header board.
+	Out.AddBox(FTransform(FVector(0.f, -OpeningHalf - 4.f, OpeningTop * 0.5f)), FVector(Radius + 2.f, 4.f, OpeningTop * 0.5f), BeamA);
+	Out.AddBox(FTransform(FVector(0.f, OpeningHalf + 4.f, OpeningTop * 0.5f)), FVector(Radius + 2.f, 4.f, OpeningTop * 0.5f), BeamA);
+	Out.AddBox(FTransform(FVector(0.f, 0.f, OpeningTop + 6.f)), FVector(Radius + 2.f, OpeningHalf + 8.f, 6.f), BeamB);
+}
+
+void ALIWoodenRoof::BuildVisual(FLILowPolyMesh& Out, FRandomStream& Random) const
+{
+	using namespace LIBuildingVisuals;
+	const float Half = GridSize * 0.5f + 10.f; // matches the 20 cm overhang of the collision box
+
+	// Rafters underneath, then overlapping rows of shingle boards.
+	for (int32 Index = -1; Index <= 1; ++Index)
+	{
+		Out.AddBox(FTransform(FVector(0.f, Index * 110.f, 5.f)), FVector(Half, 7.f, 5.f), BeamA);
+	}
+	const int32 Rows = 8;
+	const float RowDepth = Half * 2.f / Rows;
+	for (int32 Row = 0; Row < Rows; ++Row)
+	{
+		const float X = -Half + RowDepth * (Row + 0.5f);
+		const int32 Boards = 6;
+		const float BoardWidth = Half * 2.f / Boards;
+		for (int32 Board = 0; Board < Boards; ++Board)
+		{
+			// Alternate rows are offset half a board, like real shingles.
+			const float Offset = (Row % 2) ? BoardWidth * 0.5f : 0.f;
+			const float Y = FMath::Clamp(-Half + BoardWidth * (Board + 0.5f) + Offset, -Half + BoardWidth * 0.5f, Half - BoardWidth * 0.5f);
+			const FVector Center(X, Y, 12.f + Random.FRandRange(-0.3f, 0.3f));
+			Out.AddBox(FTransform(FRotator(6.f, Random.FRandRange(-0.8f, 0.8f), 0.f), Center),
+				FVector(RowDepth * 0.62f, BoardWidth * 0.5f - 0.7f, 1.6f), ((Row + Board) % 2) ? BeamA : BeamB);
+		}
+	}
+}
+

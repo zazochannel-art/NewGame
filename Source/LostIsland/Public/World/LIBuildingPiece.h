@@ -7,6 +7,9 @@
 #include "Interaction/LIInteractable.h"
 #include "LIBuildingPiece.generated.h"
 
+struct FLILowPolyMesh;
+struct FRandomStream;
+
 class UStaticMeshComponent;
 
 UENUM(BlueprintType)
@@ -83,6 +86,12 @@ protected:
 	TArray<TObjectPtr<UStaticMeshComponent>> ExtraParts;
 
 	bool bIsPreview = false;
+
+	/**
+	 * Detailed model (planks, logs, shingles) built at BeginPlay on every machine; the box parts above stay as
+	 * hidden collision. Preview ghosts keep the plain green boxes. Leave empty to keep the tinted boxes.
+	 */
+	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const {}
 };
 
 UCLASS()
@@ -91,6 +100,9 @@ class LOSTISLAND_API ALIWoodenFloor : public ALIBuildingPiece
 	GENERATED_BODY()
 public:
 	ALIWoodenFloor();
+
+protected:
+	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const override;
 };
 
 UCLASS()
@@ -99,6 +111,9 @@ class LOSTISLAND_API ALIWoodenWall : public ALIBuildingPiece
 	GENERATED_BODY()
 public:
 	ALIWoodenWall();
+
+protected:
+	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const override;
 };
 
 /** A wall with a 100 x 220 cm opening. Snaps like a wall (and takes a wall's place). */
@@ -112,6 +127,8 @@ public:
 protected:
 	UPROPERTY(VisibleAnywhere, Category = "Components") TObjectPtr<UStaticMeshComponent> RightPost;
 	UPROPERTY(VisibleAnywhere, Category = "Components") TObjectPtr<UStaticMeshComponent> Lintel;
+
+	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const override;
 };
 
 UCLASS()
@@ -120,4 +137,7 @@ class LOSTISLAND_API ALIWoodenRoof : public ALIBuildingPiece
 	GENERATED_BODY()
 public:
 	ALIWoodenRoof();
+
+protected:
+	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const override;
 };
