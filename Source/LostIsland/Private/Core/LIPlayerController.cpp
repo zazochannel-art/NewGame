@@ -16,6 +16,15 @@
 #include "Core/LIGameState.h"
 #include "Save/LISaveSubsystem.h"
 #include "Crafting/LICraftingComponent.h"
+#include "Resources/LIResourceNode.h"
+#include "GameFramework/HUD.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Paths.h"
+#include "TimerManager.h"
+#include "UnrealClient.h"
+#if WITH_EDITOR
+#include "ShaderCompiler.h"
+#endif
 
 void ALIPlayerController::BeginPlay()
 {
@@ -25,7 +34,221 @@ void ALIPlayerController::BeginPlay()
 	{
 		SetInputMode(FInputModeGameOnly());
 		SetShowMouseCursor(false);
+
+#if !UE_BUILD_SHIPPING
+		// -LIScreenshotTour on the command line: run the visual smoke test, then quit.
+		if (HasAuthority() && FParse::Param(FCommandLine::Get(), TEXT("LIScreenshotTour")))
+		{
+			LIScreenshotTour(1);
+		}
+#endif
 	}
+}
+
+// --- Screenshot tour (visual smoke test) ---
+
+namespace LIScreenshotTourSteps
+{
+	enum class ELocation : uint8 { Spring, Shore, Forest, CrashSite };
+
+	struct FStep
+	{
+		const TCHAR* Name;
+		float Hours;
+		ELocation Location;
+	};
+
+	static const FStep Steps[] = {
+		{ TEXT("day"),    12.0f, ELocation::Spring },
+		{ TEXT("beach"),  10.0f, ELocation::Shore },
+		{ TEXT("forest"), 14.0f, ELocation::Forest },
+		{ TEXT("wreck"),  15.0f, ELocation::CrashSite },
+		{ TEXT("sunset"), 17.6f, ELocation::Shore },
+	};
+
+	/** Seconds to let lighting, streaming and the camera settle after each teleport. */
+	constexpr double SettleSeconds = 8.0;
+	/** Seconds over which the FPS is averaged. */
+	constexpr double MeasureSeconds = 4.0;
+	/** Upper bound on waiting for shader compilation at a step. */
+	constexpr double MaxShaderWaitSeconds = 300.0;
+	constexpr float PollInterval = 0.5f;
+
+	enum class EPhase : uint8 { Settle, Measure, Capture };
+	static EPhase Phase = EPhase::Settle;
+	static double PhaseStartSeconds = 0.0;
+}
+
+void ALIPlayerController::LIScreenshotTour(int32 bQuitWhenDone)
+{
+#if !UE_BUILD_SHIPPING
+	if (!HasAuthority())
+	{
+		UE_LOG(LogLostIsland, Warning, TEXT("LIScreenshotTour: run it on the host or in standalone."));
+		return;
+	}
+	bScreenshotTourQuit = bQuitWhenDone != 0;
+	ScreenshotTourStep = INDEX_NONE;
+	ScreenshotTourResults.Reset();
+	UE_LOG(LogLostIsland, Log, TEXT("LIScreenshotTour: starting (%d views)."), UE_ARRAY_COUNT(LIScreenshotTourSteps::Steps));
+	GetWorldTimerManager().SetTimer(ScreenshotTourTimer, this, &ALIPlayerController::AdvanceScreenshotTour,
+		LIScreenshotTourSteps::PollInterval, true, 2.f);
+#endif
+}
+
+void ALIPlayerController::AdvanceScreenshotTour()
+{
+#if !UE_BUILD_SHIPPING
+	using namespace LIScreenshotTourSteps;
+	const double Now = FPlatformTime::Seconds();
+
+	if (!GetPawn())
+	{
+		return; // still spawning; poll again
+	}
+
+	if (ScreenshotTourStep == INDEX_NONE)
+	{
+		if (MyHUD)
+		{
+			MyHUD->bShowHUD = false;
+		}
+		ScreenshotTourStep = 0;
+		Phase = EPhase::Capture; // falls through to "set up the step" below
+		PhaseStartSeconds = -1.0;
+	}
+
+	if (Phase == EPhase::Capture && PhaseStartSeconds >= 0.0)
+	{
+		// The screenshot was requested on the previous poll and has been written by now.
+		++ScreenshotTourStep;
+	}
+
+	if (Phase == EPhase::Capture)
+	{
+		if (ScreenshotTourStep >= static_cast<int32>(UE_ARRAY_COUNT(Steps)))
+		{
+			GetWorldTimerManager().ClearTimer(ScreenshotTourTimer);
+			if (MyHUD)
+			{
+				MyHUD->bShowHUD = true;
+			}
+			UE_LOG(LogLostIsland, Log, TEXT("LIScreenshotTour: done. Screenshots in %s"), *FPaths::ConvertRelativePathToFull(FPaths::ScreenShotDir()));
+			for (const FString& Line : ScreenshotTourResults)
+			{
+				UE_LOG(LogLostIsland, Log, TEXT("LIScreenshotTour:   %s"), *Line);
+			}
+			ScreenshotTourStep = INDEX_NONE;
+			if (bScreenshotTourQuit)
+			{
+				ConsoleCommand(TEXT("quit"));
+			}
+			return;
+		}
+
+		const FStep& Step = Steps[ScreenshotTourStep];
+		ServerDebugSetTime(Step.Hours);
+		bool bPlaced = true;
+		switch (Step.Location)
+		{
+		case ELocation::Spring:    ServerDebugGoToSpring(); break;
+		case ELocation::Shore:     ServerDebugGoToShore(); break;
+		case ELocation::CrashSite: ServerDebugGoToCrashSite(); break;
+		case ELocation::Forest:    bPlaced = TeleportToForest(); break;
+		}
+		if (!bPlaced)
+		{
+			UE_LOG(LogLostIsland, Warning, TEXT("LIScreenshotTour: no location for '%s'; capturing from where the player stands."), Step.Name);
+		}
+		Phase = EPhase::Settle;
+		PhaseStartSeconds = Now;
+		return;
+	}
+
+	if (Phase == EPhase::Settle)
+	{
+		bool bShadersPending = false;
+#if WITH_EDITOR
+		bShadersPending = GShaderCompilingManager && GShaderCompilingManager->GetNumRemainingJobs() > 0;
+#endif
+		const double Waited = Now - PhaseStartSeconds;
+		if (Waited < SettleSeconds || (bShadersPending && Waited < MaxShaderWaitSeconds))
+		{
+			return;
+		}
+		Phase = EPhase::Measure;
+		PhaseStartSeconds = Now;
+		ScreenshotTourStartFrame = GFrameCounter;
+		ScreenshotTourStartSeconds = Now;
+		return;
+	}
+
+	if (Phase == EPhase::Measure && Now - PhaseStartSeconds >= MeasureSeconds)
+	{
+		CaptureScreenshotTourStep();
+		Phase = EPhase::Capture;
+		PhaseStartSeconds = Now;
+	}
+#endif
+}
+
+void ALIPlayerController::CaptureScreenshotTourStep()
+{
+#if !UE_BUILD_SHIPPING
+	const LIScreenshotTourSteps::FStep& Step = LIScreenshotTourSteps::Steps[ScreenshotTourStep];
+	const double Elapsed = FPlatformTime::Seconds() - ScreenshotTourStartSeconds;
+	const double Fps = Elapsed > 0.0 ? static_cast<double>(GFrameCounter - ScreenshotTourStartFrame) / Elapsed : 0.0;
+	const FString File = FPaths::ScreenShotDir() / FString::Printf(TEXT("LITour_%s.png"), Step.Name);
+	FScreenshotRequest::RequestScreenshot(File, false, false);
+
+	const FString Line = FString::Printf(TEXT("%-7s %5.2fh  %6.1f FPS (%.1f ms)  %s"),
+		Step.Name, Step.Hours, Fps, Fps > 0.0 ? 1000.0 / Fps : 0.0, *FPaths::GetCleanFilename(File));
+	ScreenshotTourResults.Add(Line);
+	UE_LOG(LogLostIsland, Log, TEXT("LIScreenshotTour: %s"), *Line);
+#endif
+}
+
+bool ALIPlayerController::TeleportToForest()
+{
+	APawn* MyPawn = GetPawn();
+	if (!MyPawn)
+	{
+		return false;
+	}
+
+	// The tree with the most other trees within 20 m is the middle of a forest.
+	TArray<FVector> Trees;
+	for (TActorIterator<ALITreeNode> It(GetWorld()); It; ++It)
+	{
+		Trees.Add(It->GetActorLocation());
+	}
+	int32 Best = INDEX_NONE;
+	int32 BestCount = -1;
+	for (int32 Index = 0; Index < Trees.Num(); ++Index)
+	{
+		int32 Count = 0;
+		for (const FVector& Other : Trees)
+		{
+			Count += FVector::DistSquared2D(Trees[Index], Other) < FMath::Square(2000.f) ? 1 : 0;
+		}
+		if (Count > BestCount)
+		{
+			BestCount = Count;
+			Best = Index;
+		}
+	}
+	if (Best == INDEX_NONE)
+	{
+		return false;
+	}
+
+	// Stand 5 m from that tree, looking past it into the forest.
+	const FVector Tree = Trees[Best];
+	const FVector Location = Tree + FVector(500.f, 0.f, 250.f);
+	const float Yaw = (Tree - Location).Rotation().Yaw + 20.f;
+	MyPawn->TeleportTo(Location, FRotator(0.f, Yaw, 0.f));
+	SetControlRotation(FRotator(-5.f, Yaw, 0.f));
+	return true;
 }
 
 // --- HUD messages ---
@@ -283,6 +506,7 @@ void ALIPlayerController::ServerDebugGoToSpring_Implementation()
 	if (Nearest)
 	{
 		MyPawn->TeleportTo(Nearest->GetActorLocation() + FVector(200.f, 0.f, 120.f), FRotator(0.f, 180.f, 0.f));
+		SetControlRotation(FRotator(-10.f, 180.f, 0.f)); // camera behind the player, looking at the pond
 	}
 #endif
 }

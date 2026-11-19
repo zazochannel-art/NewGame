@@ -77,7 +77,7 @@ ALIIslandGenerator::ALIIslandGenerator()
 	SkyLight->SetupAttachment(TerrainMesh);
 	SkyLight->SetMobility(EComponentMobility::Movable);
 	SkyLight->bRealTimeCapture = true;
-	SkyLight->SetIntensity(8.f); // fill light for shadowed sides under the -3 EV exposure (see ExposureCompensation)
+	SkyLight->SetIntensity(1.f); // the fill comes from the brightened sky it captures (see SkyBrightness)
 
 	HeightFog = CreateDefaultSubobject<UExponentialHeightFogComponent>(TEXT("HeightFog"));
 	HeightFog->SetupAttachment(TerrainMesh);
@@ -547,6 +547,15 @@ void ALIIslandGenerator::SetupEnvironment()
 	SkyAtmosphere->SetVisibility(bUseOwnEnvironment);
 	SkyLight->SetVisibility(bUseOwnEnvironment);
 	HeightFog->SetVisibility(bUseOwnEnvironment);
+
+	// Brighten the sky itself instead of only boosting the sky light: the visible sky (and the sunset colours in it)
+	// then matches the lit ground, and the sky light's capture of it keeps the same ambient fill.
+	if (bUseOwnEnvironment)
+	{
+		const float Brightness = FMath::Max(1.f, SkyBrightness);
+		SkyAtmosphere->SetSkyLuminanceFactor(FLinearColor(Brightness, Brightness, Brightness));
+		SkyLight->SetIntensity(1.f);
+	}
 
 	// Realistic sky: the engine's volumetric clouds, lit by the sun and the sky atmosphere.
 	bool bVolumetricClouds = false;

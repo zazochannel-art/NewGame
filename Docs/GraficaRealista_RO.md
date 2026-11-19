@@ -11,8 +11,22 @@ Dacă lipsesc, jocul rămâne cu grafica construită din cod, fără erori.
 
 Rezultat: pământ cu iarbă, mușchi, nisip și stâncă texturate (în loc de culori plate), stânci și tufișuri 3D reale, valuri care se mișcă pe mare, lemn adevărat pe construcții, plută și cufăr, metal periat și ruginit pe epava avionului.
 
+> **UE 5.8:** dacă Starter Content nu apare în listă, înseamnă că nu e instalat cu motorul (instalarea standard
+> nu-l mai include; `Templates\TemplateResources\High\StarterContent` nu există). În Epic Games Launcher:
+> **Library**, săgeata de lângă **5.8**, **Options**, bifează **Starter Content**, **Apply**. Apoi pașii de mai sus.
+
 ## 2. Third Person (omul animat)
 1. Tot din **Add Feature or Content Pack…**, tab-ul **Blueprint**, apoi **Third Person**, apoi **Add to Project**.
+
+Fără editor (copiere manuală, UE 5.8): conținutul e în `<UE_5.8>\Templates\TemplateResources\High\Characters\Content`
+(nu în `TP_ThirdPersonBP\Content\Characters`). Copiază folderul `Mannequins` de acolo în `Content\Characters\`,
+ca să rezulte `Content\Characters\Mannequins\Meshes\SKM_Quinn_Simple.uasset` și
+`Content\Characters\Mannequins\Anims\Unarmed\ABP_Unarmed.uasset`.
+
+## Test vizual automat
+`UnrealEditor.exe LostIsland.uproject -game -LIScreenshotTour` (sau comanda `LIScreenshotTour 1` în consolă):
+zi, plajă, pădure, epavă, apus. Pentru fiecare: FPS mediu în log (`LIScreenshotTour:`) și o captură
+`LITour_<nume>.png` în `Saved/Screenshots/`. Jocul se închide la final.
 
 Rezultat: supraviețuitorul devine manechinul UE5 (Quinn), cu animații reale de mers, alergare și sărituri.
 

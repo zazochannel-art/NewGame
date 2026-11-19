@@ -390,6 +390,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight")
 	float ExposureCompensation = -3.f;
 
+	/**
+	 * Brightness of the visible sky and of the ambient light it casts (sky atmosphere luminance factor). The sun is
+	 * a non-physical 10 lux, so the physically correct sky would be near black under the -3 EV exposure; the sky
+	 * light captures this brighter sky, so shaded sides get the same fill as before.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight", meta = (ClampMin = "1.0"))
+	float SkyBrightness = 8.f;
+
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight")
 	FLinearColor NoonColor = FLinearColor(1.f, 0.96f, 0.88f);
 
