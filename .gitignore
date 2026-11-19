@@ -25,3 +25,13 @@ Plugins/**/Intermediate/
 *.exe
 *.lib
 *.obj
+
+# Engine content packs and marketplace art are added per machine (large; see Docs/GraficaRealista_RO.md).
+# The game finds them by path (ULIVisualAssets) and falls back to code-built art when they're missing.
+Content/StarterContent/
+Content/Characters/
+Content/ThirdPerson/
+Content/LevelPrototyping/
+Content/Input/
+Content/Megascans/
+Content/Fab/

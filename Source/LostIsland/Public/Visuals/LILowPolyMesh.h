@@ -20,8 +20,15 @@ LOSTISLAND_API UMaterialInterface* LIGetTintedMaterial(const FLinearColor& Color
  */
 LOSTISLAND_API UMaterialInterface* LIGetVertexColorMaterial();
 
-/** Translucent sea with depth colour, shoreline foam and a glossy surface. Null in packaged builds. */
+/** Translucent sea with depth colour, shoreline foam, a glossy surface and moving waves. Null in packaged builds. */
 LOSTISLAND_API UMaterialInterface* LIGetWaterMaterial();
+
+/**
+ * Photo-textured terrain (grass, forest floor, rock, sand) blended by vertex colour weights:
+ * R = grass, G = rock, B = sand, A = forest floor. Null unless the textures in ULIVisualAssets exist
+ * (Starter Content) and this is an editor build.
+ */
+LOSTISLAND_API UMaterialInterface* LIGetTexturedTerrainMaterial();
 
 /**
  * True when the realistic style is on (console variable li.RealisticStyle, default 1) and the vertex-colour

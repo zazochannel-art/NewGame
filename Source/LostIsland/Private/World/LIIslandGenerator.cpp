@@ -11,6 +11,7 @@
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Math/RandomStream.h"
 #include "Visuals/LILowPolyMesh.h"
+#include "Visuals/LIVisualAssets.h"
 #include "Components/ExponentialHeightFogComponent.h"
 #include "Components/PostProcessComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
@@ -965,9 +966,20 @@ void ALIIslandGenerator::BuildDecorations(const TArray<float>& Heights)
 	TArray<FTransform> Instances[KindCount];
 	FRandomStream Random(static_cast<int32>(HashCombine(GetTypeHash(Seed), 0xDEC0u)));
 
+	// Real grass meshes (ULIVisualAssets::GrassMeshes) replace the cone blades when present.
+	UStaticMesh* GrassAsset = ULIVisualAssets::PickOptional<UStaticMesh>(ULIVisualAssets::Get().GrassMeshes, Seed);
+
 	// Engine cone and sphere: 100 cm, centred pivot. A blade of grass is a thin, leaning cone.
-	auto AddBlade = [&Instances, &Random](ELIDecoration Kind, const FVector& Ground, float MinHeight, float MaxHeight)
+	auto AddBlade = [&Instances, &Random, GrassAsset](ELIDecoration Kind, const FVector& Ground, float MinHeight, float MaxHeight)
 	{
+		if (GrassAsset)
+		{
+			// One real grass clump per blade call (a flower then sits in a small clump).
+			const float Scale = Random.FRandRange(0.7f, 1.3f);
+			Instances[static_cast<int32>(Kind)].Add(FTransform(FRotator(0.f, Random.FRandRange(0.f, 360.f), 0.f),
+				Ground - FVector(0.f, 0.f, 2.f), FVector(Scale)));
+			return;
+		}
 		const float Height = Random.FRandRange(MinHeight, MaxHeight);
 		const FRotator Rotation(Random.FRandRange(-16.f, 16.f), Random.FRandRange(0.f, 360.f), Random.FRandRange(-16.f, 16.f));
 		const FVector Scale(0.06f, 0.06f, Height / 100.f);
@@ -1098,7 +1110,13 @@ void ALIIslandGenerator::BuildDecorations(const TArray<float>& Heights)
 		{
 			continue;
 		}
-		if (UMaterialInterface* Material = LIGetTintedMaterial(DecorationColors[Kind]))
+		const bool bRealGrass = GrassAsset && Kind <= static_cast<int32>(ELIDecoration::DryGrass);
+		if (bRealGrass)
+		{
+			Deco->SetStaticMesh(GrassAsset);
+			Deco->SetMaterial(0, nullptr); // the asset's own material
+		}
+		else if (UMaterialInterface* Material = LIGetTintedMaterial(DecorationColors[Kind]))
 		{
 			Deco->SetMaterial(0, Material);
 		}
@@ -1149,7 +1167,9 @@ void ALIIslandGenerator::BuildClouds()
 
 bool ALIIslandGenerator::BuildSmoothTerrain(const TArray<float>& Heights)
 {
-	UMaterialInterface* Material = LIGetVertexColorMaterial();
+	// Photo textures (Starter Content) when available: vertex colours then hold blend weights, not colours.
+	UMaterialInterface* TexturedMaterial = LIGetTexturedTerrainMaterial();
+	UMaterialInterface* Material = TexturedMaterial ? TexturedMaterial : LIGetVertexColorMaterial();
 	if (!Material)
 	{
 		return false;
@@ -1189,7 +1209,11 @@ bool ALIIslandGenerator::BuildSmoothTerrain(const TArray<float>& Heights)
 			Normals.Add(Normal);
 			UVs.Add(XY / 1000.f);
 
-			if (Height < 0.f)
+			if (TexturedMaterial)
+			{
+				Colors.Add(GetTerrainBlendWeights(XY, Height, Normal.Z));
+			}
+			else if (Height < 0.f)
 			{
 				// Seabed: wet sand at the waterline darkening with depth (seen through the translucent sea).
 				const float DepthAlpha = FMath::Clamp(-Height / 700.f, 0.f, 1.f);
@@ -1244,5 +1268,40 @@ bool ALIIslandGenerator::BuildSmoothTerrain(const TArray<float>& Heights)
 	TerrainMesh->SetMaterial(0, Material);
 	UE_LOG(LogLostIsland, Verbose, TEXT("Smooth terrain: %d vertices, %d triangles."), Vertices.Num(), Triangles.Num() / 3);
 	return true;
+}
+
+FLinearColor ALIIslandGenerator::GetTerrainBlendWeights(const FVector2D& LocalXY, float Height, float NormalZ) const
+{
+	// R = grass, G = rock, B = sand, A = forest floor (see LIGetTexturedTerrainMaterial).
+	float Rock = 1.f - FMath::SmoothStep(RockSlopeNormalZ - 0.06f, RockSlopeNormalZ + 0.08f, NormalZ); // steep -> rock
+	if (Height > HillsMinHeight)
+	{
+		const float HighGround = FMath::SmoothStep(HillsMinHeight, HillsMinHeight + HillHeight * 0.35f, Height);
+		Rock = FMath::Max(Rock, HighGround * 0.65f);
+	}
+	if (Height < -250.f)
+	{
+		Rock = FMath::Max(Rock, FMath::SmoothStep(250.f, 900.f, -Height) * 0.7f); // deep seabed: stony
+	}
+
+	const float Sand = Height < BeachMaxHeight
+		? 1.f - FMath::SmoothStep(BeachMaxHeight * 0.55f, BeachMaxHeight, Height)
+		: 0.f;
+
+	const FVector2D N = LocalXY / GetIslandRadius();
+	const float ForestNoise = Fbm(N * ForestNoiseFrequency + ForestOffset, 3);
+	const float Forest = FMath::SmoothStep(ForestThreshold - 0.06f, ForestThreshold + 0.06f, ForestNoise);
+
+	const float Land = (1.f - Rock) * (1.f - Sand);
+	FLinearColor Weights(Land * (1.f - Forest), Rock, (1.f - Rock) * Sand, Land * Forest);
+	const float Sum = Weights.R + Weights.G + Weights.B + Weights.A;
+	if (Sum > KINDA_SMALL_NUMBER)
+	{
+		Weights.R /= Sum;
+		Weights.G /= Sum;
+		Weights.B /= Sum;
+		Weights.A /= Sum;
+	}
+	return Weights;
 }
 

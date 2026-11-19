@@ -40,6 +40,9 @@
 #include "ProceduralMeshComponent.h"
 #include "TimerManager.h"
 #include "Visuals/LILowPolyMesh.h"
+#include "Visuals/LIVisualAssets.h"
+#include "Engine/SkeletalMesh.h"
+#include "Animation/AnimInstance.h"
 
 ALICharacter::ALICharacter()
 {
@@ -140,6 +143,19 @@ void ALICharacter::BeginPlay()
 	// Blueprint subclasses may have changed tuning after the constructor ran.
 	CameraBoom->TargetArmLength = FMath::Clamp(DefaultArmLength, MinArmLength, MaxArmLength);
 	ApplyMovementSpeed();
+
+	// Real animated survivor (Third Person pack's mannequin) when the project has it and no Blueprint set one.
+	if (GetMesh() && !GetMesh()->GetSkeletalMeshAsset())
+	{
+		const ULIVisualAssets& Assets = ULIVisualAssets::Get();
+		USkeletalMesh* RealBody = ULIVisualAssets::LoadOptional<USkeletalMesh>(Assets.CharacterMesh);
+		UClass* AnimClass = ULIVisualAssets::LoadOptional<UClass>(Assets.CharacterAnimClass);
+		if (RealBody && AnimClass && AnimClass->IsChildOf(UAnimInstance::StaticClass()))
+		{
+			GetMesh()->SetSkeletalMeshAsset(RealBody);
+			GetMesh()->SetAnimInstanceClass(AnimClass);
+		}
+	}
 
 	if (GetMesh() && GetMesh()->GetSkeletalMeshAsset())
 	{

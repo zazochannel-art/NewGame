@@ -9,6 +9,7 @@
 #include "LostIsland.h"
 #include "Survival/LISurvivalComponent.h"
 #include "Visuals/LILowPolyMesh.h"
+#include "Visuals/LIVisualAssets.h"
 #include "Math/RandomStream.h"
 #include "ProceduralMeshComponent.h"
 
@@ -37,6 +38,13 @@ ALIResourceNode::ALIResourceNode()
 	Mesh->SetupAttachment(SceneRoot);
 	Mesh->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
 
+	DetailMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DetailMesh"));
+	DetailMesh->SetupAttachment(SceneRoot);
+	DetailMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	DetailMesh->SetCanEverAffectNavigation(false);
+	DetailMesh->SetGenerateOverlapEvents(false);
+	DetailMesh->SetVisibility(false);
+
 	Visual = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("Visual"));
 	Visual->SetupAttachment(SceneRoot);
 	Visual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -57,18 +65,31 @@ void ALIResourceNode::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Cosmetic, every machine: build the low-poly model; the placeholder shape stays as the hidden collision.
-	FLILowPolyMesh Model;
+	// Cosmetic, every machine. Real art if the project has it, else the code-built model; the placeholder shape
+	// always stays as the hidden collision / interaction proxy.
 	FRandomStream VisualRandom(LIVisualSeed(GetActorLocation(), static_cast<int32>(GetTypeHash(GetClass()->GetFName()))));
-	BuildVisual(Model, VisualRandom);
-	if (Model.ApplyTo(Visual))
+	if (TrySetupRealMesh(VisualRandom))
 	{
+		// Optional code-built extras on top of the real mesh (berries) go into Visual.
 		Mesh->SetHiddenInGame(true);
+		FLILowPolyMesh Overlay;
+		const FBox FittedBox = DetailMesh->GetStaticMesh()->GetBoundingBox().TransformBy(DetailMesh->GetRelativeTransform());
+		BuildRealMeshOverlay(Overlay, VisualRandom, FittedBox);
+		Overlay.ApplyTo(Visual);
 	}
-	else if (PlaceholderColor.A > 0.f)
+	else
 	{
-		// Untinted placeholder shapes read as near-black under the island's exposure.
-		LITintPlaceholder(Mesh, PlaceholderColor);
+		FLILowPolyMesh Model;
+		BuildVisual(Model, VisualRandom);
+		if (Model.ApplyTo(Visual))
+		{
+			Mesh->SetHiddenInGame(true);
+		}
+		else if (PlaceholderColor.A > 0.f)
+		{
+			// Untinted placeholder shapes read as near-black under the island's exposure.
+			LITintPlaceholder(Mesh, PlaceholderColor);
+		}
 	}
 
 	if (HasAuthority())
@@ -192,12 +213,14 @@ void ALIResourceNode::OnFocusBegin_Implementation(APawn* InstigatorPawn)
 {
 	Mesh->SetRenderCustomDepth(true);
 	Visual->SetRenderCustomDepth(true);
+	DetailMesh->SetRenderCustomDepth(true);
 }
 
 void ALIResourceNode::OnFocusEnd_Implementation(APawn* InstigatorPawn)
 {
 	Mesh->SetRenderCustomDepth(false);
 	Visual->SetRenderCustomDepth(false);
+	DetailMesh->SetRenderCustomDepth(false);
 }
 
 void ALIResourceNode::Deplete()
@@ -257,6 +280,7 @@ void ALIResourceNode::ApplyDepletedState()
 {
 	Mesh->SetVisibility(!bDepleted, true);
 	Visual->SetVisibility(!bDepleted, true);
+	DetailMesh->SetVisibility(!bDepleted && DetailMesh->GetStaticMesh() != nullptr, true);
 	Mesh->SetCollisionEnabled(bDepleted ? ECollisionEnabled::NoCollision : ECollisionEnabled::QueryAndPhysics);
 	BP_OnDepletedChanged(bDepleted);
 }
@@ -659,3 +683,87 @@ void ALICrabNode::BuildVisual(FLILowPolyMesh& Out, FRandomStream& Random) const
 		Out.AddBlob(FTransform(FVector(15.f, Side * 6.f, 25.5f)), FVector(2.6f), 0.f, Random, Black, nullptr, 0.7f, 0);
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Real art (ULIVisualAssets): fitted to the node's size, code models as fallback
+// ---------------------------------------------------------------------------
+
+bool ALIResourceNode::TrySetupRealMesh(FRandomStream& Random)
+{
+	float TargetSize = 100.f;
+	bool bFitHeight = false;
+	const TArray<FSoftObjectPath>* Paths = GetRealMeshPaths(TargetSize, bFitHeight);
+	if (!Paths || Paths->Num() == 0)
+	{
+		return false;
+	}
+	UStaticMesh* RealMesh = ULIVisualAssets::PickOptional<UStaticMesh>(*Paths, Random.RandRange(0, 1000));
+	if (!RealMesh)
+	{
+		return false;
+	}
+
+	const FBox Bounds = RealMesh->GetBoundingBox();
+	const FVector Size = Bounds.GetSize();
+	const float Measured = bFitHeight ? Size.Z : FMath::Max(Size.X, Size.Y);
+	if (Measured <= KINDA_SMALL_NUMBER)
+	{
+		return false;
+	}
+
+	const float Scale = TargetSize / Measured * Random.FRandRange(0.85f, 1.15f);
+	const float Yaw = Random.FRandRange(0.f, 360.f);
+	// Stand the mesh's lowest point on the node origin (the ground), slightly sunk to hide gaps on slopes.
+	const FVector Location(0.f, 0.f, -Bounds.Min.Z * Scale - 6.f);
+
+	DetailMesh->SetStaticMesh(RealMesh);
+	DetailMesh->SetRelativeTransform(FTransform(FRotator(0.f, Yaw, 0.f), Location, FVector(Scale)));
+	DetailMesh->SetVisibility(true);
+	return true;
+}
+
+const TArray<FSoftObjectPath>* ALITreeNode::GetRealMeshPaths(float& OutTargetSize, bool& bOutFitHeight) const
+{
+	OutTargetSize = 750.f; // ~7.5 m tall
+	bOutFitHeight = true;
+	return &ULIVisualAssets::Get().TreeMeshes;
+}
+
+const TArray<FSoftObjectPath>* ALIRockNode::GetRealMeshPaths(float& OutTargetSize, bool& bOutFitHeight) const
+{
+	OutTargetSize = 170.f; // matches the collision ellipsoid's width
+	bOutFitHeight = false;
+	return &ULIVisualAssets::Get().RockMeshes;
+}
+
+const TArray<FSoftObjectPath>* ALIFiberBushNode::GetRealMeshPaths(float& OutTargetSize, bool& bOutFitHeight) const
+{
+	OutTargetSize = 130.f;
+	bOutFitHeight = false;
+	return &ULIVisualAssets::Get().BushMeshes;
+}
+
+const TArray<FSoftObjectPath>* ALIBerryBushNode::GetRealMeshPaths(float& OutTargetSize, bool& bOutFitHeight) const
+{
+	OutTargetSize = 140.f;
+	bOutFitHeight = false;
+	return &ULIVisualAssets::Get().BushMeshes;
+}
+
+void ALIBerryBushNode::BuildRealMeshOverlay(FLILowPolyMesh& Out, FRandomStream& Random, const FBox& FittedBox) const
+{
+	// Red berries on the upper part of the real bush, so berry bushes stay easy to spot.
+	const FVector Center = FittedBox.GetCenter();
+	const FVector Radii = FittedBox.GetExtent() * 0.92f;
+	const int32 Berries = Random.RandRange(16, 24);
+	for (int32 Index = 0; Index < Berries; ++Index)
+	{
+		const float Yaw = Random.FRandRange(0.f, 2.f * PI);
+		const float FromTop = Random.FRandRange(0.3f, 1.4f);
+		const FVector Dir(FMath::Sin(FromTop) * FMath::Cos(Yaw), FMath::Sin(FromTop) * FMath::Sin(Yaw), FMath::Cos(FromTop));
+		const FVector Position = Center + FVector(Dir.X * Radii.X, Dir.Y * Radii.Y, Dir.Z * Radii.Z);
+		const float R = Random.FRandRange(4.5f, 6.5f);
+		Out.AddBlob(FTransform(Position), FVector(R), 0.1f, Random, LIVaryColor(LIResourceVisuals::Berry, Random, 0.12f), nullptr, 0.7f, 0);
+	}
+}
+

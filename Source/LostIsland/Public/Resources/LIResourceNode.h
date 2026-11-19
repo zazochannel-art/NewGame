@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "Interaction/LIInteractable.h"
 #include "Items/LIItemTypes.h"
+#include "UObject/SoftObjectPath.h"
 #include "LIResourceNode.generated.h"
 
 class UStaticMeshComponent;
@@ -93,6 +94,22 @@ protected:
 	 */
 	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const {}
 
+	/** Real art (e.g. Starter Content SM_Rock), scaled to fit; used instead of the code model when it loads. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UStaticMeshComponent> DetailMesh;
+
+	/**
+	 * Candidate real meshes (ULIVisualAssets) and the size to fit them to: OutTargetSize is the height when
+	 * bOutFitHeight, otherwise the width. Null = always use the code model.
+	 */
+	virtual const TArray<FSoftObjectPath>* GetRealMeshPaths(float& OutTargetSize, bool& bOutFitHeight) const { return nullptr; }
+
+	/** Code-built extras drawn on top of a real mesh (e.g. berries). FittedBox = the real mesh's local bounds. */
+	virtual void BuildRealMeshOverlay(FLILowPolyMesh& OutMesh, FRandomStream& Random, const FBox& FittedBox) const {}
+
+	/** Loads and fits a real mesh into DetailMesh; returns false if none is available. */
+	bool TrySetupRealMesh(FRandomStream& Random);
+
 	/** Tint for the placeholder shape (sets the "Color" parameter of the engine BasicShapeMaterial). Alpha 0 = don't tint. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Resource")
 	FLinearColor PlaceholderColor = FLinearColor(0.f, 0.f, 0.f, 0.f);
@@ -157,6 +174,7 @@ public:
 
 protected:
 	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const override;
+	virtual const TArray<FSoftObjectPath>* GetRealMeshPaths(float& OutTargetSize, bool& bOutFitHeight) const override;
 };
 
 /** Rock -> Stone. */
@@ -169,6 +187,7 @@ public:
 
 protected:
 	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const override;
+	virtual const TArray<FSoftObjectPath>* GetRealMeshPaths(float& OutTargetSize, bool& bOutFitHeight) const override;
 };
 
 /** Berry bush -> Berries (food). */
@@ -181,6 +200,8 @@ public:
 
 protected:
 	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const override;
+	virtual const TArray<FSoftObjectPath>* GetRealMeshPaths(float& OutTargetSize, bool& bOutFitHeight) const override;
+	virtual void BuildRealMeshOverlay(FLILowPolyMesh& OutMesh, FRandomStream& Random, const FBox& FittedBox) const override;
 };
 
 /** Bush -> Fiber. */
@@ -193,6 +214,7 @@ public:
 
 protected:
 	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const override;
+	virtual const TArray<FSoftObjectPath>* GetRealMeshPaths(float& OutTargetSize, bool& bOutFitHeight) const override;
 };
 
 /**
