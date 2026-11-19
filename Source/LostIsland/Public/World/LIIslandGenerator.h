@@ -17,6 +17,7 @@ class UPostProcessComponent;
 class UStaticMeshComponent;
 class UHierarchicalInstancedStaticMeshComponent;
 class UStaticMesh;
+class UVolumetricCloudComponent;
 
 UENUM(BlueprintType)
 enum class ELIIslandBiome : uint8
@@ -183,18 +184,22 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TObjectPtr<UProceduralMeshComponent> CloudMesh;
 
+	/** Realistic style: engine volumetric clouds (replace the low-poly CloudMesh when available). */
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	TObjectPtr<UVolumetricCloudComponent> VolumetricCloud;
+
 	/** Cosmetic ground cover (no collision): one instanced component per decoration kind (see ELIDecoration in the .cpp). */
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TArray<TObjectPtr<UHierarchicalInstancedStaticMeshComponent>> DecorationComponents;
 
 	// ---------------- Shape ----------------
-	/** Cells per side. 128 x 128 cells -> ~98k flat-shaded vertices. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Shape", meta = (ClampMin = "16", ClampMax = "256"))
-	int32 GridResolution = 128;
+	/** Cells per side. 192 x 192 cells of 2 m = the same 384 m island as before, with finer detail (~74k triangles). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Shape", meta = (ClampMin = "16", ClampMax = "384"))
+	int32 GridResolution = 192;
 
-	/** Size of one cell (cm). Larger = chunkier low-poly look and a bigger island. */
+	/** Size of one cell (cm). Larger = chunkier look and a bigger island. Keep GridResolution * CellSize ~38400. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Shape", meta = (ClampMin = "50.0", Units = "cm"))
-	float CellSize = 300.f;
+	float CellSize = 200.f;
 
 	/** Fraction of the half-extent covered by land (the rest is ocean). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Shape", meta = (ClampMin = "0.3", ClampMax = "0.95"))
@@ -255,6 +260,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Biomes") FLinearColor ForestColor = FLinearColor(0.20f, 0.45f, 0.18f);
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Biomes") FLinearColor HillsColor  = FLinearColor(0.50f, 0.55f, 0.35f);
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Biomes") FLinearColor RockColor   = FLinearColor(0.45f, 0.43f, 0.40f);
+
+	/** Realistic style: seabed colour at depth (wet sand at the waterline blends into this). */
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Biomes") FLinearColor DeepSeabedColor = FLinearColor(0.16f, 0.22f, 0.20f);
 
 	/** Surfaces steeper than this (normal Z below it) are coloured as rock. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Biomes", meta = (ClampMin = "0.0", ClampMax = "1.0"))
@@ -353,19 +361,19 @@ protected:
 
 	// ---------------- Look (post process) ----------------
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Look", meta = (ClampMin = "0.0", ClampMax = "2.0"))
-	float LookSaturation = 1.15f;
+	float LookSaturation = 1.05f;
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Look", meta = (ClampMin = "0.5", ClampMax = "2.0"))
-	float LookContrast = 1.06f;
+	float LookContrast = 1.02f;
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Look", meta = (ClampMin = "0.0", ClampMax = "4.0"))
-	float LookBloomIntensity = 0.4f;
+	float LookBloomIntensity = 0.5f;
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Look", meta = (ClampMin = "0.0", ClampMax = "1.0"))
-	float LookVignetteIntensity = 0.35f;
+	float LookVignetteIntensity = 0.25f;
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Look", meta = (ClampMin = "0.0", ClampMax = "1.0"))
-	float LookAmbientOcclusion = 0.6f;
+	float LookAmbientOcclusion = 0.5f;
 
 	/** Use the built-in sun/sky/fog only if the level has no directional light of its own. */
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering")
@@ -410,6 +418,9 @@ private:
 	void BuildShallowWater(const TArray<float>& Heights);
 	void BuildDecorations(const TArray<float>& Heights);
 	void BuildClouds();
+
+	/** Realistic style: one smooth, vertex-coloured terrain section. Returns false if the material is unavailable. */
+	bool BuildSmoothTerrain(const TArray<float>& Heights);
 
 	/** Exact height of the triangulated terrain surface (matches the mesh, unlike the smooth GetHeightAt). */
 	float GetMeshHeightAt(const TArray<float>& Heights, const FVector2D& LocalXY) const;

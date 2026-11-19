@@ -14,6 +14,21 @@ struct FRandomStream;
  */
 LOSTISLAND_API UMaterialInterface* LIGetTintedMaterial(const FLinearColor& Color);
 
+/**
+ * Lit material whose base colour is the vertex colour (smooth colour gradients, baked ground shading).
+ * Built in code in editor builds; null in packaged builds (see LIMaterials.cpp).
+ */
+LOSTISLAND_API UMaterialInterface* LIGetVertexColorMaterial();
+
+/** Translucent sea with depth colour, shoreline foam and a glossy surface. Null in packaged builds. */
+LOSTISLAND_API UMaterialInterface* LIGetWaterMaterial();
+
+/**
+ * True when the realistic style is on (console variable li.RealisticStyle, default 1) and the vertex-colour
+ * material exists: smooth shading, vertex colours, translucent water, volumetric clouds.
+ */
+LOSTISLAND_API bool LIUseRealisticStyle();
+
 /** Color * (1 +- Amount), alpha 1. Used to give every model a slightly different shade. */
 LOSTISLAND_API FLinearColor LIVaryColor(const FLinearColor& Color, FRandomStream& Random, float Amount);
 
@@ -45,11 +60,28 @@ struct LOSTISLAND_API FLILowPolyMesh
 
 	TArray<FSection> Sections;
 
+	/**
+	 * Smooth (rounded) normals on blobs and frustum sides instead of flat facets. Defaults to the realistic
+	 * style. Boxes are always flat.
+	 */
+	bool bSmooth = LIUseRealisticStyle();
+
+	/**
+	 * Realistic style only: vertices below this local height are darkened (fake ambient occlusion where a model
+	 * meets the ground). Negative = off. Use it for models whose origin is on the ground.
+	 */
+	float GroundShadingHeight = -1.f;
+
 	bool IsEmpty() const { return Sections.Num() == 0; }
 	int32 NumTriangles() const;
 
 	/** One flat triangle facing away from InteriorPoint. Degenerate triangles are skipped. */
 	void AddTri(const FVector& A, const FVector& B, const FVector& C, const FLinearColor& Color, const FVector& InteriorPoint);
+
+	/** Same, with explicit per-corner normals (smooth shading). The normals must point outward. */
+	void AddTriSmooth(const FVector& A, const FVector& B, const FVector& C,
+		const FVector& NormalA, const FVector& NormalB, const FVector& NormalC,
+		const FLinearColor& Color, const FVector& InteriorPoint);
 
 	/** Box centred on the transform's origin. */
 	void AddBox(const FTransform& Transform, const FVector& HalfExtent, const FLinearColor& Color);
@@ -71,6 +103,8 @@ struct LOSTISLAND_API FLILowPolyMesh
 
 	/**
 	 * Replaces all sections of Component with this geometry (no collision; models are cosmetic).
+	 * Realistic style: one section with vertex colours (small per-vertex shade noise, optional ground shading)
+	 * and the vertex-colour material. Otherwise: one section per colour with tinted BasicShapeMaterial.
 	 * Returns false if there was nothing to apply.
 	 */
 	bool ApplyTo(UProceduralMeshComponent* Component) const;

@@ -1,4 +1,4 @@
-# Visuals: low-poly art built in code (Milestone 18)
+# Visuals: art built in code (Milestones 18–19)
 
 The project still has no `.uasset` art, and none can be authored outside the editor. Every model is therefore
 built in C++ at runtime as **flat-shaded, faceted low-poly geometry**, using the engine's lit
@@ -60,3 +60,32 @@ Assigning a skeletal mesh in a Blueprint subclass hides all of this automaticall
   lower `DecorationDensity` or `DecorationCullDistance` on a Blueprint subclass of the generator.
 - Not done yet: the plane wreck, building pieces, raft, chest, sleeping bag and dropped loot still use tinted
   engine shapes, and the HUD is still the canvas prototype.
+
+## Realistic style (Milestone 19, default on)
+Console variable **`li.RealisticStyle`** (1 = realistic, default; 0 = the faceted low-poly look). It applies to
+objects built after the change, so use `LIRegenerateIsland` or restart PIE to see a switch.
+
+Since the project has no material assets, two materials are **generated in code at startup**
+(`Visuals/LIMaterials.cpp`, using the editor's material editing API):
+- **`M_LI_VertexColorLit`**: opaque and lit, base colour = vertex colour, roughness 0.82, specular 0.3.
+- **`M_LI_Water`**: translucent, lit per pixel. Turquoise and clear over the sand near the shore, deep
+  blue-green and almost opaque by ~5 m of depth (depth fade), a white foam line where the water meets the beach,
+  glossy, with a Fresnel sheen.
+
+They exist only in **editor builds** (PIE, or Standalone Game launched from the editor). A packaged game falls back to
+the low-poly look automatically. When real material assets are made, `LIGetVertexColorMaterial` / `LIGetWaterMaterial`
+should load them instead. The first PIE after a build compiles their shaders, so objects can show the default
+material for a few seconds.
+
+What changes with it on:
+| Area | Realistic style |
+|---|---|
+| Terrain | one smooth mesh with shared vertices and smooth normals; colours blend per vertex between sand, meadow, forest, hills and rock; the seabed goes from wet sand to dark green-grey with depth; finer grid (192 × 192 cells of 2 m, same 384 m island) |
+| Sea | translucent water: you see the sand under the shallows, foam at the waterline, and reflections of the sky, sun and clouds. The opaque shallow-water overlay is not built |
+| Models | rounded (smooth normals, one extra subdivision on blobs), colour per vertex with slight shade noise, and darker where trees, rocks and bushes meet the ground |
+| Sky | engine volumetric clouds (`/Engine/EngineSky/VolumetricClouds/m_SimpleVolumetricCloud_Inst`) replace the low-poly clouds |
+| Lighting | `DefaultEngine.ini`: Lumen global illumination and reflections, virtual shadow maps, mesh distance fields, TSR |
+| Look | neutral grading: saturation 1.05, contrast 1.02, bloom 0.5, vignette 0.25, AO 0.5 |
+
+Performance: Lumen and volumetric clouds need a recent GPU (DX12, ~GTX 1070 / RX 5600 or better). On a weaker PC,
+lower Scalability in the editor (Settings → Engine Scalability) or set `li.RealisticStyle 0`.

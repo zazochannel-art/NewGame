@@ -211,6 +211,37 @@ void FLILowPolyMesh::AddTri(const FVector& A, const FVector& InB, const FVector&
 	}
 }
 
+void FLILowPolyMesh::AddTriSmooth(const FVector& A, const FVector& InB, const FVector& InC,
+	const FVector& NormalA, const FVector& InNormalB, const FVector& InNormalC,
+	const FLinearColor& Color, const FVector& InteriorPoint)
+{
+	FVector B = InB;
+	FVector C = InC;
+	FVector NormalB = InNormalB;
+	FVector NormalC = InNormalC;
+	const FVector Cross = FVector::CrossProduct(B - A, C - A);
+	if (Cross.SizeSquared() < 1e-6)
+	{
+		return;
+	}
+	const FVector Centroid = (A + B + C) / 3.0;
+	if (FVector::DotProduct(Cross, Centroid - InteriorPoint) > 0.0)
+	{
+		Swap(B, C);
+		Swap(NormalB, NormalC);
+	}
+
+	FSection& Section = FindSection(Color);
+	const FVector Corners[3] = { A, B, C };
+	const FVector Normals[3] = { NormalA, NormalB, NormalC };
+	for (int32 Corner = 0; Corner < 3; ++Corner)
+	{
+		Section.Triangles.Add(Section.Vertices.Num());
+		Section.Vertices.Add(Corners[Corner]);
+		Section.Normals.Add(Normals[Corner].GetSafeNormal());
+	}
+}
+
 void FLILowPolyMesh::AddBox(const FTransform& Transform, const FVector& HalfExtent, const FLinearColor& Color)
 {
 	FVector Corners[8];
@@ -261,10 +292,39 @@ void FLILowPolyMesh::AddFrustum(const FTransform& Transform, int32 Sides, float 
 	const FVector TopCenter = Transform.TransformPosition(FVector(0.f, 0.f, Height));
 	const FVector Interior = Transform.TransformPosition(FVector(0.f, 0.f, Height * (bCone ? 0.3f : 0.5f)));
 
+	// Smooth side normals: radial, tilted by the taper (sides lean in when TopRadius < BottomRadius).
+	TArray<FVector> SideNormals;
+	if (bSmooth)
+	{
+		SideNormals.SetNum(Sides);
+		const float Slope = Height > KINDA_SMALL_NUMBER ? (BottomRadius - TopRadius) / Height : 0.f;
+		for (int32 Index = 0; Index < Sides; ++Index)
+		{
+			const float Angle = AngleOffset + 2.f * PI * Index / Sides;
+			const FVector Local(FMath::Cos(Angle), FMath::Sin(Angle), Slope);
+			SideNormals[Index] = Transform.TransformVectorNoScale(Local.GetSafeNormal());
+		}
+	}
+
 	for (int32 Index = 0; Index < Sides; ++Index)
 	{
 		const int32 Next = (Index + 1) % Sides;
-		if (bCone)
+		if (bSmooth)
+		{
+			const FVector& NI = SideNormals[Index];
+			const FVector& NN = SideNormals[Next];
+			if (bCone)
+			{
+				AddTriSmooth(Bottom[Index], Bottom[Next], TopCenter, NI, NN, (NI + NN) * 0.5, Color, Interior);
+			}
+			else
+			{
+				AddTriSmooth(Bottom[Index], Bottom[Next], Top[Next], NI, NN, NN, Color, Interior);
+				AddTriSmooth(Bottom[Index], Top[Next], Top[Index], NI, NN, NI, Color, Interior);
+				AddTri(TopCenter, Top[Index], Top[Next], Color, Interior);
+			}
+		}
+		else if (bCone)
 		{
 			AddTri(Bottom[Index], Bottom[Next], TopCenter, Color, Interior);
 		}
@@ -281,7 +341,12 @@ void FLILowPolyMesh::AddFrustum(const FTransform& Transform, int32 Sides, float 
 void FLILowPolyMesh::AddBlob(const FTransform& Transform, const FVector& Radii, float Jitter, FRandomStream& Random,
 	const FLinearColor& Color, const FLinearColor* TopColor, float TopNormalZ, int32 Subdivisions)
 {
-	const FLIIcosphere& Sphere = GetIcosphere(Subdivisions);
+	// Smooth (realistic) shapes get one more subdivision and a gentler, finer lumpiness.
+	const FLIIcosphere& Sphere = GetIcosphere(bSmooth ? FMath::Min(Subdivisions + 1, 2) : Subdivisions);
+	if (bSmooth)
+	{
+		Jitter *= 0.7f;
+	}
 
 	// Jitter shared vertices (not per face) so the shape stays closed.
 	TArray<FVector> Points;
@@ -294,13 +359,36 @@ void FLILowPolyMesh::AddBlob(const FTransform& Transform, const FVector& Radii, 
 	}
 
 	const FVector Center = Transform.GetLocation();
+
+	// Smooth shading: each shared vertex gets the average of its faces' normals.
+	TArray<FVector> VertexNormals;
+	if (bSmooth)
+	{
+		VertexNormals.Init(FVector::ZeroVector, Points.Num());
+		for (const FIntVector& Face : Sphere.Faces)
+		{
+			const FVector FaceNormal = OutwardNormal(Points[Face.X], Points[Face.Y], Points[Face.Z], Center);
+			VertexNormals[Face.X] += FaceNormal;
+			VertexNormals[Face.Y] += FaceNormal;
+			VertexNormals[Face.Z] += FaceNormal;
+		}
+	}
+
 	for (const FIntVector& Face : Sphere.Faces)
 	{
 		const FVector& A = Points[Face.X];
 		const FVector& B = Points[Face.Y];
 		const FVector& C = Points[Face.Z];
 		const bool bTop = TopColor && OutwardNormal(A, B, C, Center).Z > TopNormalZ;
-		AddTri(A, B, C, bTop ? *TopColor : Color, Center);
+		const FLinearColor& FaceColor = bTop ? *TopColor : Color;
+		if (bSmooth)
+		{
+			AddTriSmooth(A, B, C, VertexNormals[Face.X], VertexNormals[Face.Y], VertexNormals[Face.Z], FaceColor, Center);
+		}
+		else
+		{
+			AddTri(A, B, C, FaceColor, Center);
+		}
 	}
 }
 
@@ -315,6 +403,44 @@ bool FLILowPolyMesh::ApplyTo(UProceduralMeshComponent* Component) const
 	const TArray<FVector2D> NoUVs;
 	const TArray<FLinearColor> NoColors;
 	const TArray<FProcMeshTangent> NoTangents;
+
+	// Realistic style: a single section, colour per vertex.
+	UMaterialInterface* VertexColorMaterial = LIUseRealisticStyle() ? LIGetVertexColorMaterial() : nullptr;
+	if (VertexColorMaterial)
+	{
+		TArray<FVector> Vertices;
+		TArray<int32> Triangles;
+		TArray<FVector> Normals;
+		TArray<FLinearColor> Colors;
+		for (const FSection& Section : Sections)
+		{
+			const int32 BaseIndex = Vertices.Num();
+			Vertices.Append(Section.Vertices);
+			Normals.Append(Section.Normals);
+			for (const int32 Triangle : Section.Triangles)
+			{
+				Triangles.Add(BaseIndex + Triangle);
+			}
+			for (const FVector& Vertex : Section.Vertices)
+			{
+				// Gentle, position-based shade noise (identical for vertices shared between faces) plus
+				// darker shading near the ground.
+				const uint32 Hash = HashCombine(GetTypeHash(FMath::RoundToInt(Vertex.X * 0.5)),
+					HashCombine(GetTypeHash(FMath::RoundToInt(Vertex.Y * 0.5)), GetTypeHash(FMath::RoundToInt(Vertex.Z * 0.5))));
+				float Shade = 0.93f + 0.14f * static_cast<float>(Hash % 1000) / 999.f;
+				if (GroundShadingHeight > 0.f)
+				{
+					Shade *= FMath::Lerp(0.55f, 1.f, FMath::Clamp(Vertex.Z / GroundShadingHeight, 0.f, 1.f));
+				}
+				Colors.Add(FLinearColor(Section.Color.R * Shade, Section.Color.G * Shade, Section.Color.B * Shade, 1.f));
+			}
+		}
+		Component->CreateMeshSection_LinearColor(0, Vertices, Triangles, Normals, NoUVs, Colors, NoTangents,
+			/*bCreateCollision*/ false, /*bSRGBConversion*/ false);
+		Component->SetMaterial(0, VertexColorMaterial);
+		return true;
+	}
+
 	for (int32 Index = 0; Index < Sections.Num(); ++Index)
 	{
 		const FSection& Section = Sections[Index];

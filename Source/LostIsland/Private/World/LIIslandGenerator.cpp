@@ -15,6 +15,7 @@
 #include "Components/PostProcessComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
 #include "Components/SkyLightComponent.h"
+#include "Components/VolumetricCloudComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/DirectionalLight.h"
@@ -108,6 +109,10 @@ ALIIslandGenerator::ALIIslandGenerator()
 	CloudRoot->SetMobility(EComponentMobility::Movable);
 	CloudMesh = MakeCosmeticMesh(TEXT("CloudMesh"), CloudRoot);
 	CloudMesh->SetCastShadow(false);
+
+	VolumetricCloud = CreateDefaultSubobject<UVolumetricCloudComponent>(TEXT("VolumetricCloud"));
+	VolumetricCloud->SetupAttachment(TerrainMesh);
+	VolumetricCloud->SetVisibility(false); // enabled in SetupEnvironment when the realistic style is on
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> ConeShape(TEXT("/Engine/BasicShapes/Cone.Cone"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereShape(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
@@ -374,120 +379,134 @@ void ALIIslandGenerator::BuildTerrain()
 		}
 	}
 
-	auto GridPoint = [&](int32 X, int32 Y)
+	// Realistic style: one smooth, vertex-coloured mesh. Otherwise the faceted, per-colour sections below.
+	const bool bSmoothTerrain = LIUseRealisticStyle() && BuildSmoothTerrain(Heights);
+	if (!bSmoothTerrain)
 	{
-		return FVector(-Half + X * CellSize, -Half + Y * CellSize, Heights[Y * Stride + X]);
-	};
+		auto GridPoint = [&](int32 X, int32 Y)
+		{
+			return FVector(-Half + X * CellSize, -Half + Y * CellSize, Heights[Y * Stride + X]);
+		};
 
-	// Flat shading: every triangle has its own 3 vertices and a face normal.
-	// Faces are grouped into one mesh section per (approximate) surface colour so a plain lit material
-	// can be tinted per section.
-	struct FTerrainSection
-	{
-		FLinearColor Color;
-		TArray<FVector> Vertices;
-		TArray<int32> Triangles;
-		TArray<FVector> Normals;
-		TArray<FVector2D> UVs;
-		TArray<FLinearColor> Colors;
-	};
-	TArray<FTerrainSection> Sections;
-	const int32 SectionLimit = FMath::Max(1, MaxTerrainSections);
+		// Flat shading: every triangle has its own 3 vertices and a face normal.
+		// Faces are grouped into one mesh section per (approximate) surface colour so a plain lit material
+		// can be tinted per section.
+		struct FTerrainSection
+		{
+			FLinearColor Color;
+			TArray<FVector> Vertices;
+			TArray<int32> Triangles;
+			TArray<FVector> Normals;
+			TArray<FVector2D> UVs;
+			TArray<FLinearColor> Colors;
+		};
+		TArray<FTerrainSection> Sections;
+		const int32 SectionLimit = FMath::Max(1, MaxTerrainSections);
 
-	auto FindSection = [&](const FLinearColor& Color) -> FTerrainSection&
-	{
-		int32 Best = INDEX_NONE;
-		float BestDist = TNumericLimits<float>::Max();
+		auto FindSection = [&](const FLinearColor& Color) -> FTerrainSection&
+		{
+			int32 Best = INDEX_NONE;
+			float BestDist = TNumericLimits<float>::Max();
+			for (int32 Index = 0; Index < Sections.Num(); ++Index)
+			{
+				const FLinearColor& C = Sections[Index].Color;
+				const float Dist = FMath::Max3(FMath::Abs(C.R - Color.R), FMath::Abs(C.G - Color.G), FMath::Abs(C.B - Color.B));
+				if (Dist < BestDist)
+				{
+					BestDist = Dist;
+					Best = Index;
+				}
+			}
+			if (Best != INDEX_NONE && (BestDist <= TerrainColorTolerance || Sections.Num() >= SectionLimit))
+			{
+				return Sections[Best];
+			}
+			FTerrainSection& NewSection = Sections.AddDefaulted_GetRef();
+			NewSection.Color = Color;
+			return NewSection;
+		};
+
+		auto AddTriangle = [&](FVector A, FVector B, FVector C)
+		{
+			// Unreal treats a triangle as front-facing when CrossProduct(B - A, C - A) points AWAY from
+			// the viewer (same convention as UKismetProceduralMeshLibrary::GenerateBoxMesh). The terrain
+			// must face up, so order the vertices so that cross product points down.
+			FVector Cross = FVector::CrossProduct(B - A, C - A);
+			if (Cross.Z > 0.f)
+			{
+				Swap(B, C);
+				Cross = -Cross;
+			}
+			const FVector FaceNormal = (-Cross).GetSafeNormal(); // upward face normal for lighting
+			if (bFlipWinding)
+			{
+				Swap(B, C);
+			}
+
+			const FVector Centroid = (A + B + C) / 3.f;
+			const FLinearColor Color = GetSurfaceColor(FVector2D(Centroid.X, Centroid.Y), FaceNormal.Z);
+			FTerrainSection& Section = FindSection(Color);
+
+			for (const FVector& V : { A, B, C })
+			{
+				Section.Triangles.Add(Section.Vertices.Num());
+				Section.Vertices.Add(V);
+				Section.Normals.Add(FaceNormal);
+				Section.UVs.Add(FVector2D(V.X, V.Y) / 1000.f);
+				Section.Colors.Add(Color);
+			}
+		};
+
+		for (int32 Y = 0; Y < N; ++Y)
+		{
+			for (int32 X = 0; X < N; ++X)
+			{
+				const FVector P00 = GridPoint(X, Y);
+				const FVector P10 = GridPoint(X + 1, Y);
+				const FVector P01 = GridPoint(X, Y + 1);
+				const FVector P11 = GridPoint(X + 1, Y + 1);
+
+				// Alternate the diagonal so the facets don't line up into stripes.
+				if (((X + Y) & 1) == 0)
+				{
+					AddTriangle(P00, P10, P11);
+					AddTriangle(P00, P11, P01);
+				}
+				else
+				{
+					AddTriangle(P00, P10, P01);
+					AddTriangle(P10, P11, P01);
+				}
+			}
+		}
+
+		TerrainMesh->ClearAllMeshSections();
+		const TArray<FProcMeshTangent> NoTangents;
 		for (int32 Index = 0; Index < Sections.Num(); ++Index)
 		{
-			const FLinearColor& C = Sections[Index].Color;
-			const float Dist = FMath::Max3(FMath::Abs(C.R - Color.R), FMath::Abs(C.G - Color.G), FMath::Abs(C.B - Color.B));
-			if (Dist < BestDist)
+			FTerrainSection& Section = Sections[Index];
+			TerrainMesh->CreateMeshSection_LinearColor(Index, Section.Vertices, Section.Triangles, Section.Normals,
+				Section.UVs, Section.Colors, NoTangents, /*bCreateCollision*/ true, /*bSRGBConversion*/ true);
+			if (TerrainMaterial)
 			{
-				BestDist = Dist;
-				Best = Index;
+				UMaterialInstanceDynamic* SectionMID = UMaterialInstanceDynamic::Create(TerrainMaterial, this);
+				SectionMID->SetVectorParameterValue(TEXT("Color"), Section.Color); // BasicShapeMaterial exposes "Color"
+				TerrainMesh->SetMaterial(Index, SectionMID);
 			}
 		}
-		if (Best != INDEX_NONE && (BestDist <= TerrainColorTolerance || Sections.Num() >= SectionLimit))
-		{
-			return Sections[Best];
-		}
-		FTerrainSection& NewSection = Sections.AddDefaulted_GetRef();
-		NewSection.Color = Color;
-		return NewSection;
-	};
-
-	auto AddTriangle = [&](FVector A, FVector B, FVector C)
-	{
-		// Unreal treats a triangle as front-facing when CrossProduct(B - A, C - A) points AWAY from
-		// the viewer (same convention as UKismetProceduralMeshLibrary::GenerateBoxMesh). The terrain
-		// must face up, so order the vertices so that cross product points down.
-		FVector Cross = FVector::CrossProduct(B - A, C - A);
-		if (Cross.Z > 0.f)
-		{
-			Swap(B, C);
-			Cross = -Cross;
-		}
-		const FVector FaceNormal = (-Cross).GetSafeNormal(); // upward face normal for lighting
-		if (bFlipWinding)
-		{
-			Swap(B, C);
-		}
-
-		const FVector Centroid = (A + B + C) / 3.f;
-		const FLinearColor Color = GetSurfaceColor(FVector2D(Centroid.X, Centroid.Y), FaceNormal.Z);
-		FTerrainSection& Section = FindSection(Color);
-
-		for (const FVector& V : { A, B, C })
-		{
-			Section.Triangles.Add(Section.Vertices.Num());
-			Section.Vertices.Add(V);
-			Section.Normals.Add(FaceNormal);
-			Section.UVs.Add(FVector2D(V.X, V.Y) / 1000.f);
-			Section.Colors.Add(Color);
-		}
-	};
-
-	for (int32 Y = 0; Y < N; ++Y)
-	{
-		for (int32 X = 0; X < N; ++X)
-		{
-			const FVector P00 = GridPoint(X, Y);
-			const FVector P10 = GridPoint(X + 1, Y);
-			const FVector P01 = GridPoint(X, Y + 1);
-			const FVector P11 = GridPoint(X + 1, Y + 1);
-
-			// Alternate the diagonal so the facets don't line up into stripes.
-			if (((X + Y) & 1) == 0)
-			{
-				AddTriangle(P00, P10, P11);
-				AddTriangle(P00, P11, P01);
-			}
-			else
-			{
-				AddTriangle(P00, P10, P01);
-				AddTriangle(P10, P11, P01);
-			}
-		}
+		UE_LOG(LogLostIsland, Verbose, TEXT("Terrain built with %d colour sections."), Sections.Num());
 	}
 
-	TerrainMesh->ClearAllMeshSections();
-	const TArray<FProcMeshTangent> NoTangents;
-	for (int32 Index = 0; Index < Sections.Num(); ++Index)
+	// Realistic water (translucent, depth-faded, with foam) replaces the opaque shallow-water overlay.
+	UMaterialInterface* RealisticWater = LIUseRealisticStyle() ? LIGetWaterMaterial() : nullptr;
+	if (RealisticWater)
 	{
-		FTerrainSection& Section = Sections[Index];
-		TerrainMesh->CreateMeshSection_LinearColor(Index, Section.Vertices, Section.Triangles, Section.Normals,
-			Section.UVs, Section.Colors, NoTangents, /*bCreateCollision*/ true, /*bSRGBConversion*/ true);
-		if (TerrainMaterial)
-		{
-			UMaterialInstanceDynamic* SectionMID = UMaterialInstanceDynamic::Create(TerrainMaterial, this);
-			SectionMID->SetVectorParameterValue(TEXT("Color"), Section.Color); // BasicShapeMaterial exposes "Color"
-			TerrainMesh->SetMaterial(Index, SectionMID);
-		}
+		ShallowWaterMesh->ClearAllMeshSections();
 	}
-	UE_LOG(LogLostIsland, Verbose, TEXT("Terrain built with %d colour sections."), Sections.Num());
-
-	BuildShallowWater(Heights);
+	else
+	{
+		BuildShallowWater(Heights);
+	}
 	BuildDecorations(Heights);
 	BuildClouds();
 
@@ -495,7 +514,11 @@ void ALIIslandGenerator::BuildTerrain()
 	const float WaterSize = Half * 2.f * 4.f;
 	WaterMesh->SetRelativeLocation(FVector::ZeroVector);
 	WaterMesh->SetRelativeScale3D(FVector(WaterSize / 100.f, WaterSize / 100.f, 1.f));
-	if (WaterMaterial)
+	if (RealisticWater)
+	{
+		WaterMesh->SetMaterial(0, RealisticWater);
+	}
+	else if (WaterMaterial)
 	{
 		UMaterialInstanceDynamic* WaterMID = UMaterialInstanceDynamic::Create(WaterMaterial, this);
 		WaterMID->SetVectorParameterValue(TEXT("Color"), WaterColor); // BasicShapeMaterial exposes "Color"
@@ -523,6 +546,20 @@ void ALIIslandGenerator::SetupEnvironment()
 	SkyAtmosphere->SetVisibility(bUseOwnEnvironment);
 	SkyLight->SetVisibility(bUseOwnEnvironment);
 	HeightFog->SetVisibility(bUseOwnEnvironment);
+
+	// Realistic sky: the engine's volumetric clouds, lit by the sun and the sky atmosphere.
+	bool bVolumetricClouds = false;
+	if (bUseOwnEnvironment && bGenerateClouds && LIUseRealisticStyle())
+	{
+		if (UMaterialInterface* CloudMaterial = LoadObject<UMaterialInterface>(nullptr,
+			TEXT("/Engine/EngineSky/VolumetricClouds/m_SimpleVolumetricCloud_Inst.m_SimpleVolumetricCloud_Inst")))
+		{
+			VolumetricCloud->SetMaterial(CloudMaterial);
+			bVolumetricClouds = true;
+		}
+	}
+	VolumetricCloud->SetVisibility(bVolumetricClouds);
+	CloudMesh->SetVisibility(!bVolumetricClouds);
 
 	// Manual exposure: the project disables auto exposure, and with the default EV the 10 lux sun washes
 	// the low-poly colours out to white. A fixed compensation keeps day bright and night dark.
@@ -945,7 +982,8 @@ void ALIIslandGenerator::BuildDecorations(const TArray<float>& Heights)
 
 	const int32 N = GridResolution;
 	const float Half = GetHalfExtent();
-	const int32 Candidates = FMath::Max(1, FMath::RoundToInt(3.f * DecorationDensity));
+	// ~3 candidates per 9 m^2 at density 1, whatever the cell size (fractional parts are rolled per cell).
+	const float CandidatesPerCell = 3.f * DecorationDensity * FMath::Square(CellSize / 300.f);
 
 	for (int32 Y = 0; Y < N; ++Y)
 	{
@@ -959,6 +997,7 @@ void ALIIslandGenerator::BuildDecorations(const TArray<float>& Heights)
 			}
 			const bool bSteep = GetNormalAt(CellCenter).Z < RockSlopeNormalZ;
 
+			const int32 Candidates = FMath::FloorToInt(CandidatesPerCell) + (Random.FRand() < FMath::Frac(CandidatesPerCell) ? 1 : 0);
 			for (int32 Candidate = 0; Candidate < Candidates; ++Candidate)
 			{
 				const FVector2D XY = CellCenter + FVector2D(Random.FRandRange(-0.5f, 0.5f), Random.FRandRange(-0.5f, 0.5f)) * CellSize;
@@ -1107,3 +1146,103 @@ void ALIIslandGenerator::BuildClouds()
 	}
 	Clouds.ApplyTo(CloudMesh);
 }
+
+bool ALIIslandGenerator::BuildSmoothTerrain(const TArray<float>& Heights)
+{
+	UMaterialInterface* Material = LIGetVertexColorMaterial();
+	if (!Material)
+	{
+		return false;
+	}
+
+	const int32 N = GridResolution;
+	const int32 Stride = N + 1;
+	const float Half = GetHalfExtent();
+
+	TArray<FVector> Vertices;
+	TArray<FVector> Normals;
+	TArray<FVector2D> UVs;
+	TArray<FLinearColor> Colors;
+	TArray<int32> Triangles;
+	Vertices.Reserve(Stride * Stride);
+	Normals.Reserve(Stride * Stride);
+	UVs.Reserve(Stride * Stride);
+	Colors.Reserve(Stride * Stride);
+	Triangles.Reserve(N * N * 6);
+
+	// Shared grid vertices: smooth normals from the neighbouring heights, colour per vertex so biomes blend.
+	for (int32 Y = 0; Y <= N; ++Y)
+	{
+		for (int32 X = 0; X <= N; ++X)
+		{
+			const int32 X0 = FMath::Max(X - 1, 0);
+			const int32 X1 = FMath::Min(X + 1, N);
+			const int32 Y0 = FMath::Max(Y - 1, 0);
+			const int32 Y1 = FMath::Min(Y + 1, N);
+			const float SlopeX = (Heights[Y * Stride + X1] - Heights[Y * Stride + X0]) / ((X1 - X0) * CellSize);
+			const float SlopeY = (Heights[Y1 * Stride + X] - Heights[Y0 * Stride + X]) / ((Y1 - Y0) * CellSize);
+			const FVector Normal = FVector(-SlopeX, -SlopeY, 1.f).GetSafeNormal();
+
+			const float Height = Heights[Y * Stride + X];
+			const FVector2D XY(-Half + X * CellSize, -Half + Y * CellSize);
+			Vertices.Add(FVector(XY.X, XY.Y, Height));
+			Normals.Add(Normal);
+			UVs.Add(XY / 1000.f);
+
+			if (Height < 0.f)
+			{
+				// Seabed: wet sand at the waterline darkening with depth (seen through the translucent sea).
+				const float DepthAlpha = FMath::Clamp(-Height / 700.f, 0.f, 1.f);
+				const FLinearColor WetSand(SandColor.R * 0.78f, SandColor.G * 0.76f, SandColor.B * 0.70f, 1.f);
+				Colors.Add(FMath::Lerp(WetSand, DeepSeabedColor, DepthAlpha));
+			}
+			else
+			{
+				Colors.Add(GetSurfaceColor(XY, Normal.Z));
+			}
+		}
+	}
+
+	// Same alternating diagonal as the faceted mesh and GetMeshHeightAt; Unreal front faces point up when
+	// CrossProduct(B - A, C - A) points down.
+	auto AddTriangle = [&](int32 A, int32 B, int32 C)
+	{
+		const FVector Cross = FVector::CrossProduct(Vertices[B] - Vertices[A], Vertices[C] - Vertices[A]);
+		if ((Cross.Z > 0.f) != bFlipWinding)
+		{
+			Swap(B, C);
+		}
+		Triangles.Add(A);
+		Triangles.Add(B);
+		Triangles.Add(C);
+	};
+	for (int32 Y = 0; Y < N; ++Y)
+	{
+		for (int32 X = 0; X < N; ++X)
+		{
+			const int32 I00 = Y * Stride + X;
+			const int32 I10 = I00 + 1;
+			const int32 I01 = I00 + Stride;
+			const int32 I11 = I01 + 1;
+			if (((X + Y) & 1) == 0)
+			{
+				AddTriangle(I00, I10, I11);
+				AddTriangle(I00, I11, I01);
+			}
+			else
+			{
+				AddTriangle(I00, I10, I01);
+				AddTriangle(I10, I11, I01);
+			}
+		}
+	}
+
+	TerrainMesh->ClearAllMeshSections();
+	const TArray<FProcMeshTangent> NoTangents;
+	TerrainMesh->CreateMeshSection_LinearColor(0, Vertices, Triangles, Normals, UVs, Colors, NoTangents,
+		/*bCreateCollision*/ true, /*bSRGBConversion*/ false);
+	TerrainMesh->SetMaterial(0, Material);
+	UE_LOG(LogLostIsland, Verbose, TEXT("Smooth terrain: %d vertices, %d triangles."), Vertices.Num(), Triangles.Num() / 3);
+	return true;
+}
+

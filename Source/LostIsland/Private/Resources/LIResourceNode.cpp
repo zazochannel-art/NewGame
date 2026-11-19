@@ -508,6 +508,7 @@ namespace LIResourceVisuals
 void ALITreeNode::BuildVisual(FLILowPolyMesh& Out, FRandomStream& Random) const
 {
 	using namespace LIResourceVisuals;
+	Out.GroundShadingHeight = 70.f; // darker where it meets the ground (realistic style)
 	const float S = Random.FRandRange(0.85f, 1.2f);
 	const FLinearColor TrunkColor = LIVaryColor(Bark, Random, 0.12f);
 
@@ -556,6 +557,7 @@ void ALITreeNode::BuildVisual(FLILowPolyMesh& Out, FRandomStream& Random) const
 void ALIRockNode::BuildVisual(FLILowPolyMesh& Out, FRandomStream& Random) const
 {
 	using namespace LIResourceVisuals;
+	Out.GroundShadingHeight = 40.f; // darker where it meets the ground (realistic style)
 	const float S = Random.FRandRange(0.85f, 1.15f);
 	const FLinearColor RockColor = LIVaryColor(Stone, Random, 0.1f);
 	const FLinearColor MossColor = LIVaryColor(Moss, Random, 0.1f);
@@ -579,6 +581,7 @@ void ALIRockNode::BuildVisual(FLILowPolyMesh& Out, FRandomStream& Random) const
 void ALIFiberBushNode::BuildVisual(FLILowPolyMesh& Out, FRandomStream& Random) const
 {
 	using namespace LIResourceVisuals;
+	Out.GroundShadingHeight = 35.f; // darker where it meets the ground (realistic style)
 
 	// A clump of thin grass blades leaning outward, over a low leafy base.
 	Out.AddBlob(FTransform(FVector(0.f, 0.f, 6.f)), FVector(34.f, 34.f, 16.f), 0.2f, Random, LIVaryColor(GreenGrass, Random, 0.1f), nullptr, 0.7f, 0);
@@ -598,6 +601,7 @@ void ALIFiberBushNode::BuildVisual(FLILowPolyMesh& Out, FRandomStream& Random) c
 void ALIBerryBushNode::BuildVisual(FLILowPolyMesh& Out, FRandomStream& Random) const
 {
 	using namespace LIResourceVisuals;
+	Out.GroundShadingHeight = 35.f; // darker where it meets the ground (realistic style)
 	const FLinearColor LeafColor = LIVaryColor(BushLeaves, Random, 0.1f);
 	const FLinearColor LeafLit = LIVaryColor(BushLeaves * 1.35f, Random, 0.06f);
 

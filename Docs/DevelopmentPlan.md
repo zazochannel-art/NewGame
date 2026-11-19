@@ -54,6 +54,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 16 | Goal: Raft Kit (60 Wood, 40 Fiber, 6 Scrap) placed in shallow water at the shore; E sails away, everyone sees the ending, then a new island starts | **Compiles; headless test passed (craft, place at shore, ending, new island); awaiting PIE test.** See [Systems/Raft.md](Systems/Raft.md) |
 | 17 | Storage chest (20 Wood + 4 Fiber, 30 stacks): E stores resources and food, R takes everything; saved with contents | **Compiles; headless test passed (store 85 items, take back, tools stay); awaiting PIE test.** See [Systems/Inventory.md](Systems/Inventory.md) |
 | 18 | Visuals: low-poly models built in code (pine / broadleaf trees, rocks, bushes, berries, crabs, springs, campfire, animated survivor), shallow-water foam and turquoise shallows, grass / flowers / pebbles / shells, drifting clouds, fog and a stylised post process | **Code written; not compiled yet.** See [Systems/Visuals.md](Systems/Visuals.md) |
+| 19 | Realistic style: materials generated in code (vertex colour, translucent water with depth fade and foam), smooth vertex-coloured terrain on a finer grid, rounded models with ground shading, volumetric clouds, Lumen GI and reflections, virtual shadow maps, TSR; `li.RealisticStyle 0` brings back the low-poly look | **Code written; not compiled yet.** See [Systems/Visuals.md](Systems/Visuals.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -298,4 +299,16 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] Colours look a bit richer than before, without being washed out at noon or too dark at night.
 - [ ] FPS on the target PC (note it). If it's low, try `DecorationDensity` 0.5.
 - [ ] Co-op: the client sees the same tree variants and decorations as the host.
+
+## 4t. Milestone 19 test checklist (realistic style)
+
+- [ ] Compiles (the editor build now also links `UnrealEd` and `MaterialEditor`). The log shows `Vertex-colour material built.` and `Water material built.`
+- [ ] After the shaders finish compiling (first PIE only): the terrain is smooth and colours blend (no hard colour steps between sand, grass and forest).
+- [ ] The sea: sand visible through clear turquoise water at the beach, darker further out, a white foam line at the shore, and the sky and sun reflected on the surface.
+- [ ] Volumetric clouds in the sky. At sunset they turn orange; at night they are dark.
+- [ ] Trees, rocks and bushes are rounded, slightly darker at the base.
+- [ ] Lighting: shaded sides aren't black (Lumen bounce light); noon isn't washed out. If it is, try `ExposureCompensation` -3.5 on the generator.
+- [ ] `li.RealisticStyle 0` then `LIRegenerateIsland 0`: the faceted low-poly look comes back.
+- [ ] FPS (note it, with the GPU model). If it's low, lower Engine Scalability to High and note the difference.
+- [ ] Swimming underwater still works; the water surface looks fine from below.
 
