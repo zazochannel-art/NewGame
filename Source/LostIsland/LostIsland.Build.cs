@@ -24,5 +24,13 @@ public class LostIsland : ModuleRules
 			"ProceduralMeshComponent", // island terrain (ALIIslandGenerator)
 			"CoreOnline"               // FUniqueNetIdWrapper::ToString (ULISaveSubsystem player keys)
 		});
+
+		// Editor builds only: the realistic materials (vertex colour, water) are built at runtime with the
+		// material editing API, since no .uasset materials exist yet. Packaged games fall back to the tinted
+		// BasicShapeMaterial look (see Visuals/LIMaterials.cpp).
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.AddRange(new string[] { "UnrealEd", "MaterialEditor" });
+		}
 	}
 }

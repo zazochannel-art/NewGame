@@ -15,6 +15,7 @@ class ULIInventoryComponent;
 class ULICraftingComponent;
 class USpringArmComponent;
 class UStaticMeshComponent;
+class UProceduralMeshComponent;
 struct FInputActionValue;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FLIOnSprintStateChanged, bool, bIsSprinting);
@@ -166,6 +167,36 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> PlaceholderBody;
 
+	/**
+	 * Low-poly survivor built in code (used until a skeletal mesh is assigned). Torso, head and backpack are one
+	 * mesh; arms and legs are separate meshes pivoting at the shoulders and hips, swung by a light procedural
+	 * walk / swim / fall animation (30 Hz timer, every machine, cosmetic only).
+	 */
+	UPROPERTY(VisibleAnywhere, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> BodyRoot;
+
+	UPROPERTY(VisibleAnywhere, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UProceduralMeshComponent> BodyVisual;
+
+	UPROPERTY(VisibleAnywhere, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UProceduralMeshComponent> LeftArmVisual;
+
+	UPROPERTY(VisibleAnywhere, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UProceduralMeshComponent> RightArmVisual;
+
+	UPROPERTY(VisibleAnywhere, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UProceduralMeshComponent> LeftLegVisual;
+
+	UPROPERTY(VisibleAnywhere, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UProceduralMeshComponent> RightLegVisual;
+
+	/** Shirt colour of the low-poly survivor. */
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Visuals")
+	FLinearColor ShirtColor = FLinearColor(0.17f, 0.42f, 0.55f);
+
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Visuals")
+	FLinearColor TrousersColor = FLinearColor(0.55f, 0.47f, 0.32f);
+
 	// ---- Input assets (optional; runtime defaults are generated when left empty) ----
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
 	TObjectPtr<UInputMappingContext> DefaultMappingContext;
@@ -254,6 +285,13 @@ protected:
 	float ZoomStep = 50.f;
 
 private:
+	/** Builds the low-poly survivor and starts its animation timer (skipped when a skeletal mesh is assigned). */
+	void BuildBodyVisuals();
+	void UpdateBodyAnimation();
+	FTimerHandle BodyAnimTimerHandle;
+	float WalkPhase = 0.f;
+	bool bBodyVisualsBuilt = false;
+
 	/** Creates runtime input actions / mapping context for anything not assigned. Idempotent. */
 	void EnsureDefaultInput();
 

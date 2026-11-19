@@ -53,6 +53,8 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 15 | Scrap Axe and Scrap Pickaxe (metal tools), Empty Flask filled at springs into a Water Flask (drink returns the flask), crafting pages (Q) | **Compiles; headless test passed (metal tools, fill only at a spring, drink returns flask); awaiting PIE test.** See [Systems/Crafting.md](Systems/Crafting.md) |
 | 16 | Goal: Raft Kit (60 Wood, 40 Fiber, 6 Scrap) placed in shallow water at the shore; E sails away, everyone sees the ending, then a new island starts | **Compiles; headless test passed (craft, place at shore, ending, new island); awaiting PIE test.** See [Systems/Raft.md](Systems/Raft.md) |
 | 17 | Storage chest (20 Wood + 4 Fiber, 30 stacks): E stores resources and food, R takes everything; saved with contents | **Compiles; headless test passed (store 85 items, take back, tools stay); awaiting PIE test.** See [Systems/Inventory.md](Systems/Inventory.md) |
+| 18 | Visuals: low-poly models built in code (pine / broadleaf trees, rocks, bushes, berries, crabs, springs, campfire, animated survivor), shallow-water foam and turquoise shallows, grass / flowers / pebbles / shells, drifting clouds, fog and a stylised post process | **Code written; not compiled yet.** See [Systems/Visuals.md](Systems/Visuals.md) |
+| 19 | Realistic style: materials generated in code (vertex colour, translucent water with depth fade and foam), smooth vertex-coloured terrain on a finer grid, rounded models with ground shading, volumetric clouds, Lumen GI and reflections, virtual shadow maps, TSR; `li.RealisticStyle 0` brings back the low-poly look | **Code written; not compiled yet.** See [Systems/Visuals.md](Systems/Visuals.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -280,3 +282,33 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] F5, F9: the chest is in place with the same contents.
 - [ ] Co-op: both players see the same counter; one stores, the other takes.
 - [ ] Debug: `LIChest store`, `LIChest take` (nearest chest).
+
+## 4s. Milestone 18 test checklist (visuals)
+
+- [ ] Compiles. The log shows `Island decoration: N instances` (expect roughly 15–30k).
+- [ ] Trees: a mix of pines (stacked cones) and broadleaf trees (round canopies, lighter on top), with different sizes. No grey cylinders left.
+- [ ] Rocks are lumpy boulders, some mossy, with pebbles next to them. Bushes are grass clumps; berry bushes show red berries.
+- [ ] Crabs have legs, claws and eyes, and face the way they walk.
+- [ ] Springs: a pond with stones and reeds. `[E] Drink Fresh Water` still works when looking at it.
+- [ ] Campfire: stone ring and log teepee; the flame disappears when the fuel runs out and comes back with wood.
+- [ ] Gathering still works on every node (the prompt appears, hits count down, depleted nodes disappear and respawn).
+- [ ] The survivor: legs and arms swing while walking, faster when sprinting, crawl while swimming, arms up while falling; the body lies down on death.
+- [ ] Coast: white foam along the shoreline, turquoise shallows, then darker water.
+- [ ] Grass and flowers in meadows, darker grass in forests, pebbles and shells on beaches; none floating noticeably or under water.
+- [ ] Clouds in the sky that slowly move during the day. Same cloud positions for both players in co-op.
+- [ ] Colours look a bit richer than before, without being washed out at noon or too dark at night.
+- [ ] FPS on the target PC (note it). If it's low, try `DecorationDensity` 0.5.
+- [ ] Co-op: the client sees the same tree variants and decorations as the host.
+
+## 4t. Milestone 19 test checklist (realistic style)
+
+- [ ] Compiles (the editor build now also links `UnrealEd` and `MaterialEditor`). The log shows `Vertex-colour material built.` and `Water material built.`
+- [ ] After the shaders finish compiling (first PIE only): the terrain is smooth and colours blend (no hard colour steps between sand, grass and forest).
+- [ ] The sea: sand visible through clear turquoise water at the beach, darker further out, a white foam line at the shore, and the sky and sun reflected on the surface.
+- [ ] Volumetric clouds in the sky. At sunset they turn orange; at night they are dark.
+- [ ] Trees, rocks and bushes are rounded, slightly darker at the base.
+- [ ] Lighting: shaded sides aren't black (Lumen bounce light); noon isn't washed out. If it is, try `ExposureCompensation` -3.5 on the generator.
+- [ ] `li.RealisticStyle 0` then `LIRegenerateIsland 0`: the faceted low-poly look comes back.
+- [ ] FPS (note it, with the GPU model). If it's low, lower Engine Scalability to High and note the difference.
+- [ ] Swimming underwater still works; the water surface looks fine from below.
+

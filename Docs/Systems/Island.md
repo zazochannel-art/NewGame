@@ -17,7 +17,7 @@ Builds a small island (~350 m across by default) from a single **int32 seed**.
    | Beach | h < 3 m |
    | Hills | h > 15 m |
    | Forest / Meadow | separate Perlin mask (`ForestThreshold`) |
-4. **Terrain mesh**: a 128x128-cell grid (3 m cells), **flat-shaded low-poly** (face normals, a vertex colour per face with ±6% variation), with collision. Steep slopes are coloured as rock.
+4. **Terrain mesh**: a 192x192-cell grid (2 m cells; was 128 x 3 m), **flat-shaded low-poly** (face normals, a vertex colour per face with ±6% variation), with collision. Steep slopes are coloured as rock.
 5. **Water**: a plane at Z=0, 4x the size of the island.
 6. **Environment**: sun, sky atmosphere, real-time sky light and fog. These turn off automatically if the map already has a `DirectionalLight`.
 7. **Spawn points**: one placement rule per resource type (`FLIResourceSpawnRule`: allowed biomes, count, minimum spacing, maximum slope).

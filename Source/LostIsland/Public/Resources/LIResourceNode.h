@@ -9,6 +9,9 @@
 #include "LIResourceNode.generated.h"
 
 class UStaticMeshComponent;
+class UProceduralMeshComponent;
+struct FLILowPolyMesh;
+struct FRandomStream;
 
 /**
  * ALIResourceNode
@@ -76,8 +79,19 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USceneComponent> SceneRoot;
 
+	/** Collision and interaction shape. Hidden in game once a low-poly model (Visual) has been built. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UStaticMeshComponent> Mesh;
+
+	/** Cosmetic low-poly model, built at BeginPlay on every machine from BuildVisual(). No collision. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UProceduralMeshComponent> Visual;
+
+	/**
+	 * Fills the low-poly model in the actor's local space (origin = ground). Random is seeded from the spawn
+	 * location, so every machine builds the same variant. Leave empty to keep the tinted placeholder shape.
+	 */
+	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const {}
 
 	/** Tint for the placeholder shape (sets the "Color" parameter of the engine BasicShapeMaterial). Alpha 0 = don't tint. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Resource")
@@ -140,6 +154,9 @@ class LOSTISLAND_API ALITreeNode : public ALIResourceNode
 	GENERATED_BODY()
 public:
 	ALITreeNode();
+
+protected:
+	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const override;
 };
 
 /** Rock -> Stone. */
@@ -149,6 +166,9 @@ class LOSTISLAND_API ALIRockNode : public ALIResourceNode
 	GENERATED_BODY()
 public:
 	ALIRockNode();
+
+protected:
+	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const override;
 };
 
 /** Berry bush -> Berries (food). */
@@ -158,6 +178,9 @@ class LOSTISLAND_API ALIBerryBushNode : public ALIResourceNode
 	GENERATED_BODY()
 public:
 	ALIBerryBushNode();
+
+protected:
+	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const override;
 };
 
 /** Bush -> Fiber. */
@@ -167,6 +190,9 @@ class LOSTISLAND_API ALIFiberBushNode : public ALIResourceNode
 	GENERATED_BODY()
 public:
 	ALIFiberBushNode();
+
+protected:
+	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const override;
 };
 
 /**
@@ -183,6 +209,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const override;
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Crab", meta = (Units = "cm/s"))
 	float WanderSpeed = 70.f;
