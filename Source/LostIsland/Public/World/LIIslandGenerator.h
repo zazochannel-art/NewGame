@@ -15,6 +15,8 @@ class USkyAtmosphereComponent;
 class USkyLightComponent;
 class UPostProcessComponent;
 class UStaticMeshComponent;
+class UHierarchicalInstancedStaticMeshComponent;
+class UStaticMesh;
 
 UENUM(BlueprintType)
 enum class ELIIslandBiome : uint8
@@ -170,6 +172,21 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TObjectPtr<UPostProcessComponent> PostProcess;
 
+	/** Flat overlay just above sea level: white foam at the shoreline, turquoise shallows, teal further out. */
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	TObjectPtr<UProceduralMeshComponent> ShallowWaterMesh;
+
+	/** Low-poly clouds; CloudRoot turns slowly with the time of day so the sky drifts on every machine alike. */
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	TObjectPtr<USceneComponent> CloudRoot;
+
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	TObjectPtr<UProceduralMeshComponent> CloudMesh;
+
+	/** Cosmetic ground cover (no collision): one instanced component per decoration kind (see ELIDecoration in the .cpp). */
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	TArray<TObjectPtr<UHierarchicalInstancedStaticMeshComponent>> DecorationComponents;
+
 	// ---------------- Shape ----------------
 	/** Cells per side. 128 x 128 cells -> ~98k flat-shaded vertices. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Shape", meta = (ClampMin = "16", ClampMax = "256"))
@@ -291,8 +308,64 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Rendering")
 	TObjectPtr<UMaterialInterface> WaterMaterial;
 
+	/** Deep ocean colour (the big water plane). */
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering")
-	FLinearColor WaterColor = FLinearColor(0.05f, 0.35f, 0.55f);
+	FLinearColor WaterColor = FLinearColor(0.03f, 0.24f, 0.42f);
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Water")
+	FLinearColor FoamColor = FLinearColor(0.90f, 0.95f, 0.95f);
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Water")
+	FLinearColor ShallowWaterColor = FLinearColor(0.22f, 0.74f, 0.76f);
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Water")
+	FLinearColor MidWaterColor = FLinearColor(0.08f, 0.50f, 0.64f);
+
+	/** Seabed depth (cm) down to which the water reads as turquoise shallows, then teal down to MidWaterDepth. */
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Water", meta = (ClampMin = "10.0", Units = "cm"))
+	float ShallowWaterDepth = 160.f;
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Water", meta = (ClampMin = "10.0", Units = "cm"))
+	float MidWaterDepth = 420.f;
+
+	// ---------------- Decoration ----------------
+	/** Grass, flowers, pebbles and shells (cosmetic, every machine, deterministic for the seed). */
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Decoration")
+	bool bGenerateDecorations = true;
+
+	/** Multiplier on the amount of ground cover (1 = ~3 candidates per 3 m cell). Lower it on slow PCs. */
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Decoration", meta = (ClampMin = "0.0", ClampMax = "4.0"))
+	float DecorationDensity = 1.f;
+
+	/** Ground cover fades out beyond this distance from the camera. */
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Decoration", meta = (ClampMin = "1000.0", Units = "cm"))
+	float DecorationCullDistance = 7000.f;
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Decoration")
+	bool bGenerateClouds = true;
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Decoration", meta = (ClampMin = "0", ClampMax = "60"))
+	int32 CloudCount = 16;
+
+	/** Full turns of the cloud layer per in-game day (a whole number, so there is no jump at midnight). */
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Decoration", meta = (ClampMin = "0", ClampMax = "8"))
+	int32 CloudTurnsPerDay = 1;
+
+	// ---------------- Look (post process) ----------------
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Look", meta = (ClampMin = "0.0", ClampMax = "2.0"))
+	float LookSaturation = 1.15f;
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Look", meta = (ClampMin = "0.5", ClampMax = "2.0"))
+	float LookContrast = 1.06f;
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Look", meta = (ClampMin = "0.0", ClampMax = "4.0"))
+	float LookBloomIntensity = 0.4f;
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Look", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float LookVignetteIntensity = 0.35f;
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Look", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float LookAmbientOcclusion = 0.6f;
 
 	/** Use the built-in sun/sky/fog only if the level has no directional light of its own. */
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering")
@@ -332,6 +405,14 @@ private:
 	void ChooseCrashSite();
 	void SpawnResourceNodes();
 	void SetupEnvironment();
+
+	/** Cosmetic layers built with the terrain on every machine. Heights = the terrain grid's vertex heights. */
+	void BuildShallowWater(const TArray<float>& Heights);
+	void BuildDecorations(const TArray<float>& Heights);
+	void BuildClouds();
+
+	/** Exact height of the triangulated terrain surface (matches the mesh, unlike the smooth GetHeightAt). */
+	float GetMeshHeightAt(const TArray<float>& Heights, const FVector2D& LocalXY) const;
 
 	float Fbm(const FVector2D& P, int32 Octaves) const;
 	FVector GetNormalAt(const FVector2D& LocalXY) const;

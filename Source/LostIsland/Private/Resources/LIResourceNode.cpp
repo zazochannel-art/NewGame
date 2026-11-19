@@ -8,6 +8,9 @@
 #include "Items/LIItemTypes.h"
 #include "LostIsland.h"
 #include "Survival/LISurvivalComponent.h"
+#include "Visuals/LILowPolyMesh.h"
+#include "Math/RandomStream.h"
+#include "ProceduralMeshComponent.h"
 
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
@@ -34,6 +37,12 @@ ALIResourceNode::ALIResourceNode()
 	Mesh->SetupAttachment(SceneRoot);
 	Mesh->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
 
+	Visual = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("Visual"));
+	Visual->SetupAttachment(SceneRoot);
+	Visual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Visual->SetCanEverAffectNavigation(false);
+	Visual->SetGenerateOverlapEvents(false);
+
 	PromptText = LOCTEXT("DefaultPrompt", "Gather");
 }
 
@@ -48,9 +57,17 @@ void ALIResourceNode::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Cosmetic, every machine: untinted placeholder shapes read as near-black under the island's exposure.
-	if (PlaceholderColor.A > 0.f)
+	// Cosmetic, every machine: build the low-poly model; the placeholder shape stays as the hidden collision.
+	FLILowPolyMesh Model;
+	FRandomStream VisualRandom(LIVisualSeed(GetActorLocation(), static_cast<int32>(GetTypeHash(GetClass()->GetFName()))));
+	BuildVisual(Model, VisualRandom);
+	if (Model.ApplyTo(Visual))
 	{
+		Mesh->SetHiddenInGame(true);
+	}
+	else if (PlaceholderColor.A > 0.f)
+	{
+		// Untinted placeholder shapes read as near-black under the island's exposure.
 		LITintPlaceholder(Mesh, PlaceholderColor);
 	}
 
@@ -174,11 +191,13 @@ FText ALIResourceNode::GetInteractionPrompt_Implementation(APawn* InstigatorPawn
 void ALIResourceNode::OnFocusBegin_Implementation(APawn* InstigatorPawn)
 {
 	Mesh->SetRenderCustomDepth(true);
+	Visual->SetRenderCustomDepth(true);
 }
 
 void ALIResourceNode::OnFocusEnd_Implementation(APawn* InstigatorPawn)
 {
 	Mesh->SetRenderCustomDepth(false);
+	Visual->SetRenderCustomDepth(false);
 }
 
 void ALIResourceNode::Deplete()
@@ -237,6 +256,7 @@ void ALIResourceNode::OnRep_Depleted()
 void ALIResourceNode::ApplyDepletedState()
 {
 	Mesh->SetVisibility(!bDepleted, true);
+	Visual->SetVisibility(!bDepleted, true);
 	Mesh->SetCollisionEnabled(bDepleted ? ECollisionEnabled::NoCollision : ECollisionEnabled::QueryAndPhysics);
 	BP_OnDepletedChanged(bDepleted);
 }
@@ -463,3 +483,175 @@ void ALICrabNode::Tick(float DeltaSeconds)
 }
 
 #undef LOCTEXT_NAMESPACE
+
+// ---------------------------------------------------------------------------
+// Low-poly models (cosmetic; built on every machine at BeginPlay)
+// ---------------------------------------------------------------------------
+
+namespace LIResourceVisuals
+{
+	const FLinearColor Bark(0.30f, 0.19f, 0.10f);
+	const FLinearColor PineNeedles(0.11f, 0.33f, 0.17f);
+	const FLinearColor Leaves(0.24f, 0.50f, 0.17f);
+	const FLinearColor LeavesSunlit(0.40f, 0.64f, 0.22f);
+	const FLinearColor Stone(0.52f, 0.50f, 0.47f);
+	const FLinearColor Moss(0.36f, 0.47f, 0.25f);
+	const FLinearColor DryGrass(0.62f, 0.66f, 0.28f);
+	const FLinearColor GreenGrass(0.40f, 0.58f, 0.20f);
+	const FLinearColor BushLeaves(0.17f, 0.42f, 0.16f);
+	const FLinearColor Berry(0.78f, 0.06f, 0.14f);
+	const FLinearColor CrabShell(0.86f, 0.32f, 0.12f);
+	const FLinearColor CrabBelly(0.95f, 0.62f, 0.40f);
+	const FLinearColor Black(0.03f, 0.03f, 0.03f);
+}
+
+void ALITreeNode::BuildVisual(FLILowPolyMesh& Out, FRandomStream& Random) const
+{
+	using namespace LIResourceVisuals;
+	const float S = Random.FRandRange(0.85f, 1.2f);
+	const FLinearColor TrunkColor = LIVaryColor(Bark, Random, 0.12f);
+
+	if (Random.FRand() < 0.6f)
+	{
+		// Pine: short trunk and stacked, slightly rotated cones.
+		Out.AddFrustum(FTransform(FVector(0.f, 0.f, -30.f)), 6, 24.f * S, 15.f * S, 190.f * S, TrunkColor, 0.1f, &Random);
+
+		const int32 Tiers = Random.FRand() < 0.4f ? 4 : 3;
+		float Z = 110.f * S;
+		float Radius = 175.f * S;
+		float Height = 210.f * S;
+		for (int32 Tier = 0; Tier < Tiers; ++Tier)
+		{
+			const FLinearColor Needles = LIVaryColor(PineNeedles * (1.f + 0.14f * Tier), Random, 0.07f);
+			const FTransform TierTransform(FRotator(0.f, Random.FRandRange(0.f, 360.f), 0.f), FVector(0.f, 0.f, Z));
+			Out.AddFrustum(TierTransform, 7, Radius, 0.f, Height, Needles, 0.14f, &Random);
+			Z += Height * 0.45f;
+			Radius *= 0.74f;
+			Height *= 0.86f;
+		}
+	}
+	else
+	{
+		// Broadleaf: taller trunk, one side branch, a cluster of lumpy canopy blobs lit brighter on top.
+		Out.AddFrustum(FTransform(FVector(0.f, 0.f, -30.f)), 7, 27.f * S, 16.f * S, 300.f * S, TrunkColor, 0.08f, &Random);
+		const FTransform Branch(FRotator(0.f, Random.FRandRange(0.f, 360.f), 38.f), FVector(0.f, 0.f, 170.f * S));
+		Out.AddFrustum(Branch, 5, 11.f * S, 6.f * S, 120.f * S, TrunkColor, 0.f, nullptr);
+
+		const FLinearColor Leaf = LIVaryColor(Leaves, Random, 0.1f);
+		const FLinearColor Lit = LIVaryColor(LeavesSunlit, Random, 0.08f);
+		Out.AddBlob(FTransform(FVector(0.f, 0.f, 340.f * S)), FVector(150.f, 150.f, 115.f) * S, 0.18f, Random, Leaf, &Lit, 0.55f);
+
+		const int32 Extra = Random.RandRange(2, 3);
+		for (int32 Index = 0; Index < Extra; ++Index)
+		{
+			const float Angle = Random.FRandRange(0.f, 2.f * PI);
+			const float Distance = Random.FRandRange(70.f, 110.f) * S;
+			const FVector Offset(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, Random.FRandRange(260.f, 330.f) * S);
+			const float R = Random.FRandRange(85.f, 115.f) * S;
+			Out.AddBlob(FTransform(Offset), FVector(R, R, R * 0.8f), 0.2f, Random, Leaf, &Lit, 0.55f);
+		}
+	}
+}
+
+void ALIRockNode::BuildVisual(FLILowPolyMesh& Out, FRandomStream& Random) const
+{
+	using namespace LIResourceVisuals;
+	const float S = Random.FRandRange(0.85f, 1.15f);
+	const FLinearColor RockColor = LIVaryColor(Stone, Random, 0.1f);
+	const FLinearColor MossColor = LIVaryColor(Moss, Random, 0.1f);
+	const bool bMossy = Random.FRand() < 0.5f;
+
+	// Main boulder matches the collision ellipsoid (70 x 60 x 45 cm radii, centre 35 cm up).
+	Out.AddBlob(FTransform(FRotator(0.f, Random.FRandRange(0.f, 360.f), 0.f), FVector(0.f, 0.f, 30.f * S)),
+		FVector(74.f, 63.f, 50.f) * S, 0.22f, Random, RockColor, bMossy ? &MossColor : nullptr, 0.78f);
+
+	const int32 Pebbles = Random.RandRange(1, 3);
+	for (int32 Index = 0; Index < Pebbles; ++Index)
+	{
+		const float Angle = Random.FRandRange(0.f, 2.f * PI);
+		const float Distance = Random.FRandRange(80.f, 115.f) * S;
+		const float R = Random.FRandRange(13.f, 24.f);
+		Out.AddBlob(FTransform(FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, R * 0.3f)),
+			FVector(R, R * 0.9f, R * 0.65f), 0.25f, Random, LIVaryColor(RockColor, Random, 0.08f), nullptr, 0.7f, 0);
+	}
+}
+
+void ALIFiberBushNode::BuildVisual(FLILowPolyMesh& Out, FRandomStream& Random) const
+{
+	using namespace LIResourceVisuals;
+
+	// A clump of thin grass blades leaning outward, over a low leafy base.
+	Out.AddBlob(FTransform(FVector(0.f, 0.f, 6.f)), FVector(34.f, 34.f, 16.f), 0.2f, Random, LIVaryColor(GreenGrass, Random, 0.1f), nullptr, 0.7f, 0);
+
+	const int32 Blades = Random.RandRange(10, 15);
+	for (int32 Index = 0; Index < Blades; ++Index)
+	{
+		const float Yaw = 360.f * Index / Blades + Random.FRandRange(-14.f, 14.f);
+		const float Lean = Random.FRandRange(8.f, 34.f);
+		const float Height = Random.FRandRange(60.f, 110.f);
+		const FVector Base(FMath::Cos(FMath::DegreesToRadians(Yaw)) * 10.f, FMath::Sin(FMath::DegreesToRadians(Yaw)) * 10.f, -4.f);
+		const FLinearColor BladeColor = LIVaryColor(FMath::Lerp(DryGrass, GreenGrass, Random.FRand()), Random, 0.08f);
+		Out.AddFrustum(FTransform(FRotator(-Lean, Yaw, 0.f), Base), 3, 6.f, 0.f, Height, BladeColor);
+	}
+}
+
+void ALIBerryBushNode::BuildVisual(FLILowPolyMesh& Out, FRandomStream& Random) const
+{
+	using namespace LIResourceVisuals;
+	const FLinearColor LeafColor = LIVaryColor(BushLeaves, Random, 0.1f);
+	const FLinearColor LeafLit = LIVaryColor(BushLeaves * 1.35f, Random, 0.06f);
+
+	const FVector MainCenter(0.f, 0.f, 40.f);
+	const FVector MainRadii(56.f, 56.f, 42.f);
+	Out.AddBlob(FTransform(MainCenter), MainRadii, 0.18f, Random, LeafColor, &LeafLit, 0.6f);
+	for (int32 Index = 0; Index < 2; ++Index)
+	{
+		const float Angle = Random.FRandRange(0.f, 2.f * PI);
+		const float R = Random.FRandRange(34.f, 44.f);
+		Out.AddBlob(FTransform(FVector(FMath::Cos(Angle) * 38.f, FMath::Sin(Angle) * 38.f, 30.f)), FVector(R, R, R * 0.8f),
+			0.2f, Random, LeafColor, &LeafLit, 0.6f);
+	}
+
+	// Berries dotted over the upper part of the bush.
+	const int32 Berries = Random.RandRange(12, 18);
+	for (int32 Index = 0; Index < Berries; ++Index)
+	{
+		const float Yaw = Random.FRandRange(0.f, 2.f * PI);
+		const float FromTop = Random.FRandRange(0.25f, 1.35f); // radians from straight up
+		const FVector Dir(FMath::Sin(FromTop) * FMath::Cos(Yaw), FMath::Sin(FromTop) * FMath::Sin(Yaw), FMath::Cos(FromTop));
+		const FVector Position = MainCenter + FVector(Dir.X * MainRadii.X, Dir.Y * MainRadii.Y, Dir.Z * MainRadii.Z) * 1.02f;
+		const float R = Random.FRandRange(5.5f, 8.f);
+		Out.AddBlob(FTransform(Position), FVector(R), 0.1f, Random, LIVaryColor(Berry, Random, 0.12f), nullptr, 0.7f, 0);
+	}
+}
+
+void ALICrabNode::BuildVisual(FLILowPolyMesh& Out, FRandomStream& Random) const
+{
+	using namespace LIResourceVisuals;
+	const FLinearColor Shell = LIVaryColor(CrabShell, Random, 0.08f);
+	const FLinearColor Dark(Shell.R * 0.72f, Shell.G * 0.72f, Shell.B * 0.72f, 1.f);
+
+	// Body: a wide, flat shell (forward = +X, matching the movement direction), paler underneath.
+	Out.AddBlob(FTransform(FVector(0.f, 0.f, 12.f)), FVector(20.f, 27.f, 9.f), 0.1f, Random, CrabBelly, &Shell, -0.2f);
+
+	for (int32 SideIndex = 0; SideIndex < 2; ++SideIndex)
+	{
+		const float Side = SideIndex == 0 ? 1.f : -1.f;
+
+		// Three legs per side, angled down to the sand.
+		for (int32 Leg = 0; Leg < 3; ++Leg)
+		{
+			const float X = -11.f + Leg * 9.f;
+			Out.AddBox(FTransform(FRotator(0.f, Side * (Leg - 1) * 12.f, Side * -28.f), FVector(X, Side * 31.f, 6.f)),
+				FVector(2.2f, 9.f, 1.8f), Dark);
+		}
+
+		// Arm and pincer in front.
+		Out.AddBox(FTransform(FRotator(0.f, Side * 28.f, 0.f), FVector(21.f, Side * 15.f, 11.f)), FVector(7.f, 2.4f, 2.4f), Dark);
+		Out.AddBlob(FTransform(FVector(29.f, Side * 20.f, 11.f)), FVector(7.5f, 5.f, 4.f), 0.1f, Random, Shell, nullptr, 0.7f, 0);
+
+		// Eye stalks.
+		Out.AddBox(FTransform(FVector(15.f, Side * 6.f, 21.f)), FVector(1.3f, 1.3f, 3.5f), Dark);
+		Out.AddBlob(FTransform(FVector(15.f, Side * 6.f, 25.5f)), FVector(2.6f), 0.f, Random, Black, nullptr, 0.7f, 0);
+	}
+}

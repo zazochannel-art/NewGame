@@ -36,6 +36,10 @@
 #include "InputModifiers.h"
 #include "Net/UnrealNetwork.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Math/RandomStream.h"
+#include "ProceduralMeshComponent.h"
+#include "TimerManager.h"
+#include "Visuals/LILowPolyMesh.h"
 
 ALICharacter::ALICharacter()
 {
@@ -93,6 +97,26 @@ ALICharacter::ALICharacter()
 		PlaceholderBody->SetStaticMesh(CylinderMesh.Object);
 		PlaceholderBody->SetRelativeScale3D(FVector(0.8f, 0.8f, 1.9f));
 	}
+
+	// Low-poly survivor (see BuildBodyVisuals). Pivots: hips at Z -38, shoulders at Z +30 (capsule centre = 0).
+	BodyRoot = CreateDefaultSubobject<USceneComponent>(TEXT("BodyRoot"));
+	BodyRoot->SetupAttachment(GetCapsuleComponent());
+
+	auto MakePart = [this](const TCHAR* Name, const FVector& Pivot) -> UProceduralMeshComponent*
+	{
+		UProceduralMeshComponent* Part = CreateDefaultSubobject<UProceduralMeshComponent>(Name);
+		Part->SetupAttachment(BodyRoot);
+		Part->SetRelativeLocation(Pivot);
+		Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Part->SetGenerateOverlapEvents(false);
+		Part->SetCanEverAffectNavigation(false);
+		return Part;
+	};
+	BodyVisual     = MakePart(TEXT("BodyVisual"),     FVector::ZeroVector);
+	LeftArmVisual  = MakePart(TEXT("LeftArmVisual"),  FVector(0.f, -29.f, 30.f));
+	RightArmVisual = MakePart(TEXT("RightArmVisual"), FVector(0.f,  29.f, 30.f));
+	LeftLegVisual  = MakePart(TEXT("LeftLegVisual"),  FVector(0.f, -11.f, -38.f));
+	RightLegVisual = MakePart(TEXT("RightLegVisual"), FVector(0.f,  11.f, -38.f));
 }
 
 void ALICharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -121,6 +145,11 @@ void ALICharacter::BeginPlay()
 	{
 		PlaceholderBody->SetVisibility(false);
 		PlaceholderBody->SetHiddenInGame(true);
+		BodyRoot->SetVisibility(false, /*bPropagateToChildren*/ true);
+	}
+	else
+	{
+		BuildBodyVisuals();
 	}
 }
 
@@ -509,6 +538,100 @@ void ALICharacter::HandleExhaustedChanged(bool bIsExhausted)
 	}
 }
 
+void ALICharacter::BuildBodyVisuals()
+{
+	const FLinearColor Skin(0.88f, 0.66f, 0.50f);
+	const FLinearColor Hair(0.18f, 0.11f, 0.06f);
+	const FLinearColor Shoes(0.20f, 0.15f, 0.11f);
+	const FLinearColor Pack(0.34f, 0.37f, 0.20f);
+	const FLinearColor Bedroll(0.62f, 0.52f, 0.36f);
+	const FLinearColor Black(0.03f, 0.03f, 0.03f);
+	FRandomStream Random(1847); // same survivor everywhere; only the facet jitter uses it
+
+	// Torso, head, backpack (forward = +X).
+	FLILowPolyMesh Body;
+	Body.AddBox(FTransform(FVector(0.f, 0.f, -33.f)), FVector(12.f, 19.f, 8.f), TrousersColor);           // pelvis
+	Body.AddFrustum(FTransform(FVector(0.f, 0.f, -28.f)), 7, 20.f, 24.f, 62.f, ShirtColor);               // torso
+	Body.AddFrustum(FTransform(FVector(0.f, 0.f, 33.f)), 6, 7.f, 6.5f, 11.f, Skin);                       // neck
+	Body.AddBlob(FTransform(FVector(0.f, 0.f, 56.f)), FVector(14.f, 13.f, 16.f), 0.05f, Random, Skin, &Hair, 0.25f); // head + hair
+	Body.AddBlob(FTransform(FVector(-4.f, 0.f, 57.f)), FVector(13.f, 13.5f, 13.f), 0.06f, Random, Hair, nullptr, 0.7f, 0); // back of the head
+	Body.AddBox(FTransform(FVector(14.f, 0.f, 54.f)), FVector(3.f, 2.f, 3.f), Skin);                       // nose
+	Body.AddBox(FTransform(FVector(12.5f, -5.f, 59.f)), FVector(1.f, 1.6f, 1.6f), Black);                  // eyes
+	Body.AddBox(FTransform(FVector(12.5f, 5.f, 59.f)), FVector(1.f, 1.6f, 1.6f), Black);
+	Body.AddBox(FTransform(FVector(-27.f, 0.f, 8.f)), FVector(7.f, 15.f, 20.f), Pack);                    // backpack
+	Body.AddBox(FTransform(FVector(-25.f, 0.f, 32.f)), FVector(6.5f, 17.f, 5.5f), Bedroll);               // bedroll on top
+	Body.AddBox(FTransform(FVector(6.f, -15.f, 8.f)), FVector(19.f, 2.f, 26.f), Pack);                    // straps over the chest
+	Body.AddBox(FTransform(FVector(6.f, 15.f, 8.f)), FVector(19.f, 2.f, 26.f), Pack);
+
+	// Limbs hang down from their pivot (local Z 0).
+	FLILowPolyMesh Arm;
+	Arm.AddBox(FTransform(FVector(0.f, 0.f, -14.f)), FVector(6.5f, 6.5f, 14.f), ShirtColor);              // sleeve
+	Arm.AddBox(FTransform(FVector(0.f, 0.f, -39.f)), FVector(5.f, 5.f, 11.f), Skin);                      // forearm
+	Arm.AddBlob(FTransform(FVector(1.f, 0.f, -53.f)), FVector(5.5f, 5.f, 6.5f), 0.05f, Random, Skin, nullptr, 0.7f, 0); // hand
+
+	FLILowPolyMesh Leg;
+	Leg.AddBox(FTransform(FVector(0.f, 0.f, -25.f)), FVector(8.f, 8.f, 25.f), TrousersColor);             // trousers
+	Leg.AddBox(FTransform(FVector(4.f, 0.f, -54.f)), FVector(11.f, 8.f, 4.f), Shoes);                     // shoe: foot bottom at Z -96
+
+	bBodyVisualsBuilt = Body.ApplyTo(BodyVisual)
+		&& Arm.ApplyTo(LeftArmVisual) && Arm.ApplyTo(RightArmVisual)
+		&& Leg.ApplyTo(LeftLegVisual) && Leg.ApplyTo(RightLegVisual);
+	if (!bBodyVisualsBuilt)
+	{
+		return; // keep the cylinder
+	}
+
+	PlaceholderBody->SetHiddenInGame(true);
+	GetWorldTimerManager().SetTimer(BodyAnimTimerHandle, this, &ALICharacter::UpdateBodyAnimation, 1.f / 30.f, true);
+}
+
+void ALICharacter::UpdateBodyAnimation()
+{
+	const float Dt = 1.f / 30.f;
+	const UCharacterMovementComponent* Movement = GetCharacterMovement();
+	const float Speed = GetVelocity().Size2D();
+	const float Alpha = FMath::Clamp(Speed / FMath::Max(1.f, WalkSpeed), 0.f, 1.4f);
+
+	float LegSwing = 0.f;
+	float ArmSwing = 0.f;
+	float ArmRaise = 0.f;   // arms lifted sideways (roll)
+	float ArmForward = 0.f; // both arms forward (pitch)
+	float Bob = 0.f;
+
+	if (IsSwimming())
+	{
+		// Alternating front crawl with the arms, quick flutter kick.
+		WalkPhase = FMath::Fmod(WalkPhase + Dt * 5.f, 2.f * PI);
+		ArmForward = 70.f;
+		ArmSwing = FMath::Sin(WalkPhase) * 55.f;
+		LegSwing = FMath::Sin(WalkPhase * 2.f) * 14.f;
+	}
+	else if (Movement && Movement->IsFalling())
+	{
+		ArmRaise = 55.f;
+		LegSwing = 12.f;
+	}
+	else
+	{
+		// One stride (two steps) per ~1.6 m travelled; amplitude grows with speed.
+		WalkPhase = FMath::Fmod(WalkPhase + Dt * Speed / 26.f, 2.f * PI);
+		const float Amplitude = 34.f * FMath::Min(Alpha, 1.3f);
+		LegSwing = FMath::Sin(WalkPhase) * Amplitude;
+		ArmSwing = -FMath::Sin(WalkPhase) * Amplitude * 0.85f;
+		Bob = FMath::Abs(FMath::Sin(WalkPhase)) * 2.5f * Alpha;
+		if (Alpha < 0.05f)
+		{
+			WalkPhase = 0.f; // standing: limbs settle straight
+		}
+	}
+
+	LeftLegVisual->SetRelativeRotation(FRotator(LegSwing, 0.f, 0.f));
+	RightLegVisual->SetRelativeRotation(FRotator(-LegSwing, 0.f, 0.f));
+	LeftArmVisual->SetRelativeRotation(FRotator(ArmForward + ArmSwing, 0.f, -ArmRaise));
+	RightArmVisual->SetRelativeRotation(FRotator(ArmForward - ArmSwing, 0.f, ArmRaise));
+	BodyRoot->SetRelativeLocation(FVector(0.f, 0.f, Bob));
+}
+
 void ALICharacter::HandleDeath(AController* Killer)
 {
 	if (HasAuthority())
@@ -522,6 +645,17 @@ void ALICharacter::HandleDeath(AController* Killer)
 	ForceStopSprinting();
 	InteractionComponent->SetScanningEnabled(false);
 	GetCharacterMovement()->DisableMovement();
+
+	// Low-poly body: stop animating and lie down on the back.
+	if (bBodyVisualsBuilt)
+	{
+		GetWorldTimerManager().ClearTimer(BodyAnimTimerHandle);
+		for (UProceduralMeshComponent* Limb : { LeftArmVisual.Get(), RightArmVisual.Get(), LeftLegVisual.Get(), RightLegVisual.Get() })
+		{
+			Limb->SetRelativeRotation(FRotator::ZeroRotator);
+		}
+		BodyRoot->SetRelativeLocationAndRotation(FVector(0.f, 0.f, -74.f), FRotator(-84.f, 0.f, 0.f));
+	}
 
 	if (APlayerController* PC = Cast<APlayerController>(Controller))
 	{

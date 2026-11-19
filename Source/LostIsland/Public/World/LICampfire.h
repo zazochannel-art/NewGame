@@ -9,6 +9,7 @@
 
 class UPointLightComponent;
 class UStaticMeshComponent;
+class UProceduralMeshComponent;
 
 /**
  * ALICampfire
@@ -59,6 +60,12 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Components") TObjectPtr<UStaticMeshComponent> Flame;
 	UPROPERTY(VisibleAnywhere, Category = "Components") TObjectPtr<UPointLightComponent> FireLight;
 
+	/** Cosmetic low-poly stones, logs and ash (always visible). The shapes above stay as hidden collision. */
+	UPROPERTY(VisibleAnywhere, Category = "Components") TObjectPtr<UProceduralMeshComponent> Visual;
+
+	/** Cosmetic low-poly flames, shown only while lit. */
+	UPROPERTY(VisibleAnywhere, Category = "Components") TObjectPtr<UProceduralMeshComponent> FlameVisual;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Campfire", meta = (ClampMin = "0.0", Units = "cm"))
 	float WarmthRadius = 600.f;
 
@@ -72,6 +79,9 @@ protected:
 	float MaxFuel = 600.f;
 
 private:
+	/** Builds the low-poly stones, logs and flames (cosmetic, every machine). */
+	void BuildVisuals();
+
 	void BurnFuel();
 	void ApplyLitState();
 

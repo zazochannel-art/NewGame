@@ -16,7 +16,7 @@ Windows PC / Steam · Unreal Engine 5 · C++ with Blueprint configuration · sin
 4. Open `LostIsland.sln`, select **Development Editor | Win64**, and build.
 5. Open the project and press **Play**.
 
-The project contains no `.uasset` content yet. It starts in the empty engine map and generates the island from a seed (`?Seed=123`). Input bindings are generated in C++, and placeholder shapes stand in for the character and objects, so it runs as soon as it compiles.
+The project contains no `.uasset` content yet. It starts in the empty engine map and generates the island from a seed (`?Seed=123`). Input bindings are generated in C++, and the low-poly art (trees, rocks, crabs, the survivor, foam, grass, clouds) is built in code at runtime, so it runs as soon as it compiles. See [Docs/Systems/Visuals.md](Docs/Systems/Visuals.md).
 
 ## Controls
 

@@ -8,6 +8,7 @@
 #include "LIWaterSource.generated.h"
 
 class UStaticMeshComponent;
+class UProceduralMeshComponent;
 
 /**
  * ALIWaterSource
@@ -42,8 +43,13 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USceneComponent> SceneRoot;
 
+	/** Collision / interaction shape; hidden in game behind the low-poly pond (Visual). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UStaticMeshComponent> Mesh;
+
+	/** Cosmetic pond: water surface, a ring of stones and a few reeds. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UProceduralMeshComponent> Visual;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Water", meta = (ClampMin = "0.0"))
 	float ThirstPerDrink = 15.f;

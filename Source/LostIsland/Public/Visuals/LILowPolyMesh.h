@@ -1,0 +1,80 @@
+// Copyright LOST ISLAND Team. All Rights Reserved.
+
+#pragma once
+
+#include "CoreMinimal.h"
+
+class UMaterialInterface;
+class UProceduralMeshComponent;
+struct FRandomStream;
+
+/**
+ * Shared lit material for a flat colour: a dynamic instance of the engine BasicShapeMaterial with "Color" set.
+ * Instances are cached by colour (8 bits per channel), so every tree with the same bark shares one material.
+ */
+LOSTISLAND_API UMaterialInterface* LIGetTintedMaterial(const FLinearColor& Color);
+
+/** Color * (1 +- Amount), alpha 1. Used to give every model a slightly different shade. */
+LOSTISLAND_API FLinearColor LIVaryColor(const FLinearColor& Color, FRandomStream& Random, float Amount);
+
+/** Deterministic per-actor seed from a location (rounded to 0.5 m, so client and server agree). */
+LOSTISLAND_API int32 LIVisualSeed(const FVector& Location, int32 Salt = 0);
+
+/**
+ * FLILowPolyMesh
+ *
+ * Builds flat-shaded, faceted low-poly models in code (there are no art assets yet). Geometry is grouped into
+ * one section per colour; ApplyTo() turns each section into a procedural mesh section with a tinted lit material.
+ *
+ * Every triangle is oriented automatically: callers pass a point INSIDE the shape and the triangle is wound so
+ * it faces away from that point (Unreal front faces: CrossProduct(B - A, C - A) points into the surface; the
+ * same convention the terrain uses, verified in the engine). This keeps every primitive correct regardless of
+ * the order its vertices were generated in, and under any transform (including mirrored scale).
+ *
+ * All primitives take a local transform; models are built in the owning actor's local space.
+ */
+struct LOSTISLAND_API FLILowPolyMesh
+{
+	struct FSection
+	{
+		FLinearColor Color = FLinearColor::White;
+		TArray<FVector> Vertices;
+		TArray<int32> Triangles;
+		TArray<FVector> Normals;
+	};
+
+	TArray<FSection> Sections;
+
+	bool IsEmpty() const { return Sections.Num() == 0; }
+	int32 NumTriangles() const;
+
+	/** One flat triangle facing away from InteriorPoint. Degenerate triangles are skipped. */
+	void AddTri(const FVector& A, const FVector& B, const FVector& C, const FLinearColor& Color, const FVector& InteriorPoint);
+
+	/** Box centred on the transform's origin. */
+	void AddBox(const FTransform& Transform, const FVector& HalfExtent, const FLinearColor& Color);
+
+	/**
+	 * Cylinder / cone / frustum standing on the transform's origin along local +Z (0..Height).
+	 * TopRadius 0 makes a cone. Jitter (0..0.5) randomly scales each ring vertex for a hand-made look.
+	 */
+	void AddFrustum(const FTransform& Transform, int32 Sides, float BottomRadius, float TopRadius, float Height,
+		const FLinearColor& Color, float Jitter = 0.f, FRandomStream* Random = nullptr);
+
+	/**
+	 * Lumpy ellipsoid (an icosphere with every vertex pushed in or out by Jitter), centred on the transform's
+	 * origin. Subdivisions 0 = 20 faces (berries, pebbles), 1 = 80 faces (rocks, canopies).
+	 * If TopColor is set, faces whose normal points up more than TopNormalZ use it (moss, sunlit leaves).
+	 */
+	void AddBlob(const FTransform& Transform, const FVector& Radii, float Jitter, FRandomStream& Random,
+		const FLinearColor& Color, const FLinearColor* TopColor = nullptr, float TopNormalZ = 0.7f, int32 Subdivisions = 1);
+
+	/**
+	 * Replaces all sections of Component with this geometry (no collision; models are cosmetic).
+	 * Returns false if there was nothing to apply.
+	 */
+	bool ApplyTo(UProceduralMeshComponent* Component) const;
+
+private:
+	FSection& FindSection(const FLinearColor& Color);
+};
