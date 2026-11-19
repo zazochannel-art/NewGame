@@ -1,4 +1,4 @@
-# Visuals: art built in code (Milestones 18–19)
+# Visuals: art built in code, real art when available (Milestones 18–20)
 
 The project still has no `.uasset` art, and none can be authored outside the editor. Every model is therefore
 built in C++ at runtime as **flat-shaded, faceted low-poly geometry**, using the engine's lit
@@ -89,3 +89,22 @@ What changes with it on:
 
 Performance: Lumen and volumetric clouds need a recent GPU (DX12, ~GTX 1070 / RX 5600 or better). On a weaker PC,
 lower Scalability in the editor (Settings → Engine Scalability) or set `li.RealisticStyle 0`.
+
+## Real art when available (Milestone 20)
+`ULIVisualAssets` (`Visuals/LIVisualAssets.h`, config section `[/Script/LostIsland.LIVisualAssets]` in
+`DefaultGame.ini`) lists real assets by path. Each one is loaded only if its package exists (no warnings), and
+anything missing falls back to the code-built art. Step-by-step guide (Romanian): `Docs/GraficaRealista_RO.md`.
+
+| Use | Default path (engine content packs) | Effect |
+|---|---|---|
+| Terrain | `StarterContent/Textures/T_Ground_Grass_D/_N`, `T_Ground_Moss_D/_N`, `T_Rock_Basalt_D/_N`, `T_Rock_Sandstone_D/_N`, `T_MacroVariation` | `M_LI_TerrainTextured` (built in code): four photo textures with normal maps, blended by per-vertex weights (R grass, G rock by slope and altitude, B sand near the sea, A forest floor from the forest noise), tiled every 3 m (`TerrainTextureTileMeters`), with a 40 m brightness variation against visible tiling |
+| Sea | `StarterContent/Textures/T_Water_N` | two panned wave normal maps (14 m and 5.2 m, world-space UVs) on the translucent water |
+| Rocks | `StarterContent/Props/SM_Rock` | fitted to 1.7 m wide, random yaw, sunk 6 cm |
+| Fiber / berry bushes | `StarterContent/Props/SM_Bush` | fitted to 1.3–1.4 m; berry bushes get code-built red berries on top |
+| Trees | *(none by default)*: add e.g. Megascans trees from Fab to `TreeMeshes` | fitted to 7.5 m tall |
+| Grass | *(none by default)*: `GrassMeshes` | replaces the cone blades in the ground cover |
+| Survivor | `Characters/Mannequins/Meshes/SKM_Quinn_Simple` + `Anims/Unarmed/ABP_Unarmed_C` (Third Person pack) | real animated mannequin; the code-built body hides automatically |
+
+Real meshes go into a new `DetailMesh` component on resource nodes. The engine shape stays as the hidden
+collision proxy, so gathering, depletion and saving are unchanged. Content packs are `.gitignore`d (large) and
+added per machine; players without them see the code-built art.

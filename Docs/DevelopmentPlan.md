@@ -55,6 +55,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 17 | Storage chest (20 Wood + 4 Fiber, 30 stacks): E stores resources and food, R takes everything; saved with contents | **Compiles; headless test passed (store 85 items, take back, tools stay); awaiting PIE test.** See [Systems/Inventory.md](Systems/Inventory.md) |
 | 18 | Visuals: low-poly models built in code (pine / broadleaf trees, rocks, bushes, berries, crabs, springs, campfire, animated survivor), shallow-water foam and turquoise shallows, grass / flowers / pebbles / shells, drifting clouds, fog and a stylised post process | **Code written; not compiled yet.** See [Systems/Visuals.md](Systems/Visuals.md) |
 | 19 | Realistic style: materials generated in code (vertex colour, translucent water with depth fade and foam), smooth vertex-coloured terrain on a finer grid, rounded models with ground shading, volumetric clouds, Lumen GI and reflections, virtual shadow maps, TSR; `li.RealisticStyle 0` brings back the low-poly look | **Code written; not compiled yet.** See [Systems/Visuals.md](Systems/Visuals.md) |
+| 20 | Real art when available: photo-textured terrain (4 textures + normals blended per vertex), wave normals on the sea, real rock/bush meshes, configurable real trees and grass, the animated UE5 mannequin; all from engine content packs or Fab, with code-built art as fallback | **Code written; not compiled yet.** See [GraficaRealista_RO.md](GraficaRealista_RO.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -311,4 +312,16 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] `li.RealisticStyle 0` then `LIRegenerateIsland 0`: the faceted low-poly look comes back.
 - [ ] FPS (note it, with the GPU model). If it's low, lower Engine Scalability to High and note the difference.
 - [ ] Swimming underwater still works; the water surface looks fine from below.
+
+## 4u. Milestone 20 test checklist (real art)
+
+- [ ] Without any content pack: the game looks like Milestone 19 and the log lists `Optional visual asset not in the project` once per missing path (no errors).
+- [ ] Add **Starter Content** (Docs/GraficaRealista_RO.md). Log: `Textured terrain material built.`
+- [ ] Ground: grass texture in meadows, moss in forests, rock on slopes and peaks, sandstone on beaches; soft transitions; tiling not obvious from the player's height.
+- [ ] Sea: waves moving on the surface; foam and clear shallows still there.
+- [ ] Rocks are the Starter Content rock, standing on the ground (not floating or buried); bushes are the Starter Content bush; berry bushes still show red berries.
+- [ ] Gathering, depletion and respawn still work on real-mesh nodes.
+- [ ] Add **Third Person**: the survivor is the UE5 mannequin, walking/running/jumping animate, and the feet touch the ground.
+- [ ] Optional: add Fab trees to `TreeMeshes`: trees use them (about 7.5 m tall).
+- [ ] FPS with everything on (note the GPU).
 

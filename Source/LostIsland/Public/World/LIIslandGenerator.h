@@ -422,6 +422,9 @@ private:
 	/** Realistic style: one smooth, vertex-coloured terrain section. Returns false if the material is unavailable. */
 	bool BuildSmoothTerrain(const TArray<float>& Heights);
 
+	/** Textured terrain: per-vertex blend weights (R grass, G rock, B sand, A forest floor), summing to 1. */
+	FLinearColor GetTerrainBlendWeights(const FVector2D& LocalXY, float Height, float NormalZ) const;
+
 	/** Exact height of the triangulated terrain surface (matches the mesh, unlike the smooth GetHeightAt). */
 	float GetMeshHeightAt(const TArray<float>& Heights, const FVector2D& LocalXY) const;
 
