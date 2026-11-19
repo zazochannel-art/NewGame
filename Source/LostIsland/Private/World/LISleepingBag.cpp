@@ -2,6 +2,10 @@
 
 #include "World/LISleepingBag.h"
 
+#include "Math/RandomStream.h"
+#include "ProceduralMeshComponent.h"
+#include "Visuals/LILowPolyMesh.h"
+#include "Visuals/LIVisualAssets.h"
 #include "LostIsland.h"
 #include "Core/LIGameState.h"
 #include "Save/LISaveSubsystem.h"
@@ -50,6 +54,28 @@ void ALISleepingBag::BeginPlay()
 	Super::BeginPlay();
 	LITintPlaceholder(Mat, FLinearColor(0.12f, 0.28f, 0.35f));    // faded teal canvas
 	LITintPlaceholder(Pillow, FLinearColor(0.55f, 0.50f, 0.40f)); // rolled fibre
+
+	// Detailed model (cosmetic): a padded bag with a zip and an open hood, and a rolled fibre pillow.
+	const FLinearColor Canvas(0.12f, 0.30f, 0.37f);
+	const FLinearColor Lining(0.07f, 0.17f, 0.21f);
+	const FLinearColor Fibre(0.58f, 0.52f, 0.40f);
+	const FLinearColor Zip(0.05f, 0.05f, 0.05f);
+	FRandomStream Random(LIVisualSeed(GetActorLocation(), 0x51EE));
+	FLILowPolyMesh Model;
+
+	Model.AddBlob(FTransform(FVector(-12.f, 0.f, 9.f)), FVector(86.f, 38.f, 10.f), 0.04f, Random, Canvas);
+	Model.AddBlob(FTransform(FVector(62.f, 0.f, 8.f)), FVector(22.f, 36.f, 8.f), 0.04f, Random, Lining); // open hood
+	Model.AddBox(FTransform(FVector(-12.f, 24.f, 15.5f)), FVector(76.f, 0.8f, 0.8f), Zip);
+	Model.AddFrustum(FTransform(FRotator(0.f, 0.f, -90.f), FVector(76.f, -34.f, 20.f)), 10, 11.f, 11.f, 68.f, Fibre, 0.03f, &Random);
+	for (const float Y : { -20.f, 20.f })
+	{
+		Model.AddFrustum(FTransform(FRotator(0.f, 0.f, -90.f), FVector(76.f, Y - 1.5f, 20.f)), 10, 12.f, 12.f, 3.f, Zip); // ties
+	}
+	if (Model.ApplyTo(LICreateVisualComponent(this)))
+	{
+		Mat->SetHiddenInGame(true);
+		Pillow->SetHiddenInGame(true);
+	}
 }
 
 bool ALISleepingBag::CanInteract_Implementation(APawn* InstigatorPawn) const

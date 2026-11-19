@@ -110,6 +110,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "LostIsland|CrashSite") FLinearColor BurntColor = FLinearColor(0.08f, 0.07f, 0.065f);
 
 private:
+	/** Detailed plane and debris (cosmetic, every machine); the part shapes stay as hidden collision. */
+	void BuildDetailedWreck();
+
 	UStaticMeshComponent* MakePart(const TCHAR* Name, USceneComponent* Parent, class UStaticMesh* Mesh,
 		const FVector& Location, const FRotator& Rotation, const FVector& Scale);
 	const FLILootEntry* PickLoot(FRandomStream& Random) const;

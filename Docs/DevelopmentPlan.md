@@ -56,6 +56,7 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 18 | Visuals: low-poly models built in code (pine / broadleaf trees, rocks, bushes, berries, crabs, springs, campfire, animated survivor), shallow-water foam and turquoise shallows, grass / flowers / pebbles / shells, drifting clouds, fog and a stylised post process | **Code written; not compiled yet.** See [Systems/Visuals.md](Systems/Visuals.md) |
 | 19 | Realistic style: materials generated in code (vertex colour, translucent water with depth fade and foam), smooth vertex-coloured terrain on a finer grid, rounded models with ground shading, volumetric clouds, Lumen GI and reflections, virtual shadow maps, TSR; `li.RealisticStyle 0` brings back the low-poly look | **Code written; not compiled yet.** See [Systems/Visuals.md](Systems/Visuals.md) |
 | 20 | Real art when available: photo-textured terrain (4 textures + normals blended per vertex), wave normals on the sea, real rock/bush meshes, configurable real trees and grass, the animated UE5 mannequin; all from engine content packs or Fab, with code-built art as fallback | **Code written; not compiled yet.** See [GraficaRealista_RO.md](GraficaRealista_RO.md) |
+| 21 | Detailed props: plank floors, log walls and doorways, shingle roofs, a lashed raft with a curved sail, a banded chest, a padded sleeping bag, a leather loot sack and a detailed plane wreck; real wood and metal materials from Starter Content | **Code written; not compiled yet.** See [Systems/Visuals.md](Systems/Visuals.md) |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -324,4 +325,14 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] Add **Third Person**: the survivor is the UE5 mannequin, walking/running/jumping animate, and the feet touch the ground.
 - [ ] Optional: add Fab trees to `TreeMeshes`: trees use them (about 7.5 m tall).
 - [ ] FPS with everything on (note the GPU).
+
+## 4v. Milestone 21 test checklist (detailed props)
+
+- [ ] Build a floor, walls, a doorway and a roof: planks, logs, door frame and shingles; the green preview still shows while placing.
+- [ ] You can walk through the doorway and stand on floors exactly as before; dismantling (E) still works.
+- [ ] Raft at the shore: logs, ropes, mast and a curved sail visible from both sides. Sailing away still ends the game.
+- [ ] Chest: planks, iron bands, padlock. E / R still store and take.
+- [ ] Sleeping bag and the dropped loot sack look like a bag and a sack; both can still be used.
+- [ ] Wreck: fuselage with windows, bent propeller, torn wing, debris; no invisible obstacles around it; searching still works.
+- [ ] With Starter Content: wood looks like real wood grain, the hull like brushed metal, burnt parts rusty.
 

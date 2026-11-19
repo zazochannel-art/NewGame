@@ -2,6 +2,11 @@
 
 #include "World/LICrashSite.h"
 
+#include "Math/RandomStream.h"
+#include "ProceduralMeshComponent.h"
+#include "Visuals/LILowPolyMesh.h"
+#include "Visuals/LIVisualAssets.h"
+#include "Materials/MaterialInterface.h"
 #include "Inventory/LIInventoryComponent.h"
 #include "Items/LIItemTypes.h"
 #include "LostIsland.h"
@@ -121,6 +126,109 @@ void ALICrashSite::BeginPlay()
 	for (UStaticMeshComponent* Piece : Debris)
 	{
 		Tint(Piece, BurntColor);
+	}
+
+	BuildDetailedWreck();
+}
+
+void ALICrashSite::BuildDetailedWreck()
+{
+	// Cosmetic, every machine. The part shapes above stay as hidden collision. Coordinates match them:
+	// WreckPivot space, X = forward along the fuselage, all sizes in cm.
+	const FLinearColor Glass(0.05f, 0.07f, 0.10f);
+	const FLinearColor Dark(0.03f, 0.03f, 0.03f);
+	FRandomStream Random(LIVisualSeed(GetActorLocation(), 0xA1C7));
+
+	FLILowPolyMesh Plane;
+	Plane.bSmooth = true; // rounded hull even in the low-poly style
+	const FRotator AlongX(-90.f, 0.f, 0.f); // frustum axis (+Z) -> +X
+
+	// Fuselage: tapered tail cone, main cabin, engine cowling, spinner.
+	Plane.AddFrustum(FTransform(AlongX, FVector(-450.f, 0.f, 10.f)), 14, 30.f, 80.f, 200.f, HullColor);
+	Plane.AddFrustum(FTransform(AlongX, FVector(-250.f, 0.f, 0.f)), 14, 80.f, 80.f, 630.f, HullColor);
+	Plane.AddFrustum(FTransform(AlongX, FVector(380.f, 0.f, 0.f)), 14, 80.f, 48.f, 110.f, StripeColor);
+	Plane.AddFrustum(FTransform(AlongX, FVector(490.f, 0.f, 0.f)), 10, 22.f, 0.f, 40.f, Dark);
+
+	// Bent propeller: one straight blade, one folded back by the impact.
+	Plane.AddBox(FTransform(FRotator(0.f, 0.f, 10.f), FVector(505.f, 0.f, 55.f)), FVector(3.f, 9.f, 55.f), Dark);
+	Plane.AddBox(FTransform(FRotator(-35.f, 0.f, 10.f), FVector(515.f, 0.f, -45.f)), FVector(3.f, 9.f, 50.f), Dark);
+
+	// Red stripe along both sides.
+	for (const float Side : { -1.f, 1.f })
+	{
+		Plane.AddBox(FTransform(FVector(60.f, Side * 79.5f, -10.f)), FVector(330.f, 1.f, 7.f), StripeColor);
+		// Cabin windows.
+		for (int32 Window = 0; Window < 4; ++Window)
+		{
+			Plane.AddBox(FTransform(FVector(230.f - Window * 70.f, Side * 79.f, 30.f)), FVector(22.f, 2.f, 14.f), Glass);
+		}
+	}
+	// Windshield (two slanted panes).
+	for (const float Side : { -1.f, 1.f })
+	{
+		Plane.AddBox(FTransform(FRotator(-35.f, Side * 18.f, 0.f), FVector(330.f, Side * 28.f, 62.f)), FVector(30.f, 26.f, 2.f), Glass);
+	}
+
+	// Left wing (intact, slightly bent), struts, aileron gap; right wing torn off at the stub.
+	Plane.AddBox(FTransform(FRotator(0.f, 0.f, -3.f), FVector(60.f, -340.f, -20.f)), FVector(110.f, 280.f, 7.f), HullColor);
+	Plane.AddBox(FTransform(FRotator(0.f, 0.f, -3.f), FVector(-48.f, -470.f, -20.f)), FVector(4.f, 130.f, 7.5f), Dark);
+	Plane.AddFrustum(FTransform(FRotator(0.f, 0.f, 55.f), FVector(60.f, -75.f, -55.f)), 6, 4.f, 4.f, 230.f, Dark);
+	Plane.AddBox(FTransform(FRotator(0.f, 8.f, 6.f), FVector(60.f, 190.f, -20.f)), FVector(110.f, 110.f, 7.f), BurntColor);
+	for (int32 Shard = 0; Shard < 4; ++Shard)
+	{
+		const FVector Tip(60.f + Random.FRandRange(-90.f, 90.f), 300.f + Random.FRandRange(-10.f, 25.f), -20.f + Random.FRandRange(-8.f, 8.f));
+		Plane.AddBox(FTransform(FRotator(Random.FRandRange(-25.f, 25.f), Random.FRandRange(-40.f, 40.f), Random.FRandRange(-30.f, 30.f)), Tip),
+			FVector(Random.FRandRange(12.f, 25.f), Random.FRandRange(8.f, 18.f), 3.f), BurntColor);
+	}
+
+	// Tail: fin with rudder line, horizontal stabiliser.
+	Plane.AddBox(FTransform(FVector(-410.f, 0.f, 140.f)), FVector(65.f, 6.f, 90.f), HullColor);
+	Plane.AddBox(FTransform(FVector(-470.f, 0.f, 140.f)), FVector(5.f, 7.f, 85.f), StripeColor);
+	Plane.AddBox(FTransform(FVector(-420.f, 0.f, 60.f)), FVector(50.f, 160.f, 5.f), HullColor);
+
+	// Ground pieces (SceneRoot space): the torn wing and debris along the skid path.
+	FLILowPolyMesh Ground;
+	Ground.bSmooth = false;
+	// Exactly over the collision shapes (engine cube = 100 cm, centred), so nothing invisible blocks the player...
+	auto AddOverPart = [&Ground](const UStaticMeshComponent* Part, const FLinearColor& Color)
+	{
+		if (Part)
+		{
+			const FTransform Transform = Part->GetRelativeTransform();
+			Ground.AddBox(FTransform(Transform.GetRotation(), Transform.GetLocation()), Transform.GetScale3D() * 50.f, Color);
+		}
+	};
+	AddOverPart(TornWing, HullColor);
+	for (const UStaticMeshComponent* Piece : Debris)
+	{
+		AddOverPart(Piece, BurntColor);
+	}
+	// ...plus small scattered scraps without collision.
+	for (int32 Index = 0; Index < 8; ++Index)
+	{
+		const FVector Location(Random.FRandRange(-1500.f, -500.f), Random.FRandRange(-350.f, 450.f), Random.FRandRange(2.f, 5.f));
+		const FRotator Rotation(Random.FRandRange(-20.f, 20.f), Random.FRandRange(0.f, 360.f), Random.FRandRange(-25.f, 25.f));
+		Ground.AddBox(FTransform(Rotation, Location), FVector(Random.FRandRange(6.f, 18.f), Random.FRandRange(5.f, 12.f), 1.5f),
+			Index % 3 == 0 ? HullColor : BurntColor);
+	}
+
+	const ULIVisualAssets& Assets = ULIVisualAssets::Get();
+	UMaterialInterface* Metal = ULIVisualAssets::LoadOptional<UMaterialInterface>(Assets.MetalMaterial);
+	UMaterialInterface* Rust = ULIVisualAssets::LoadOptional<UMaterialInterface>(Assets.RustMaterial);
+	for (FLILowPolyMesh* Model : { &Plane, &Ground })
+	{
+		Model->SetSurfaceMaterial(HullColor, Metal);
+		Model->SetSurfaceMaterial(BurntColor, Rust);
+	}
+
+	if (Plane.ApplyTo(LICreateVisualComponent(this, WreckPivot)) && Ground.ApplyTo(LICreateVisualComponent(this, SceneRoot)))
+	{
+		TArray<UStaticMeshComponent*> Parts;
+		GetComponents<UStaticMeshComponent>(Parts);
+		for (UStaticMeshComponent* Part : Parts)
+		{
+			Part->SetHiddenInGame(true); // collision stays
+		}
 	}
 }
 

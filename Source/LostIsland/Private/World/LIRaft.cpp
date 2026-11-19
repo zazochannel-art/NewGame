@@ -2,6 +2,11 @@
 
 #include "World/LIRaft.h"
 
+#include "Math/RandomStream.h"
+#include "ProceduralMeshComponent.h"
+#include "Visuals/LILowPolyMesh.h"
+#include "Visuals/LIVisualAssets.h"
+#include "Materials/MaterialInterface.h"
 #include "LostIsland.h"
 #include "Core/LIGameState.h"
 #include "Survival/LISurvivalComponent.h"
@@ -54,6 +59,70 @@ void ALIRaft::BeginPlay()
 	LITintPlaceholder(Deck, FLinearColor(0.38f, 0.25f, 0.12f));
 	LITintPlaceholder(Mast, FLinearColor(0.30f, 0.20f, 0.10f));
 	LITintPlaceholder(Sail, FLinearColor(0.80f, 0.75f, 0.60f));
+
+	// Detailed model (cosmetic, every machine): lashed logs, cross beams, mast, yard and a billowing sail.
+	const FLinearColor LogColor(0.46f, 0.32f, 0.17f);
+	const FLinearColor BeamColor(0.30f, 0.20f, 0.10f);
+	const FLinearColor Rope(0.62f, 0.55f, 0.38f);
+	const FLinearColor Canvas(0.82f, 0.76f, 0.62f);
+	FRandomStream Random(LIVisualSeed(GetActorLocation(), 0x4AF7));
+	FLILowPolyMesh Model;
+
+	const int32 Logs = 7;
+	for (int32 Index = 0; Index < Logs; ++Index)
+	{
+		const float Y = -107.f + Index * (214.f / (Logs - 1));
+		const float R = Random.FRandRange(15.f, 18.f);
+		const float Length = Random.FRandRange(385.f, 410.f);
+		Model.AddFrustum(FTransform(FRotator(-90.f, 0.f, 0.f), FVector(-Length * 0.5f, Y, 5.f)), 9, R, R * 0.9f, Length, LogColor, 0.05f, &Random);
+	}
+	for (const float X : { -150.f, 150.f })
+	{
+		Model.AddBox(FTransform(FVector(X, 0.f, 25.f)), FVector(8.f, 128.f, 5.f), BeamColor);
+		Model.AddBox(FTransform(FVector(X + 22.f, 0.f, 5.f)), FVector(3.f, 126.f, 19.f), Rope); // lashing
+	}
+	Model.AddBox(FTransform(FVector(-120.f, 55.f, 47.f)), FVector(20.f, 20.f, 18.f), BeamColor); // supply crate
+
+	// Mast and yard.
+	Model.AddFrustum(FTransform(FVector(30.f, 0.f, 20.f)), 8, 9.f, 6.f, 350.f, BeamColor, 0.03f, &Random);
+	Model.AddFrustum(FTransform(FRotator(0.f, 0.f, -90.f), FVector(36.f, -110.f, 338.f)), 6, 5.f, 4.f, 220.f, BeamColor);
+
+	// Sail: a curved sheet (both sides visible), bellied toward +X.
+	const int32 Columns = 6;
+	const int32 Rows = 6;
+	auto SailPoint = [](float U, float V)
+	{
+		const float Belly = 18.f * FMath::Sin(U * PI) * FMath::Sin(V * PI);
+		return FVector(44.f + Belly, -100.f + U * 200.f, 130.f + V * 205.f);
+	};
+	for (int32 Column = 0; Column < Columns; ++Column)
+	{
+		for (int32 Row = 0; Row < Rows; ++Row)
+		{
+			const float U0 = static_cast<float>(Column) / Columns;
+			const float U1 = static_cast<float>(Column + 1) / Columns;
+			const float V0 = static_cast<float>(Row) / Rows;
+			const float V1 = static_cast<float>(Row + 1) / Rows;
+			const FVector A = SailPoint(U0, V0), B = SailPoint(U1, V0), C = SailPoint(U1, V1), D = SailPoint(U0, V1);
+			const FVector Centre = (A + B + C + D) * 0.25f;
+			for (const float Side : { -1.f, 1.f })
+			{
+				const FVector Interior = Centre + FVector(Side * 50.f, 0.f, 0.f);
+				Model.AddTri(A, B, C, Canvas, Interior);
+				Model.AddTri(A, C, D, Canvas, Interior);
+			}
+		}
+	}
+
+	const ULIVisualAssets& Assets = ULIVisualAssets::Get();
+	Model.SetSurfaceMaterial(LogColor, ULIVisualAssets::LoadOptional<UMaterialInterface>(Assets.WoodMaterial));
+	Model.SetSurfaceMaterial(BeamColor, ULIVisualAssets::LoadOptional<UMaterialInterface>(Assets.DarkWoodMaterial));
+	if (Model.ApplyTo(LICreateVisualComponent(this)))
+	{
+		Deck->SetHiddenInGame(true); // keeps its collision
+		Mast->SetHiddenInGame(true);
+		Sail->SetHiddenInGame(true);
+	}
 }
 
 bool ALIRaft::CanInteract_Implementation(APawn* InstigatorPawn) const

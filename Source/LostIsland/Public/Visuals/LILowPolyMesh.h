@@ -4,7 +4,9 @@
 
 #include "CoreMinimal.h"
 
+class AActor;
 class UMaterialInterface;
+class USceneComponent;
 class UProceduralMeshComponent;
 struct FRandomStream;
 
@@ -35,6 +37,12 @@ LOSTISLAND_API UMaterialInterface* LIGetTexturedTerrainMaterial();
  * material exists: smooth shading, vertex colours, translucent water, volumetric clouds.
  */
 LOSTISLAND_API bool LIUseRealisticStyle();
+
+/**
+ * Creates a cosmetic procedural mesh component at runtime (no collision), attached to Parent (or the root).
+ * For actors that get a code-built model without declaring a component for it.
+ */
+LOSTISLAND_API UProceduralMeshComponent* LICreateVisualComponent(AActor* Owner, USceneComponent* Parent = nullptr);
 
 /** Color * (1 +- Amount), alpha 1. Used to give every model a slightly different shade. */
 LOSTISLAND_API FLinearColor LIVaryColor(const FLinearColor& Color, FRandomStream& Random, float Amount);
@@ -79,6 +87,12 @@ struct LOSTISLAND_API FLILowPolyMesh
 	 */
 	float GroundShadingHeight = -1.f;
 
+	/**
+	 * Gives every surface built with this colour a real material instead (e.g. Starter Content wood or metal),
+	 * mapped with planar UVs at one repeat per metre. Null removes the override.
+	 */
+	void SetSurfaceMaterial(const FLinearColor& Color, UMaterialInterface* Material);
+
 	bool IsEmpty() const { return Sections.Num() == 0; }
 	int32 NumTriangles() const;
 
@@ -118,4 +132,7 @@ struct LOSTISLAND_API FLILowPolyMesh
 
 private:
 	FSection& FindSection(const FLinearColor& Color);
+
+	/** Quantised colour key -> real material (see SetSurfaceMaterial). */
+	TMap<uint32, UMaterialInterface*> SurfaceMaterials; // assets, kept alive by the components that use them
 };
