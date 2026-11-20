@@ -37,7 +37,8 @@ ULIVisualAssets::ULIVisualAssets()
 	RockMeshes.Add(FSoftObjectPath(TEXT("/Game/StarterContent/Props/SM_Rock.SM_Rock")));
 	BushMeshes.Add(FSoftObjectPath(TEXT("/Game/StarterContent/Props/SM_Bush.SM_Bush")));
 
-	// Third Person (Add Feature or Content Pack -> Blueprint -> Third Person).
+	// Third Person (Add Feature or Content Pack -> Blueprint -> Third Person). In UE 5.8 the files come from
+	// Templates/TemplateResources/High/Characters/Content (mounted as /Game/Characters); paths verified on 5.8.4.
 	CharacterMesh = FSoftObjectPath(TEXT("/Game/Characters/Mannequins/Meshes/SKM_Quinn_Simple.SKM_Quinn_Simple"));
 	CharacterAnimClass = FSoftClassPath(TEXT("/Game/Characters/Mannequins/Anims/Unarmed/ABP_Unarmed.ABP_Unarmed_C"));
 }

@@ -11,7 +11,9 @@
 #include "UObject/Package.h"
 
 #if WITH_EDITOR
-#include "MaterialEditingLibrary.h"
+#include "MaterialGraph/MaterialGraphNode.h"
+#include "MaterialShared.h"
+#include "Materials/MaterialExpression.h"
 #include "Materials/MaterialExpressionConstant.h"
 #include "Materials/MaterialExpressionConstant3Vector.h"
 #include "Materials/MaterialExpressionDepthFade.h"
@@ -26,6 +28,7 @@
 #include "Materials/MaterialExpressionPanner.h"
 #include "Materials/MaterialExpressionTextureBase.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
+#include "Materials/MaterialExpressionUtils.h"
 #include "Materials/MaterialExpressionTextureSample.h"
 #include "Materials/MaterialExpressionWorldPosition.h"
 #endif
@@ -35,7 +38,7 @@
  *
  * The project has no .uasset materials, and the engine ships no lit material that reads vertex colours, so in
  * editor builds (PIE and "Standalone Game" from the editor) the two materials below are generated at startup
- * with UMaterialEditingLibrary and compiled like any other material. In a packaged build they don't exist and
+ * with the LIMaterialGraph helpers below and compiled like any other material. In a packaged build they don't exist and
  * every caller falls back to the tinted BasicShapeMaterial look. Once real material assets exist, point these
  * functions at them instead.
  */
@@ -49,10 +52,127 @@ static TAutoConsoleVariable<int32> CVarLIRealisticStyle(
 namespace
 {
 #if WITH_EDITOR
+	/**
+	 * Material graph editing without UMaterialEditingLibrary. Every library call ends by notifying an open material
+	 * editor through GEditor, which is null when the editor binary runs the game (-game, "Standalone Game"), so the
+	 * library crashes there. These do the same graph work and skip the editor notification.
+	 */
+	namespace LIMaterialGraph
+	{
+		UMaterialExpression* CreateMaterialExpression(UMaterial* Material, TSubclassOf<UMaterialExpression> ExpressionClass, int32 X, int32 Y)
+		{
+			if (!Material || !ExpressionClass)
+			{
+				return nullptr;
+			}
+			UMaterialExpression* Expression = NewObject<UMaterialExpression>(Material, ExpressionClass.Get(), NAME_None, RF_Transactional);
+			Material->GetExpressionCollection().AddExpression(Expression);
+			Expression->Material = Material;
+			Expression->MaterialExpressionEditorX = X;
+			Expression->MaterialExpressionEditorY = Y;
+			Expression->UpdateMaterialExpressionGuid(true, false);
+			Expression->UpdateParameterGuid(true, false);
+			Material->AddExpressionParameter(Expression, Material->EditorParameters);
+			return Expression;
+		}
+
+		FExpressionInput* FindInput(UMaterialExpression* Expression, const FName InputName)
+		{
+			if (InputName.IsNone())
+			{
+				return Expression->GetInput(0);
+			}
+			for (FExpressionInputIterator It{ Expression }; It; ++It)
+			{
+				const FName Name = Expression->GetInputName(It.Index);
+				if (Name == InputName || UMaterialGraphNode::GetShortenPinName(Name) == InputName)
+				{
+					return It.Input;
+				}
+			}
+			return nullptr;
+		}
+
+		int32 FindOutputIndex(UMaterialExpression* Expression, const FName OutputName)
+		{
+			TArray<FExpressionOutput>& Outputs = Expression->GetOutputs();
+			if (Outputs.Num() == 0)
+			{
+				return INDEX_NONE;
+			}
+			if (OutputName.IsNone())
+			{
+				return 0;
+			}
+			for (int32 Index = 0; Index < Outputs.Num(); ++Index)
+			{
+				const FExpressionOutput& Output = Outputs[Index];
+				if (!Output.OutputName.IsNone())
+				{
+					if (Output.OutputName == OutputName)
+					{
+						return Index;
+					}
+					continue;
+				}
+				// Unnamed single-channel outputs are addressed as R / G / B / A.
+				const int32 Channels = Output.MaskR + Output.MaskG + Output.MaskB + Output.MaskA;
+				if (Output.Mask && Channels == 1 &&
+					((Output.MaskR && OutputName == TEXT("R")) || (Output.MaskG && OutputName == TEXT("G")) ||
+					 (Output.MaskB && OutputName == TEXT("B")) || (Output.MaskA && OutputName == TEXT("A"))))
+				{
+					return Index;
+				}
+			}
+			return INDEX_NONE;
+		}
+
+		bool ConnectMaterialExpressions(UMaterialExpression* From, const FString& FromOutputName, UMaterialExpression* To, const FString& ToInputName)
+		{
+			if (!From || !To)
+			{
+				return false;
+			}
+			FExpressionInput* Input = FindInput(To, FName(*ToInputName));
+			const int32 OutputIndex = FindOutputIndex(From, FName(*FromOutputName));
+			if (!Input || OutputIndex == INDEX_NONE)
+			{
+				return false;
+			}
+			Input->Connect(OutputIndex, From);
+			return true;
+		}
+
+		bool ConnectMaterialProperty(UMaterialExpression* From, const FString& FromOutputName, EMaterialProperty Property)
+		{
+			UMaterial* Material = From ? Cast<UMaterial>(From->GetOuter()) : nullptr;
+			FExpressionInput* Input = Material ? Material->GetExpressionInputForProperty(Property) : nullptr;
+			const int32 OutputIndex = Input ? FindOutputIndex(From, FName(*FromOutputName)) : INDEX_NONE;
+			if (OutputIndex == INDEX_NONE)
+			{
+				return false;
+			}
+			Input->Connect(OutputIndex, From);
+			return true;
+		}
+
+		void RecompileMaterial(UMaterial* Material)
+		{
+			if (!Material)
+			{
+				return;
+			}
+			FMaterialUpdateContext UpdateContext;
+			UpdateContext.AddMaterial(Material);
+			Material->PreEditChange(nullptr);
+			Material->PostEditChange();
+		}
+	}
+
 	template <typename T>
 	T* AddExpression(UMaterial* Material, int32 X, int32 Y)
 	{
-		return Cast<T>(UMaterialEditingLibrary::CreateMaterialExpression(Material, T::StaticClass(), X, Y));
+		return Cast<T>(LIMaterialGraph::CreateMaterialExpression(Material, T::StaticClass(), X, Y));
 	}
 
 	UMaterialExpressionConstant* AddScalar(UMaterial* Material, float Value, int32 X, int32 Y)
@@ -81,10 +201,10 @@ namespace
 		if (Sample)
 		{
 			Sample->Texture = Texture;
-			Sample->SamplerType = UMaterialExpressionTextureBase::GetSamplerTypeForTexture(Texture);
+			Sample->SamplerType = MaterialExpressionUtils::GetSamplerTypeForTexture(Texture);
 			if (UVs)
 			{
-				UMaterialEditingLibrary::ConnectMaterialExpressions(UVs, TEXT(""), Sample, TEXT("UVs"));
+				LIMaterialGraph::ConnectMaterialExpressions(UVs, TEXT(""), Sample, TEXT("UVs"));
 			}
 		}
 		return Sample;
@@ -103,8 +223,8 @@ namespace
 			{
 				return nullptr;
 			}
-			UMaterialEditingLibrary::ConnectMaterialExpressions(Inputs[Index], TEXT(""), Weighted, TEXT("A"));
-			UMaterialEditingLibrary::ConnectMaterialExpressions(VertexColor, Channels[Index], Weighted, TEXT("B"));
+			LIMaterialGraph::ConnectMaterialExpressions(Inputs[Index], TEXT(""), Weighted, TEXT("A"));
+			LIMaterialGraph::ConnectMaterialExpressions(VertexColor, Channels[Index], Weighted, TEXT("B"));
 			if (!Sum)
 			{
 				Sum = Weighted;
@@ -115,8 +235,8 @@ namespace
 			{
 				return nullptr;
 			}
-			UMaterialEditingLibrary::ConnectMaterialExpressions(Sum, TEXT(""), Added, TEXT("A"));
-			UMaterialEditingLibrary::ConnectMaterialExpressions(Weighted, TEXT(""), Added, TEXT("B"));
+			LIMaterialGraph::ConnectMaterialExpressions(Sum, TEXT(""), Added, TEXT("A"));
+			LIMaterialGraph::ConnectMaterialExpressions(Weighted, TEXT(""), Added, TEXT("B"));
 			Sum = Added;
 		}
 		return Sum;
@@ -142,15 +262,15 @@ namespace
 			return nullptr;
 		}
 
-		bool bOk = UMaterialEditingLibrary::ConnectMaterialProperty(VertexColor, TEXT(""), MP_BaseColor);
-		bOk &= UMaterialEditingLibrary::ConnectMaterialProperty(Roughness, TEXT(""), MP_Roughness);
-		bOk &= UMaterialEditingLibrary::ConnectMaterialProperty(Specular, TEXT(""), MP_Specular);
+		bool bOk = LIMaterialGraph::ConnectMaterialProperty(VertexColor, TEXT(""), MP_BaseColor);
+		bOk &= LIMaterialGraph::ConnectMaterialProperty(Roughness, TEXT(""), MP_Roughness);
+		bOk &= LIMaterialGraph::ConnectMaterialProperty(Specular, TEXT(""), MP_Specular);
 		if (!bOk)
 		{
 			return nullptr;
 		}
 
-		UMaterialEditingLibrary::RecompileMaterial(Material);
+		LIMaterialGraph::RecompileMaterial(Material);
 		return Material;
 	}
 
@@ -197,25 +317,25 @@ namespace
 		Roughness->ConstB = 0.12f;    // a little softer at grazing angles
 
 		bool bOk = true;
-		bOk &= UMaterialEditingLibrary::ConnectMaterialExpressions(Shore, TEXT(""), Foam, TEXT(""));
+		bOk &= LIMaterialGraph::ConnectMaterialExpressions(Shore, TEXT(""), Foam, TEXT(""));
 
-		bOk &= UMaterialEditingLibrary::ConnectMaterialExpressions(Shallow, TEXT(""), WaterColor, TEXT("A"));
-		bOk &= UMaterialEditingLibrary::ConnectMaterialExpressions(Deep, TEXT(""), WaterColor, TEXT("B"));
-		bOk &= UMaterialEditingLibrary::ConnectMaterialExpressions(Depth, TEXT(""), WaterColor, TEXT("Alpha"));
-		bOk &= UMaterialEditingLibrary::ConnectMaterialExpressions(WaterColor, TEXT(""), BaseColor, TEXT("A"));
-		bOk &= UMaterialEditingLibrary::ConnectMaterialExpressions(FoamColor, TEXT(""), BaseColor, TEXT("B"));
-		bOk &= UMaterialEditingLibrary::ConnectMaterialExpressions(Foam, TEXT(""), BaseColor, TEXT("Alpha"));
+		bOk &= LIMaterialGraph::ConnectMaterialExpressions(Shallow, TEXT(""), WaterColor, TEXT("A"));
+		bOk &= LIMaterialGraph::ConnectMaterialExpressions(Deep, TEXT(""), WaterColor, TEXT("B"));
+		bOk &= LIMaterialGraph::ConnectMaterialExpressions(Depth, TEXT(""), WaterColor, TEXT("Alpha"));
+		bOk &= LIMaterialGraph::ConnectMaterialExpressions(WaterColor, TEXT(""), BaseColor, TEXT("A"));
+		bOk &= LIMaterialGraph::ConnectMaterialExpressions(FoamColor, TEXT(""), BaseColor, TEXT("B"));
+		bOk &= LIMaterialGraph::ConnectMaterialExpressions(Foam, TEXT(""), BaseColor, TEXT("Alpha"));
 
-		bOk &= UMaterialEditingLibrary::ConnectMaterialExpressions(Depth, TEXT(""), DepthOpacity, TEXT("Alpha"));
-		bOk &= UMaterialEditingLibrary::ConnectMaterialExpressions(DepthOpacity, TEXT(""), Opacity, TEXT("A"));
-		bOk &= UMaterialEditingLibrary::ConnectMaterialExpressions(Foam, TEXT(""), Opacity, TEXT("Alpha"));
+		bOk &= LIMaterialGraph::ConnectMaterialExpressions(Depth, TEXT(""), DepthOpacity, TEXT("Alpha"));
+		bOk &= LIMaterialGraph::ConnectMaterialExpressions(DepthOpacity, TEXT(""), Opacity, TEXT("A"));
+		bOk &= LIMaterialGraph::ConnectMaterialExpressions(Foam, TEXT(""), Opacity, TEXT("Alpha"));
 
-		bOk &= UMaterialEditingLibrary::ConnectMaterialExpressions(Fresnel, TEXT(""), Roughness, TEXT("Alpha"));
+		bOk &= LIMaterialGraph::ConnectMaterialExpressions(Fresnel, TEXT(""), Roughness, TEXT("Alpha"));
 
-		bOk &= UMaterialEditingLibrary::ConnectMaterialProperty(BaseColor, TEXT(""), MP_BaseColor);
-		bOk &= UMaterialEditingLibrary::ConnectMaterialProperty(Opacity, TEXT(""), MP_Opacity);
-		bOk &= UMaterialEditingLibrary::ConnectMaterialProperty(Roughness, TEXT(""), MP_Roughness);
-		bOk &= UMaterialEditingLibrary::ConnectMaterialProperty(Specular, TEXT(""), MP_Specular);
+		bOk &= LIMaterialGraph::ConnectMaterialProperty(BaseColor, TEXT(""), MP_BaseColor);
+		bOk &= LIMaterialGraph::ConnectMaterialProperty(Opacity, TEXT(""), MP_Opacity);
+		bOk &= LIMaterialGraph::ConnectMaterialProperty(Roughness, TEXT(""), MP_Roughness);
+		bOk &= LIMaterialGraph::ConnectMaterialProperty(Specular, TEXT(""), MP_Specular);
 
 		// Moving waves: two copies of a water normal map, panned in different directions at different scales
 		// (UVs from world XY so the huge water plane tiles correctly), softened toward flat.
@@ -242,20 +362,20 @@ namespace
 				SmallPan->SpeedY = 0.011f;
 				Normal->ConstAlpha = 0.45f;
 
-				UMaterialEditingLibrary::ConnectMaterialExpressions(WorldPosition, TEXT(""), XY, TEXT(""));
-				UMaterialEditingLibrary::ConnectMaterialExpressions(XY, TEXT(""), LargeScale, TEXT("A"));
-				UMaterialEditingLibrary::ConnectMaterialExpressions(XY, TEXT(""), SmallScale, TEXT("A"));
-				UMaterialEditingLibrary::ConnectMaterialExpressions(LargeScale, TEXT(""), LargePan, TEXT("Coordinate"));
-				UMaterialEditingLibrary::ConnectMaterialExpressions(SmallScale, TEXT(""), SmallPan, TEXT("Coordinate"));
+				LIMaterialGraph::ConnectMaterialExpressions(WorldPosition, TEXT(""), XY, TEXT(""));
+				LIMaterialGraph::ConnectMaterialExpressions(XY, TEXT(""), LargeScale, TEXT("A"));
+				LIMaterialGraph::ConnectMaterialExpressions(XY, TEXT(""), SmallScale, TEXT("A"));
+				LIMaterialGraph::ConnectMaterialExpressions(LargeScale, TEXT(""), LargePan, TEXT("Coordinate"));
+				LIMaterialGraph::ConnectMaterialExpressions(SmallScale, TEXT(""), SmallPan, TEXT("Coordinate"));
 				UMaterialExpressionTextureSample* LargeWaves = AddTextureSample(Material, WaveTexture, LargePan, -700, 750);
 				UMaterialExpressionTextureSample* SmallWaves = AddTextureSample(Material, WaveTexture, SmallPan, -700, 900);
 				if (LargeWaves && SmallWaves)
 				{
-					UMaterialEditingLibrary::ConnectMaterialExpressions(LargeWaves, TEXT(""), Waves, TEXT("A"));
-					UMaterialEditingLibrary::ConnectMaterialExpressions(SmallWaves, TEXT(""), Waves, TEXT("B"));
-					UMaterialEditingLibrary::ConnectMaterialExpressions(Flat, TEXT(""), Normal, TEXT("A"));
-					UMaterialEditingLibrary::ConnectMaterialExpressions(Waves, TEXT(""), Normal, TEXT("B"));
-					UMaterialEditingLibrary::ConnectMaterialProperty(Normal, TEXT(""), MP_Normal);
+					LIMaterialGraph::ConnectMaterialExpressions(LargeWaves, TEXT(""), Waves, TEXT("A"));
+					LIMaterialGraph::ConnectMaterialExpressions(SmallWaves, TEXT(""), Waves, TEXT("B"));
+					LIMaterialGraph::ConnectMaterialExpressions(Flat, TEXT(""), Normal, TEXT("A"));
+					LIMaterialGraph::ConnectMaterialExpressions(Waves, TEXT(""), Normal, TEXT("B"));
+					LIMaterialGraph::ConnectMaterialProperty(Normal, TEXT(""), MP_Normal);
 				}
 			}
 		}
@@ -266,7 +386,7 @@ namespace
 			return nullptr;
 		}
 
-		UMaterialEditingLibrary::RecompileMaterial(Material);
+		LIMaterialGraph::RecompileMaterial(Material);
 		return Material;
 	}
 
@@ -341,9 +461,9 @@ namespace
 				Variation->ConstB = 1.15f;
 				if (UMaterialExpressionTextureSample* MacroSample = AddTextureSample(Material, Macro, MacroUV, -1100, -900))
 				{
-					UMaterialEditingLibrary::ConnectMaterialExpressions(MacroSample, TEXT("R"), Variation, TEXT("Alpha"));
-					UMaterialEditingLibrary::ConnectMaterialExpressions(BaseColor, TEXT(""), Varied, TEXT("A"));
-					UMaterialEditingLibrary::ConnectMaterialExpressions(Variation, TEXT(""), Varied, TEXT("B"));
+					LIMaterialGraph::ConnectMaterialExpressions(MacroSample, TEXT("R"), Variation, TEXT("Alpha"));
+					LIMaterialGraph::ConnectMaterialExpressions(BaseColor, TEXT(""), Varied, TEXT("A"));
+					LIMaterialGraph::ConnectMaterialExpressions(Variation, TEXT(""), Varied, TEXT("B"));
 					BaseColor = Varied;
 				}
 			}
@@ -352,17 +472,17 @@ namespace
 		UMaterialExpressionConstant* Roughness = AddScalar(Material, 0.9f, -300, 300);
 		UMaterialExpressionConstant* Specular = AddScalar(Material, 0.25f, -300, 400);
 		bool bOk = Roughness && Specular;
-		bOk = bOk && UMaterialEditingLibrary::ConnectMaterialProperty(BaseColor, TEXT(""), MP_BaseColor);
-		bOk = bOk && UMaterialEditingLibrary::ConnectMaterialProperty(Normal, TEXT(""), MP_Normal);
-		bOk = bOk && UMaterialEditingLibrary::ConnectMaterialProperty(Roughness, TEXT(""), MP_Roughness);
-		bOk = bOk && UMaterialEditingLibrary::ConnectMaterialProperty(Specular, TEXT(""), MP_Specular);
+		bOk = bOk && LIMaterialGraph::ConnectMaterialProperty(BaseColor, TEXT(""), MP_BaseColor);
+		bOk = bOk && LIMaterialGraph::ConnectMaterialProperty(Normal, TEXT(""), MP_Normal);
+		bOk = bOk && LIMaterialGraph::ConnectMaterialProperty(Roughness, TEXT(""), MP_Roughness);
+		bOk = bOk && LIMaterialGraph::ConnectMaterialProperty(Specular, TEXT(""), MP_Specular);
 		if (!bOk)
 		{
 			UE_LOG(LogLostIsland, Warning, TEXT("Textured terrain material: connections failed; using vertex colours."));
 			return nullptr;
 		}
 
-		UMaterialEditingLibrary::RecompileMaterial(Material);
+		LIMaterialGraph::RecompileMaterial(Material);
 		return Material;
 	}
 #endif // WITH_EDITOR

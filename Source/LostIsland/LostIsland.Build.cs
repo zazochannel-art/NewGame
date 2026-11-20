@@ -30,7 +30,7 @@ public class LostIsland : ModuleRules
 		// BasicShapeMaterial look (see Visuals/LIMaterials.cpp).
 		if (Target.bBuildEditor)
 		{
-			PrivateDependencyModuleNames.AddRange(new string[] { "UnrealEd", "MaterialEditor" });
+			PrivateDependencyModuleNames.AddRange(new string[] { "UnrealEd", "MaterialEditor", "RHI" });
 		}
 	}
 }

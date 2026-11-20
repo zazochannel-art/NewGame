@@ -336,3 +336,31 @@ See [Systems/Character.md](Systems/Character.md) and [Systems/Interaction.md](Sy
 - [ ] Wreck: fuselage with windows, bent propeller, torn wing, debris; no invisible obstacles around it; searching still works.
 - [ ] With Starter Content: wood looks like real wood grain, the hull like brushed metal, burnt parts rusty.
 
+## Automated visual pass (2026-11-20)
+
+UE 5.8.4, Development Editor Win64, `-game` 1920x1080, RTX 4060 (8 GB) + i7-13700KF, Engine Scalability default (Epic).
+Run with `UnrealEditor.exe LostIsland.uproject -game -LIScreenshotTour` (new dev command; screenshots in `Saved/Screenshots/WindowsEditor/LITour_*.png`).
+
+| Problem found | Fix |
+|---|---|
+| Deprecation warning C4996 `UMaterialExpressionTextureBase::GetSamplerTypeForTexture` (removed in the next release) | `MaterialExpressionUtils::GetSamplerTypeForTexture` |
+| **Crash at startup in `-game` / Standalone**: every `UMaterialEditingLibrary` call notifies the material editor through `GEditor`, which is null outside the editor UI (access violation in `LIGetVertexColorMaterial`). PIE was unaffected. | `LIMaterialGraph` helpers in `LIMaterials.cpp` do the same graph edits without the editor notification; `RHI` added to the editor-only dependencies (`FMaterialUpdateContext`) |
+| Sky near black at noon, black band under the horizon, no change at sunset: the 10 lux sun gives a physically dark sky; only the sky light (x8) was boosted, which lights the ground but not the visible sky | `SkyBrightness` (sky atmosphere luminance factor, default 8) and sky light back to 1: same ambient fill, blue day sky |
+| `LIGoToSpring` left the camera pointing at the ground | sets the control rotation |
+
+| View | Time | FPS | Notes |
+|---|---|---|---|
+| day (spring) | 12:00 | 140 | blue sky, pines and broadleaf trees, grass blades; mannequin in idle, feet on the ground |
+| beach | 10:00 | 135 | turquoise shallows over sand, darker deep water, foam line, sky reflected |
+| forest | 14:00 | 138 | |
+| wreck | 15:00 | 144 | fuselage with windows, propeller, wing and tail; no floating parts |
+| sunset | 17:36 | 136 | long shadows, dimmer light |
+
+Checklist status from this run (automatic only; gameplay interaction items still need a person):
+- 4s: compiles; `Island decoration: 22921 instances`; trees, rocks, grass, flowers, clouds, coast foam visible; FPS above.
+- 4t: `Vertex-colour material built.` and `Water material built.`; smooth terrain; clear shallows; volumetric clouds.
+- 4u: **Third Person added** (copied from `Templates/TemplateResources/High/Characters/Content`; the 5.8 template has no `Content/Characters`): `SKM_Quinn_Simple` + `ABP_Unarmed` load, no "not in the project" lines for them. **Starter Content not added**: this UE 5.8 install doesn't contain it (`TemplateResources/High/StarterContent` missing, no copy on disk). The game falls back cleanly: `Textured terrain material unavailable`, one `Optional visual asset not in the project` line per Starter Content path, no errors. Enable it in the Launcher (Docs/GraficaRealista_RO.md) and rerun the tour.
+- 4v: wreck detail verified visually; building, raft, chest, sleeping bag need an interactive session.
+
+Follow-ups: clouds read as dark grey against the brighter sky (cloud lighting is still tuned for the old sky); sunset colour is mostly visible looking toward the sun.
+

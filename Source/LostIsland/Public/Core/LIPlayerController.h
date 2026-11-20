@@ -23,6 +23,7 @@
  *     LIGoToSea                      (deep water off the start beach, to test swimming)
  *     LIPlace                        (same as G)
  *     LISetTime <Hours>              (e.g. 21 for night)
+ *     LIScreenshotTour [Quit]        (day, beach, forest, wreck, sunset: screenshot + FPS each; 1 = quit after)
  *
  * Save commands (all builds):  LISave, LILoad, LINewGame   (also F5 / F9 on the character)
  */
@@ -126,6 +127,14 @@ public:
 	UFUNCTION(Exec)
 	void LIRevive();
 
+	/**
+	 * Visual smoke test (standalone/listen server only): visits day, beach, forest, wreck and sunset views,
+	 * waits for lighting to settle, logs the average FPS and saves a screenshot of each to Saved/Screenshots.
+	 * Start it from the command line with: -ExecCmds="LIScreenshotTour 1"  (1 = quit when done).
+	 */
+	UFUNCTION(Exec)
+	void LIScreenshotTour(int32 bQuitWhenDone);
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -167,6 +176,17 @@ private:
 	void ServerNewGame();
 
 	bool bInventoryOpen = false;
+
+	// LIScreenshotTour state.
+	void AdvanceScreenshotTour();
+	void CaptureScreenshotTourStep();
+	bool TeleportToForest();
+	FTimerHandle ScreenshotTourTimer;
+	int32 ScreenshotTourStep = INDEX_NONE;
+	bool bScreenshotTourQuit = false;
+	uint64 ScreenshotTourStartFrame = 0;
+	double ScreenshotTourStartSeconds = 0.0;
+	TArray<FString> ScreenshotTourResults;
 
 	FText HudMessage;
 	double HudMessageExpireTime = 0.0;
