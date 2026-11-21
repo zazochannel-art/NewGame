@@ -91,6 +91,14 @@ public:
 	UFUNCTION(Exec)
 	void LIGoToBoar();
 
+	/** Take a 1280x720 screenshot after Seconds (testing animations from -ExecCmds). */
+	UFUNCTION(Exec)
+	void LIShotIn(float Seconds);
+
+	/** Play a body action on the own character: LIAction gather | hit. */
+	UFUNCTION(Exec)
+	void LIAction(const FString& Action);
+
 	UFUNCTION(Server, Reliable)
 	void ServerDebugGoToBoar();
 

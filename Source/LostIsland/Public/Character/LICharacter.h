@@ -7,6 +7,7 @@
 #include "LICharacter.generated.h"
 
 class UCameraComponent;
+class UAnimSequenceBase;
 class UInputAction;
 class UInputMappingContext;
 class ULIInteractionComponent;
@@ -19,6 +20,14 @@ class UProceduralMeshComponent;
 struct FInputActionValue;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FLIOnSprintStateChanged, bool, bIsSprinting);
+
+/** One-shot body animations shown to every player. */
+UENUM(BlueprintType)
+enum class ELICharacterAction : uint8
+{
+	Gather,   // chopping, mining, picking, spearing
+	HitReact  // bitten or struck
+};
 
 /**
  * ALICharacter
@@ -64,6 +73,10 @@ public:
 	/** True while in deep water (local state, computed the same way on server and owning client). */
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Movement")
 	bool IsSwimming() const { return bIsSwimmingLocal; }
+
+	/** Server -> everyone: play a short body animation (mannequin only; the low-poly body ignores it). */
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastPlayAction(ELICharacterAction Action);
 
 	/** Local: build mode is on (preview of the next building piece). */
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Building")
@@ -143,6 +156,12 @@ protected:
 	void ServerSetWantsToDive(bool bNewWantsToDive);
 
 	void UpdateUnderwaterView();
+
+	/** Weathered colours on the mannequin material ("Paint Tint"). */
+	void ApplyCastawayLook();
+
+	/** Loads a Third Person pack animation by path under /Game/Characters/Mannequins/Anims (null if missing). */
+	static UAnimSequenceBase* LoadCharacterAnim(const TCHAR* RelativePath);
 
 	UFUNCTION(Server, Reliable)
 	void ServerTakeAllFromChest(class ALIStorageChest* Chest);
