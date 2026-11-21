@@ -1,6 +1,7 @@
 // Copyright LOST ISLAND Team. All Rights Reserved.
 
 #include "Resources/LIResourceNode.h"
+#include "Character/LICharacter.h"
 
 #include "Inventory/LIInventoryComponent.h"
 #include "Items/LIItemDefinition.h"
@@ -192,6 +193,10 @@ void ALIResourceNode::Interact_Implementation(APawn* InstigatorPawn)
 
 	RemainingHits = FMath::Max(0, RemainingHits - (Tool ? FMath::Max(1, Tool->ToolHitPower) : 1));
 	BP_OnGathered(InstigatorPawn, Added);
+	if (ALICharacter* Gatherer = Cast<ALICharacter>(InstigatorPawn))
+	{
+		Gatherer->MulticastPlayAction(ELICharacterAction::Gather);
+	}
 
 	if (RemainingHits == 0)
 	{
@@ -484,6 +489,10 @@ void ALIAnimalNode::Tick(float DeltaSeconds)
 				if (ULISurvivalComponent* Survival = Threat->FindComponentByClass<ULISurvivalComponent>())
 				{
 					Survival->ApplyDamage(AttackDamage);
+					if (ALICharacter* Victim = Cast<ALICharacter>(Threat))
+					{
+						Victim->MulticastPlayAction(ELICharacterAction::HitReact);
+					}
 					UE_LOG(LogLostIsland, Log, TEXT("%s bit %s for %.0f."), *GetName(), *Threat->GetName(), AttackDamage);
 				}
 			}

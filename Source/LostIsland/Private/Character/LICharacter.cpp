@@ -43,6 +43,8 @@
 #include "Visuals/LIVisualAssets.h"
 #include "Engine/SkeletalMesh.h"
 #include "Animation/AnimInstance.h"
+#include "Animation/AnimSequenceBase.h"
+#include "Materials/MaterialInstanceDynamic.h"
 
 ALICharacter::ALICharacter()
 {
@@ -162,6 +164,7 @@ void ALICharacter::BeginPlay()
 		PlaceholderBody->SetVisibility(false);
 		PlaceholderBody->SetHiddenInGame(true);
 		BodyRoot->SetVisibility(false, /*bPropagateToChildren*/ true);
+		ApplyCastawayLook();
 	}
 	else
 	{
@@ -680,6 +683,11 @@ void ALICharacter::HandleDeath(AController* Killer)
 		}
 		BodyRoot->SetRelativeLocationAndRotation(FVector(0.f, 0.f, -74.f), FRotator(-84.f, 0.f, 0.f));
 	}
+	else if (UAnimSequenceBase* Death = LoadCharacterAnim(TEXT("Death/MM_Death_Front_01.MM_Death_Front_01")))
+	{
+		// Mannequin: play the fall once and hold the last frame (the anim blueprint is bypassed).
+		GetMesh()->PlayAnimation(Death, /*bLooping*/ false);
+	}
 
 	if (APlayerController* PC = Cast<APlayerController>(Controller))
 	{
@@ -1015,4 +1023,64 @@ void ALICharacter::UpdateUnderwaterView()
 	Settings.bOverride_BloomIntensity = true;
 	Settings.BloomIntensity = 1.2f;
 	FollowCamera->PostProcessBlendWeight = bUnderwater ? 1.f : 0.f;
+}
+
+// ---------------------------------------------------------------------------
+// Mannequin look and one-shot actions (gather swing, hit reaction, death)
+// ---------------------------------------------------------------------------
+
+UAnimSequenceBase* ALICharacter::LoadCharacterAnim(const TCHAR* RelativePath)
+{
+	// Third Person pack animations (mounted under /Game/Characters/Mannequins/Anims); optional.
+	return LoadObject<UAnimSequenceBase>(nullptr, *FString::Printf(TEXT("/Game/Characters/Mannequins/Anims/%s"), RelativePath),
+		nullptr, LOAD_NoWarn | LOAD_Quiet);
+}
+
+void ALICharacter::ApplyCastawayLook()
+{
+	// The mannequin material exposes "Paint Tint": weathered shirt-and-trousers tones instead of grey plastic.
+	USkeletalMeshComponent* Body = GetMesh();
+	if (!Body)
+	{
+		return;
+	}
+	const FLinearColor Tints[] = { FLinearColor(0.62f, 0.46f, 0.30f), FLinearColor(0.20f, 0.24f, 0.30f) };
+	for (int32 Slot = 0; Slot < Body->GetNumMaterials(); ++Slot)
+	{
+		if (UMaterialInterface* Base = Body->GetMaterial(Slot))
+		{
+			if (UMaterialInstanceDynamic* MID = Body->CreateDynamicMaterialInstance(Slot, Base))
+			{
+				MID->SetVectorParameterValue(TEXT("Paint Tint"), Tints[Slot % UE_ARRAY_COUNT(Tints)]);
+			}
+		}
+	}
+}
+
+void ALICharacter::MulticastPlayAction_Implementation(ELICharacterAction Action)
+{
+	if (IsDead() || !GetMesh() || !GetMesh()->GetAnimInstance())
+	{
+		return;
+	}
+	const TCHAR* Path = nullptr;
+	float Rate = 1.f;
+	switch (Action)
+	{
+	case ELICharacterAction::Gather:
+	{
+		static const TCHAR* Swings[] = { TEXT("Unarmed/Attack/MM_Attack_01.MM_Attack_01"), TEXT("Unarmed/Attack/MM_Attack_02.MM_Attack_02"),
+			TEXT("Unarmed/Attack/MM_Attack_03.MM_Attack_03") };
+		Path = Swings[FMath::RandRange(0, 2)];
+		Rate = 1.4f; // gathering is quicker than a full combat swing
+		break;
+	}
+	case ELICharacterAction::HitReact:
+		Path = TEXT("Rifle/HitReact/MM_HitReact_Front_Lgt_01.MM_HitReact_Front_Lgt_01");
+		break;
+	}
+	if (UAnimSequenceBase* Anim = Path ? LoadCharacterAnim(Path) : nullptr)
+	{
+		GetMesh()->GetAnimInstance()->PlaySlotAnimationAsDynamicMontage(Anim, TEXT("DefaultSlot"), 0.1f, 0.2f, Rate);
+	}
 }
