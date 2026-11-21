@@ -343,7 +343,7 @@ protected:
 
 	/** Multiplier on the amount of ground cover (1 = ~3 candidates per 3 m cell). Lower it on slow PCs. */
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Decoration", meta = (ClampMin = "0.0", ClampMax = "4.0"))
-	float DecorationDensity = 1.f;
+	float DecorationDensity = 2.f;
 
 	/** Ground cover fades out beyond this distance from the camera. */
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Decoration", meta = (ClampMin = "1000.0", Units = "cm"))

@@ -395,3 +395,9 @@ Test checklist:
 - [ ] Beach: the sea shows moving waves that reflect the sky.
 - [ ] `LIGoToSea`, hold C: you sink; the view turns murky blue-green and the AIR bar starts. Release C: you float up and the view clears at the surface.
 - [ ] Looking up from under water, the surface is visible.
+
+## Ground and sea detail pass (2026-11-21)
+
+- **Ground colour patches:** meadow and forest ground blend toward dry, sun-bleached grass or lush dark grass in large soft noise patches (1.7 m-17 m scales); beach sand darkens near the waterline (damp sand) and has paler drifts. Per-face brightness variation 6% -> 10%.
+- **Denser ground cover:** `DecorationDensity` 1 -> 2 (about 43,000 grass/flower/pebble instances; FPS in the tour unchanged at 157-178).
+- **Calmer far sea:** procedural wave normals fade to flat by 90 m, which removes the repeating ripple pattern toward the horizon.
