@@ -11,7 +11,16 @@
 import unreal
 
 PACKAGE_PATH = "/Game/MetaHumans"
-ASSET_NAME = "Castaway"
+import sys
+
+# Optional: -script="make_castaway.py Name=CastawayRugged" style args are not passed by the commandlet, so the
+# look is configured here. Change ASSET_NAME to keep earlier versions side by side.
+ASSET_NAME = "CastawayRugged"
+SKIN_U = 0.38          # skin tone (0 = lightest, 1 = darkest)
+SKIN_V = 0.62          # undertone (higher = warmer, more sun-tanned)
+HAIR = "MessyClumps"   # long, salt-matted hair
+BEARD = "L_Messy"      # weeks without a razor
+EYEBROWS = "Thick"
 
 subsystem = unreal.get_editor_subsystem(unreal.MetaHumanCharacterEditorSubsystem)
 asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
@@ -34,6 +43,7 @@ def find_or_create_character():
 
 def add_wardrobe(character, slot, package_path, prefer=None):
     """Adds one wardrobe item from a folder to a slot and selects it (prefer = substring of the asset name)."""
+    registry.scan_paths_synchronous([package_path], True)
     items = registry.get_assets(filter=unreal.ARFilter(
         package_paths=[package_path], recursive_paths=True,
         class_paths=[unreal.MetaHumanWardrobeItem.static_class().get_class_path_name()]))
@@ -72,9 +82,9 @@ def style(character):
 
     # Simple clothes and a scruffy castaway look.
     add_wardrobe(character, "Outfits", "/MetaHumanCharacter/Optional/Clothing")
-    add_wardrobe(character, "Hair", "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair", prefer="short")
-    add_wardrobe(character, "Beard", "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards", prefer="stubble")
-    add_wardrobe(character, "Eyebrows", "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows")
+    add_wardrobe(character, "Hair", "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair", prefer=HAIR)
+    add_wardrobe(character, "Beard", "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards", prefer=BEARD)
+    add_wardrobe(character, "Eyebrows", "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows", prefer=EYEBROWS)
     add_wardrobe(character, "Eyelashes", "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyelashes")
 
 
