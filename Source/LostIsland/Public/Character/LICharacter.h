@@ -136,6 +136,13 @@ protected:
 	void ToggleBuildMode();
 	void NextCraftPage();
 	void TakeAllFromFocused();
+	void StartDive();
+	void StopDive();
+
+	UFUNCTION(Server, Reliable)
+	void ServerSetWantsToDive(bool bNewWantsToDive);
+
+	void UpdateUnderwaterView();
 
 	UFUNCTION(Server, Reliable)
 	void ServerTakeAllFromChest(class ALIStorageChest* Chest);
@@ -247,6 +254,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
 	TObjectPtr<UInputAction> TakeAllAction;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Input")
+	TObjectPtr<UInputAction> DiveAction;
+
 	// ---- Movement tuning ----
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Movement", meta = (ClampMin = "0.0", Units = "cm/s"))
 	float WalkSpeed = 380.f;
@@ -258,6 +268,10 @@ protected:
 	/** Horizontal swim speed. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Swimming", meta = (ClampMin = "0.0", Units = "cm/s"))
 	float SwimSpeed = 260.f;
+
+	/** Downward speed while holding the dive key (C) in deep water. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Swimming", meta = (ClampMin = "0.0", Units = "cm/s"))
+	float DiveSpeed = 180.f;
 
 	/** Water depth at the feet (cm) above which the character starts swimming. Leaves with 30 cm of hysteresis. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Swimming", meta = (ClampMin = "0.0", Units = "cm"))
@@ -305,6 +319,8 @@ private:
 	TWeakObjectPtr<AActor> CachedIsland;
 	bool bSearchedIsland = false;
 	bool bIsSwimmingLocal = false;
+	bool bWantsToDive = false;
+	bool bCameraUnderwater = false;
 
 	/** Local only: build mode shows a preview of the building piece G would place. */
 	void UpdateBuildPreview();
