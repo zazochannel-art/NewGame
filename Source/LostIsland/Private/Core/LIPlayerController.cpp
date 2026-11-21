@@ -635,3 +635,25 @@ void ALIPlayerController::ServerDebugGoToBoar_Implementation()
 	}
 #endif
 }
+
+void ALIPlayerController::LIShotIn(float Seconds)
+{
+#if !UE_BUILD_SHIPPING
+	FTimerHandle Handle;
+	GetWorldTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, [this]()
+	{
+		ConsoleCommand(TEXT("HighResShot 1280x720"));
+	}), FMath::Max(0.1f, Seconds), false);
+#endif
+}
+
+void ALIPlayerController::LIAction(const FString& Action)
+{
+#if !UE_BUILD_SHIPPING
+	if (ALICharacter* LICharacter = Cast<ALICharacter>(GetPawn()))
+	{
+		LICharacter->MulticastPlayAction(Action.Equals(TEXT("hit"), ESearchCase::IgnoreCase)
+			? ELICharacterAction::HitReact : ELICharacterAction::Gather);
+	}
+#endif
+}
