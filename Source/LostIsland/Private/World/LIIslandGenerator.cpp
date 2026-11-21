@@ -581,7 +581,7 @@ void ALIIslandGenerator::SetupEnvironment()
 	{
 		const float Brightness = FMath::Max(1.f, SkyBrightness);
 		SkyAtmosphere->SetSkyLuminanceFactor(FLinearColor(Brightness, Brightness, Brightness));
-		SkyLight->SetIntensity(1.f);
+		SkyLight->SetIntensity(1.8f); // soft, bright shadows for the stylised look
 	}
 
 	// Realistic sky: the engine's volumetric clouds, lit by the sun and the sky atmosphere.

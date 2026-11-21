@@ -401,3 +401,11 @@ Test checklist:
 - **Ground colour patches:** meadow and forest ground blend toward dry, sun-bleached grass or lush dark grass in large soft noise patches (1.7 m-17 m scales); beach sand darkens near the waterline (damp sand) and has paler drifts. Per-face brightness variation 6% -> 10%.
 - **Denser ground cover:** `DecorationDensity` 1 -> 2 (about 43,000 grass/flower/pebble instances; FPS in the tour unchanged at 157-178).
 - **Calmer far sea:** procedural wave normals fade to flat by 90 m, which removes the repeating ripple pattern toward the horizon.
+
+## Bright stylised look (2026-11-21)
+
+A brighter, more colourful casual look of our own (not modelled on any specific game):
+- Palette: warmer sand, brighter meadow and forest greens, lighter rocks and hills; shallow water bright lagoon turquoise, deep water a clearer blue.
+- Grading: saturation 1.05 -> 1.3, contrast 1.02 -> 0.95 (softer), bloom 0.5 -> 0.8, vignette 0.25 -> 0.15, AO 0.5 -> 0.35.
+- Lighting: warmer noon sun, sky light 1 -> 1.8 for soft, bright shadows.
+All values are the island generator's editable properties (`LostIsland|Island|...`), so they can be tuned in the editor.

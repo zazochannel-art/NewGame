@@ -255,11 +255,11 @@ protected:
 	float ForestThreshold = -0.05f;
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Biomes") FLinearColor SeabedColor = FLinearColor(0.55f, 0.48f, 0.32f);
-	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Biomes") FLinearColor SandColor   = FLinearColor(0.93f, 0.82f, 0.55f);
-	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Biomes") FLinearColor MeadowColor = FLinearColor(0.45f, 0.70f, 0.28f);
-	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Biomes") FLinearColor ForestColor = FLinearColor(0.20f, 0.45f, 0.18f);
-	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Biomes") FLinearColor HillsColor  = FLinearColor(0.50f, 0.55f, 0.35f);
-	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Biomes") FLinearColor RockColor   = FLinearColor(0.45f, 0.43f, 0.40f);
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Biomes") FLinearColor SandColor   = FLinearColor(1.00f, 0.86f, 0.58f);
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Biomes") FLinearColor MeadowColor = FLinearColor(0.38f, 0.80f, 0.24f);
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Biomes") FLinearColor ForestColor = FLinearColor(0.16f, 0.58f, 0.20f);
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Biomes") FLinearColor HillsColor  = FLinearColor(0.55f, 0.68f, 0.32f);
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Biomes") FLinearColor RockColor   = FLinearColor(0.58f, 0.55f, 0.52f);
 
 	/** Realistic style: seabed colour at depth (wet sand at the waterline blends into this). */
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Biomes") FLinearColor DeepSeabedColor = FLinearColor(0.16f, 0.22f, 0.20f);
@@ -324,7 +324,7 @@ protected:
 	FLinearColor FoamColor = FLinearColor(0.90f, 0.95f, 0.95f);
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Water")
-	FLinearColor ShallowWaterColor = FLinearColor(0.22f, 0.74f, 0.76f);
+	FLinearColor ShallowWaterColor = FLinearColor(0.10f, 0.85f, 0.78f);
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Water")
 	FLinearColor MidWaterColor = FLinearColor(0.08f, 0.50f, 0.64f);
@@ -361,19 +361,19 @@ protected:
 
 	// ---------------- Look (post process) ----------------
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Look", meta = (ClampMin = "0.0", ClampMax = "2.0"))
-	float LookSaturation = 1.05f;
+	float LookSaturation = 1.3f;
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Look", meta = (ClampMin = "0.5", ClampMax = "2.0"))
-	float LookContrast = 1.02f;
+	float LookContrast = 0.95f;
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Look", meta = (ClampMin = "0.0", ClampMax = "4.0"))
-	float LookBloomIntensity = 0.5f;
+	float LookBloomIntensity = 0.8f;
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Look", meta = (ClampMin = "0.0", ClampMax = "1.0"))
-	float LookVignetteIntensity = 0.25f;
+	float LookVignetteIntensity = 0.15f;
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|Look", meta = (ClampMin = "0.0", ClampMax = "1.0"))
-	float LookAmbientOcclusion = 0.5f;
+	float LookAmbientOcclusion = 0.35f;
 
 	/** Use the built-in sun/sky/fog only if the level has no directional light of its own. */
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering")
@@ -399,7 +399,7 @@ protected:
 	float SkyBrightness = 8.f;
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight")
-	FLinearColor NoonColor = FLinearColor(1.f, 0.96f, 0.88f);
+	FLinearColor NoonColor = FLinearColor(1.f, 0.92f, 0.78f);
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight")
 	FLinearColor SunsetColor = FLinearColor(1.f, 0.55f, 0.3f);
