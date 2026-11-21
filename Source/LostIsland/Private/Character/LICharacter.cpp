@@ -1154,6 +1154,8 @@ UClass* ALICharacter::FindRealCharacterClass()
 
 	// First blueprint named BP_* under the MetaHumans folder (the MetaHuman Creator's assembled output).
 	IAssetRegistry& Registry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	// In editor builds the registry scans in the background; make sure this folder is known before asking.
+	Registry.ScanPathsSynchronous({ Assets.MetaHumanSearchPath }, /*bForceRescan*/ false);
 	TArray<FAssetData> Found;
 	FARFilter Filter;
 	Filter.PackagePaths.Add(FName(*Assets.MetaHumanSearchPath));
