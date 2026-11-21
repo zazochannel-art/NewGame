@@ -362,5 +362,5 @@ Checklist status from this run (automatic only; gameplay interaction items still
 - 4u: **Third Person added** (copied from `Templates/TemplateResources/High/Characters/Content`; the 5.8 template has no `Content/Characters`): `SKM_Quinn_Simple` + `ABP_Unarmed` load, no "not in the project" lines for them. **Starter Content not added**: this UE 5.8 install doesn't contain it (`TemplateResources/High/StarterContent` missing, no copy on disk). The game falls back cleanly: `Textured terrain material unavailable`, one `Optional visual asset not in the project` line per Starter Content path, no errors. Enable it in the Launcher (Docs/GraficaRealista_RO.md) and rerun the tour.
 - 4v: wreck detail verified visually; building, raft, chest, sleeping bag need an interactive session.
 
-Follow-ups: clouds read as dark grey against the brighter sky (cloud lighting is still tuned for the old sky); sunset colour is mostly visible looking toward the sun.
+Follow-ups: sunset colour is mostly visible looking toward the sun. (Fixed afterwards: clouds read as dark grey against the brighter sky; the sun's `CloudScatteredLuminanceScale` now uses `SkyBrightness` and cloud bottom occlusion is 0.2, so clouds are white.)
 

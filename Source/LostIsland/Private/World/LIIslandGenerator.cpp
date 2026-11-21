@@ -568,6 +568,15 @@ void ALIIslandGenerator::SetupEnvironment()
 			bVolumetricClouds = true;
 		}
 	}
+	if (bVolumetricClouds)
+	{
+		// The visible sky is boosted by SkyBrightness; light the clouds by the same factor so they read white,
+		// not dark grey, against it. Softer bottom occlusion keeps their undersides from going black.
+		const float CloudBrightness = FMath::Max(1.f, SkyBrightness);
+		Sun->CloudScatteredLuminanceScale = FLinearColor(CloudBrightness, CloudBrightness, CloudBrightness); // no setter in UE 5.8
+		Sun->MarkRenderStateDirty();
+		VolumetricCloud->SetSkyLightCloudBottomOcclusion(0.2f);
+	}
 	VolumetricCloud->SetVisibility(bVolumetricClouds);
 	CloudMesh->SetVisibility(!bVolumetricClouds);
 
