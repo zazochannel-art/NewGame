@@ -10,6 +10,7 @@
 #include "Inventory/LIInventoryComponent.h"
 #include "Items/LIItemTypes.h"
 #include "LostIsland.h"
+#include "World/LIIslandGenerator.h"
 #include "Survival/LISurvivalComponent.h"
 
 #include "Components/StaticMeshComponent.h"
@@ -111,6 +112,8 @@ void ALICrashSite::BeginPlay()
 		SearchesLeft = MaxSearches;
 	}
 
+	SettleOnGround();
+
 	// Tint the placeholder parts (engine BasicShapeMaterial exposes "Color"). One-time, ~13 MIDs.
 	auto Tint = [](UStaticMeshComponent* Part, const FLinearColor& Color)
 	{
@@ -129,6 +132,43 @@ void ALICrashSite::BeginPlay()
 	}
 
 	BuildDetailedWreck();
+}
+
+void ALICrashSite::SettleOnGround()
+{
+	// The site is picked from the height function, but the rendered terrain (smooth style, finer grid) can rise
+	// above that point under the nose and wings, burying most of the plane so only the tail showed. Sample the
+	// real ground under the footprint (every machine sees the same terrain) and lift the wreck to sit on it.
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	const FTransform Frame = GetActorTransform();
+	const FVector2D Footprint[] = { {500.f, 0.f}, {250.f, 0.f}, {0.f, 0.f}, {-250.f, 0.f}, {-450.f, 0.f},
+		{60.f, -320.f}, {60.f, -600.f}, {60.f, 220.f}, {-420.f, -150.f}, {-420.f, 150.f} };
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(LICrashSiteSettle), false, this);
+	float HighestGround = -TNumericLimits<float>::Max();
+	for (const FVector2D& Point : Footprint)
+	{
+		const FVector World2D = Frame.TransformPosition(FVector(Point.X, Point.Y, 0.f));
+		FHitResult Hit;
+		if (World->LineTraceSingleByObjectType(Hit, World2D + FVector(0.f, 0.f, 2000.f), World2D - FVector(0.f, 0.f, 2000.f),
+			FCollisionObjectQueryParams(ECC_WorldStatic), Params) && Cast<ALIIslandGenerator>(Hit.GetActor()))
+		{
+			HighestGround = FMath::Max(HighestGround, Hit.ImpactPoint.Z);
+		}
+	}
+	if (HighestGround > GetActorLocation().Z)
+	{
+		// Sit on the highest point with the hull slightly dug in (it still reads as a crash, not a parked plane).
+		const float Lift = HighestGround - GetActorLocation().Z - 35.f;
+		if (Lift > 0.f)
+		{
+			AddActorWorldOffset(FVector(0.f, 0.f, Lift));
+			UE_LOG(LogLostIsland, Log, TEXT("Crash site lifted %.0f cm onto the terrain."), Lift);
+		}
+	}
 }
 
 void ALICrashSite::BuildDetailedWreck()

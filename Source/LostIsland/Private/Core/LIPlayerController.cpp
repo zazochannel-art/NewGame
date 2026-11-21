@@ -1,4 +1,4 @@
-﻿// Copyright LOST ISLAND Team. All Rights Reserved.
+// Copyright LOST ISLAND Team. All Rights Reserved.
 
 #include "Core/LIPlayerController.h"
 
@@ -422,7 +422,7 @@ void ALIPlayerController::ServerDebugGoToCrashSite_Implementation()
 
 	// Stand 10 m to the side of the wreck, a little above ground, looking at it.
 	const FTransform Wreck = Island->GetCrashSiteTransform();
-	const FVector Location = Wreck.GetLocation() + Wreck.GetRotation().GetRightVector() * -1000.f + FVector(0.f, 0.f, 300.f);
+	const FVector Location = Wreck.GetLocation() + Wreck.GetRotation().GetRightVector() * -750.f + Wreck.GetRotation().GetForwardVector() * 300.f + FVector(0.f, 0.f, 300.f); // front three-quarter view
 	const FRotator LookAt = (Wreck.GetLocation() - Location).Rotation();
 	MyPawn->TeleportTo(Location, FRotator(0.f, LookAt.Yaw, 0.f));
 	SetControlRotation(FRotator(-10.f, LookAt.Yaw, 0.f));
