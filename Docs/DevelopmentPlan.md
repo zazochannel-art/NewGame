@@ -382,3 +382,16 @@ Follow-ups: sunset colour is mostly visible looking toward the sun. (Fixed after
 - [ ] With the spear, a boar's prompt says `with Stone Spear` and drops from 6/6 to 0 in three E presses (2 per thrust); a crab falls in one.
 - [ ] More meat per thrust (x1.5) and less stamina (x0.7); the spear wears out after 40 thrusts.
 - [ ] Without a spear, animals take the old number of hits.
+
+## Water and diving pass (2026-11-21)
+
+- **Waves without textures:** when `T_Water_N` (Starter Content) is missing, the water material builds its normal from three moving sine waves in world space (swell 17 m, chop 6.2 m, ripples 2.6 m). With the texture the old panned normal maps are used.
+- **Water is two-sided**, so the surface is visible from below.
+- **Diving:** hold **C** (gamepad right shoulder) while swimming to go down at 180 cm/s (`DiveSpeed`); release to float back up. Breath and drowning work as before. The dive state is sent to the server (`ServerSetWantsToDive`).
+- **Underwater view:** while the camera is under the sea level, the follow camera's post process tints the view blue-green, desaturates it, darkens the edges and blurs beyond ~2.5 m.
+- **Screenshot tour** has a sixth view, `underwater` (dives off the start beach).
+
+Test checklist:
+- [ ] Beach: the sea shows moving waves that reflect the sky.
+- [ ] `LIGoToSea`, hold C: you sink; the view turns murky blue-green and the AIR bar starts. Release C: you float up and the view clears at the surface.
+- [ ] Looking up from under water, the surface is visible.

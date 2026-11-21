@@ -31,6 +31,11 @@
 #include "Materials/MaterialExpressionUtils.h"
 #include "Materials/MaterialExpressionTextureSample.h"
 #include "Materials/MaterialExpressionWorldPosition.h"
+#include "Materials/MaterialExpressionAppendVector.h"
+#include "Materials/MaterialExpressionConstant2Vector.h"
+#include "Materials/MaterialExpressionCosine.h"
+#include "Materials/MaterialExpressionDotProduct.h"
+#include "Materials/MaterialExpressionTime.h"
 #endif
 
 /**
@@ -278,11 +283,101 @@ namespace
 	 * Translucent sea: clear and turquoise over sand near the shore, deep blue-green further out (depth fade
 	 * against the seabed), a white foam line where the water meets the beach, glossy with a Fresnel sheen.
 	 */
+	/**
+	 * Moving waves without any texture: the slope of a sum of sine waves gives a tangent-space normal.
+	 * For a wave H = A sin(k (D.P) + w t): dH/dP = A k D cos(...). Normal = normalize(-dH/dx, -dH/dy, 1).
+	 * World XY drives the phase, so the huge water plane needs no UVs and every machine sees the same sea.
+	 */
+	void AddProceduralWaveNormal(UMaterial* Material)
+	{
+		struct FWave { FVector2D Dir; float WaveLength; float Steepness; float Speed; };
+		const FWave Waves[] = {
+			{ FVector2D(0.80f, 0.60f), 1700.f, 0.16f, 0.9f },  // long swell
+			{ FVector2D(-0.45f, 0.89f), 620.f, 0.10f, 1.6f },  // cross chop
+			{ FVector2D(0.20f, -0.98f), 260.f, 0.06f, 2.6f },  // ripples
+		};
+
+		UMaterialExpressionWorldPosition* WorldPosition = AddExpression<UMaterialExpressionWorldPosition>(Material, -2200, 1200);
+		UMaterialExpressionComponentMask* XY = AddExpression<UMaterialExpressionComponentMask>(Material, -2000, 1200);
+		UMaterialExpressionTime* Time = AddExpression<UMaterialExpressionTime>(Material, -2000, 1400);
+		if (!WorldPosition || !XY || !Time)
+		{
+			return;
+		}
+		XY->R = true;
+		XY->G = true;
+		LIMaterialGraph::ConnectMaterialExpressions(WorldPosition, TEXT(""), XY, TEXT(""));
+
+		UMaterialExpression* Slope = nullptr; // running sum of (dH/dx, dH/dy)
+		int32 Row = 0;
+		for (const FWave& Wave : Waves)
+		{
+			const float Y = 1200.f + Row++ * 260.f;
+			const float K = 2.f * PI / Wave.WaveLength;
+			UMaterialExpressionConstant2Vector* Dir = AddExpression<UMaterialExpressionConstant2Vector>(Material, -1800, Y);
+			UMaterialExpressionDotProduct* Along = AddExpression<UMaterialExpressionDotProduct>(Material, -1600, Y);
+			UMaterialExpressionMultiply* Phase = AddExpression<UMaterialExpressionMultiply>(Material, -1400, Y);
+			UMaterialExpressionMultiply* TimePhase = AddExpression<UMaterialExpressionMultiply>(Material, -1600, Y + 100);
+			UMaterialExpressionAdd* Total = AddExpression<UMaterialExpressionAdd>(Material, -1200, Y);
+			UMaterialExpressionCosine* Cos = AddExpression<UMaterialExpressionCosine>(Material, -1000, Y);
+			UMaterialExpressionMultiply* Amp = AddExpression<UMaterialExpressionMultiply>(Material, -800, Y);
+			UMaterialExpressionConstant2Vector* DirScaled = AddExpression<UMaterialExpressionConstant2Vector>(Material, -1000, Y + 100);
+			if (!Dir || !Along || !Phase || !TimePhase || !Total || !Cos || !Amp || !DirScaled)
+			{
+				return;
+			}
+			const FVector2D D = Wave.Dir.GetSafeNormal();
+			Dir->R = D.X;
+			Dir->G = D.Y;
+			Phase->ConstB = K;
+			TimePhase->ConstB = Wave.Speed;
+			Cos->Period = 2.f * PI; // radians
+			// Steepness = A * k (max slope of this wave), split along its direction.
+			DirScaled->R = D.X * Wave.Steepness;
+			DirScaled->G = D.Y * Wave.Steepness;
+
+			LIMaterialGraph::ConnectMaterialExpressions(XY, TEXT(""), Along, TEXT("A"));
+			LIMaterialGraph::ConnectMaterialExpressions(Dir, TEXT(""), Along, TEXT("B"));
+			LIMaterialGraph::ConnectMaterialExpressions(Along, TEXT(""), Phase, TEXT("A"));
+			LIMaterialGraph::ConnectMaterialExpressions(Time, TEXT(""), TimePhase, TEXT("A"));
+			LIMaterialGraph::ConnectMaterialExpressions(Phase, TEXT(""), Total, TEXT("A"));
+			LIMaterialGraph::ConnectMaterialExpressions(TimePhase, TEXT(""), Total, TEXT("B"));
+			LIMaterialGraph::ConnectMaterialExpressions(Total, TEXT(""), Cos, TEXT(""));
+			LIMaterialGraph::ConnectMaterialExpressions(Cos, TEXT(""), Amp, TEXT("A"));
+			LIMaterialGraph::ConnectMaterialExpressions(DirScaled, TEXT(""), Amp, TEXT("B"));
+
+			if (!Slope)
+			{
+				Slope = Amp;
+			}
+			else if (UMaterialExpressionAdd* Sum = AddExpression<UMaterialExpressionAdd>(Material, -600, Y))
+			{
+				LIMaterialGraph::ConnectMaterialExpressions(Slope, TEXT(""), Sum, TEXT("A"));
+				LIMaterialGraph::ConnectMaterialExpressions(Amp, TEXT(""), Sum, TEXT("B"));
+				Slope = Sum;
+			}
+		}
+
+		UMaterialExpressionMultiply* Negate = AddExpression<UMaterialExpressionMultiply>(Material, -450, 1200);
+		UMaterialExpressionAppendVector* Normal = AddExpression<UMaterialExpressionAppendVector>(Material, -300, 1200);
+		UMaterialExpressionConstant* Up = AddScalar(Material, 1.f, -450, 1300);
+		if (!Slope || !Negate || !Normal || !Up)
+		{
+			return;
+		}
+		Negate->ConstB = -1.f;
+		LIMaterialGraph::ConnectMaterialExpressions(Slope, TEXT(""), Negate, TEXT("A"));
+		LIMaterialGraph::ConnectMaterialExpressions(Negate, TEXT(""), Normal, TEXT("A"));
+		LIMaterialGraph::ConnectMaterialExpressions(Up, TEXT(""), Normal, TEXT("B"));
+		LIMaterialGraph::ConnectMaterialProperty(Normal, TEXT(""), MP_Normal);
+	}
+
 	UMaterial* BuildWaterMaterial()
 	{
 		UMaterial* Material = NewTransientMaterial(TEXT("M_LI_Water"));
 		Material->BlendMode = BLEND_Translucent;
 		Material->TranslucencyLightingMode = TLM_SurfacePerPixelLighting;
+		Material->TwoSided = true; // also visible from below while diving
 
 		// Depth below the surface, 0 at the shore -> 1 at ~5 m of water.
 		UMaterialExpressionDepthFade* Depth = AddExpression<UMaterialExpressionDepthFade>(Material, -900, 0);
@@ -339,7 +434,12 @@ namespace
 
 		// Moving waves: two copies of a water normal map, panned in different directions at different scales
 		// (UVs from world XY so the huge water plane tiles correctly), softened toward flat.
-		if (UTexture* WaveTexture = ULIVisualAssets::LoadOptional<UTexture>(ULIVisualAssets::Get().WaterNormalTexture))
+		UTexture* WaveTexture = ULIVisualAssets::LoadOptional<UTexture>(ULIVisualAssets::Get().WaterNormalTexture);
+		if (!WaveTexture)
+		{
+			AddProceduralWaveNormal(Material);
+		}
+		if (WaveTexture)
 		{
 			UMaterialExpressionWorldPosition* WorldPosition = AddExpression<UMaterialExpressionWorldPosition>(Material, -1500, 800);
 			UMaterialExpressionComponentMask* XY = AddExpression<UMaterialExpressionComponentMask>(Material, -1300, 800);

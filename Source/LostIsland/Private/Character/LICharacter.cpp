@@ -280,6 +280,11 @@ void ALICharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	{
 		EIC->BindAction(TakeAllAction, ETriggerEvent::Started, this, &ALICharacter::TakeAllFromFocused);
 	}
+	if (DiveAction)
+	{
+		EIC->BindAction(DiveAction, ETriggerEvent::Started, this, &ALICharacter::StartDive);
+		EIC->BindAction(DiveAction, ETriggerEvent::Completed, this, &ALICharacter::StopDive);
+	}
 }
 
 void ALICharacter::EnsureDefaultInput()
@@ -315,6 +320,7 @@ void ALICharacter::EnsureDefaultInput()
 	if (!BuildModeAction) { BuildModeAction = MakeAction(TEXT("IA_BuildMode_Runtime"), EInputActionValueType::Boolean); }
 	if (!CraftPageAction) { CraftPageAction = MakeAction(TEXT("IA_CraftPage_Runtime"), EInputActionValueType::Boolean); }
 	if (!TakeAllAction)   { TakeAllAction   = MakeAction(TEXT("IA_TakeAll_Runtime"),   EInputActionValueType::Boolean); }
+	if (!DiveAction)      { DiveAction      = MakeAction(TEXT("IA_Dive_Runtime"),      EInputActionValueType::Boolean); }
 
 	if (DefaultMappingContext)
 	{
@@ -393,6 +399,8 @@ void ALICharacter::EnsureDefaultInput()
 	IMC->MapKey(BuildModeAction, EKeys::B);
 	IMC->MapKey(CraftPageAction, EKeys::Q);
 	IMC->MapKey(TakeAllAction, EKeys::R);
+	IMC->MapKey(DiveAction, EKeys::C);
+	IMC->MapKey(DiveAction, EKeys::Gamepad_RightShoulder);
 	IMC->MapKey(TakeAllAction, EKeys::Gamepad_FaceButton_Top);
 	IMC->MapKey(BuildModeAction, EKeys::Gamepad_DPad_Left);
 
@@ -763,6 +771,7 @@ void ALICharacter::Tick(float DeltaSeconds)
 	if (IsLocallyControlled())
 	{
 		UpdateBuildPreview();
+		UpdateUnderwaterView();
 	}
 }
 
@@ -831,9 +840,16 @@ void ALICharacter::UpdateSwimming(float DeltaSeconds)
 	if (bIsSwimmingLocal && Movement->MovementMode == MOVE_Flying)
 	{
 		// Float with the head above water; an exhausted swimmer slowly sinks.
+		if (bWantsToDive && !bExhausted)
+		{
+			Movement->Velocity.Z = -DiveSpeed; // hold C: swim down (the seabed stops you)
+		}
+		else
+		{
 		const float TargetZ = bExhausted ? SeaLevel - HalfHeight * 2.f - 100.f : SeaLevel - FloatDepth;
 		const float MaxVertical = bExhausted ? 60.f : 150.f;
 		Movement->Velocity.Z = FMath::Clamp((TargetZ - Location.Z) * 2.f, -MaxVertical, MaxVertical);
+		}
 	}
 
 	// Breath: the head (top of the capsule, minus a little) is under the surface.
@@ -946,4 +962,57 @@ void ALICharacter::ServerTakeAllFromChest_Implementation(ALIStorageChest* Chest)
 	{
 		Chest->TakeAllInto(InventoryComponent);
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Diving and the underwater look
+// ---------------------------------------------------------------------------
+
+void ALICharacter::StartDive()
+{
+	bWantsToDive = true;
+	if (!HasAuthority())
+	{
+		ServerSetWantsToDive(true);
+	}
+}
+
+void ALICharacter::StopDive()
+{
+	bWantsToDive = false;
+	if (!HasAuthority())
+	{
+		ServerSetWantsToDive(false);
+	}
+}
+
+void ALICharacter::ServerSetWantsToDive_Implementation(bool bNewWantsToDive)
+{
+	bWantsToDive = bNewWantsToDive;
+}
+
+void ALICharacter::UpdateUnderwaterView()
+{
+	// Local only: when the camera is below the sea, tint and soften the view like murky water.
+	const bool bUnderwater = FollowCamera && FollowCamera->GetComponentLocation().Z < GetSeaLevelZ() - 5.f;
+	if (bUnderwater == bCameraUnderwater || !FollowCamera)
+	{
+		return;
+	}
+	bCameraUnderwater = bUnderwater;
+
+	FPostProcessSettings& Settings = FollowCamera->PostProcessSettings;
+	Settings.bOverride_SceneColorTint = true;
+	Settings.SceneColorTint = FLinearColor(0.35f, 0.72f, 0.80f);
+	Settings.bOverride_ColorSaturation = true;
+	Settings.ColorSaturation = FVector4(0.7f, 0.7f, 0.7f, 1.f);
+	Settings.bOverride_VignetteIntensity = true;
+	Settings.VignetteIntensity = 0.9f;
+	Settings.bOverride_DepthOfFieldFocalDistance = true;
+	Settings.DepthOfFieldFocalDistance = 250.f; // things beyond a few metres blur away
+	Settings.bOverride_DepthOfFieldFstop = true;
+	Settings.DepthOfFieldFstop = 0.8f;
+	Settings.bOverride_BloomIntensity = true;
+	Settings.BloomIntensity = 1.2f;
+	FollowCamera->PostProcessBlendWeight = bUnderwater ? 1.f : 0.f;
 }
