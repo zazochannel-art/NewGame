@@ -112,6 +112,8 @@ protected:
 private:
 	/** Detailed plane and debris (cosmetic, every machine); the part shapes stay as hidden collision. */
 	void BuildDetailedWreck();
+	/** Lifts the wreck so the rendered terrain does not bury the fuselage. */
+	void SettleOnGround();
 
 	UStaticMeshComponent* MakePart(const TCHAR* Name, USceneComponent* Parent, class UStaticMesh* Mesh,
 		const FVector& Location, const FRotator& Rotation, const FVector& Scale);
