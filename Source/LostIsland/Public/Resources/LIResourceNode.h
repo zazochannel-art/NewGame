@@ -233,7 +233,6 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
-	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const override;
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Animal", meta = (Units = "cm/s"))
 	float WanderSpeed = 70.f;
@@ -281,6 +280,7 @@ class LOSTISLAND_API ALICrabNode : public ALIAnimalNode
 	GENERATED_BODY()
 public:
 	ALICrabNode();
+	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const override;
 };
 
 /** Wild boar -> Raw Meat (lots). Aggressive: charges nearby players and bites. Takes many hits. */
@@ -290,4 +290,5 @@ class LOSTISLAND_API ALIBoarNode : public ALIAnimalNode
 	GENERATED_BODY()
 public:
 	ALIBoarNode();
+	virtual void BuildVisual(FLILowPolyMesh& OutMesh, FRandomStream& Random) const override;
 };

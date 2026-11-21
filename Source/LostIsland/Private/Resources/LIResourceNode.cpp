@@ -190,7 +190,7 @@ void ALIResourceNode::Interact_Implementation(APawn* InstigatorPawn)
 		Inventory->ConsumeToolDurability(ToolSlot);
 	}
 
-	RemainingHits = FMath::Max(0, RemainingHits - 1);
+	RemainingHits = FMath::Max(0, RemainingHits - (Tool ? FMath::Max(1, Tool->ToolHitPower) : 1));
 	BP_OnGathered(InstigatorPawn, Added);
 
 	if (RemainingHits == 0)
@@ -544,6 +544,7 @@ ALICrabNode::ALICrabNode()
 	ReactRadius = 400.f;
 	WanderRadius = 600.f;
 	bAggressive = false;
+	EffectiveTool = ELIToolType::Spear;
 }
 
 ALIBoarNode::ALIBoarNode()
@@ -573,6 +574,7 @@ ALIBoarNode::ALIBoarNode()
 	AttackDamage = 8.f;
 	AttackRange = 170.f;
 	AttackCooldown = 1.5f;
+	EffectiveTool = ELIToolType::Spear;
 }
 
 #undef LOCTEXT_NAMESPACE
@@ -836,3 +838,28 @@ void ALIBerryBushNode::BuildRealMeshOverlay(FLILowPolyMesh& Out, FRandomStream& 
 	}
 }
 
+
+void ALIBoarNode::BuildVisual(FLILowPolyMesh& Out, FRandomStream& Random) const
+{
+	// Forward = +X (movement direction). Bristly dark body, lighter snout, pale tusks.
+	const FLinearColor Hide = LIVaryColor(FLinearColor(0.24f, 0.16f, 0.11f), Random, 0.08f);
+	const FLinearColor Belly(0.36f, 0.26f, 0.19f);
+	const FLinearColor Snout(0.50f, 0.34f, 0.30f);
+	const FLinearColor Tusk(0.88f, 0.84f, 0.74f);
+	const FLinearColor Hoof(0.08f, 0.06f, 0.05f);
+
+	Out.AddBlob(FTransform(FVector(0.f, 0.f, 48.f)), FVector(62.f, 30.f, 30.f), 0.12f, Random, Belly, &Hide, -0.1f);
+	Out.AddBlob(FTransform(FVector(-10.f, 0.f, 70.f)), FVector(40.f, 12.f, 10.f), 0.25f, Random, Hide, nullptr, 0.f, 0); // bristly ridge
+	Out.AddBlob(FTransform(FVector(62.f, 0.f, 50.f)), FVector(26.f, 22.f, 22.f), 0.1f, Random, Hide, nullptr, 0.f);
+	Out.AddFrustum(FTransform(FRotator(-90.f, 0.f, 0.f), FVector(80.f, 0.f, 44.f)), 7, 11.f, 9.f, 18.f, Snout);
+	for (const float Side : { -1.f, 1.f })
+	{
+		Out.AddFrustum(FTransform(FRotator(-55.f, Side * 15.f, 0.f), FVector(90.f, Side * 9.f, 38.f)), 5, 2.2f, 0.4f, 14.f, Tusk);
+		Out.AddBox(FTransform(FRotator(0.f, 0.f, Side * 20.f), FVector(55.f, Side * 15.f, 70.f)), FVector(4.f, 6.f, 7.f), Hide); // ears
+		for (const float X : { -38.f, 34.f })
+		{
+			Out.AddFrustum(FTransform(FVector(X, Side * 17.f, 0.f)), 6, 6.f, 7.f, 28.f, Hide);
+			Out.AddFrustum(FTransform(FVector(X, Side * 17.f, 0.f)), 6, 6.5f, 6.f, 5.f, Hoof);
+		}
+	}
+}

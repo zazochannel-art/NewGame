@@ -82,6 +82,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Tool", meta = (ClampMin = "0"))
 	int32 MaxDurability = 0;
 
+	/** Hits this tool counts for on a node it is effective against (a spear hits an animal twice as hard). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Tool", meta = (ClampMin = "1"))
+	int32 ToolHitPower = 1;
+
 	/** If set, the item can be placed in the world (G) as this actor; the item is consumed. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Placeable")
 	TSubclassOf<AActor> PlaceableActorClass;

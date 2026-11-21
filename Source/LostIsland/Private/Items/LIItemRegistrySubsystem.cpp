@@ -75,6 +75,7 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 		{ LIItems::ScrapMetal, LOCTEXT("ScrapMetal", "Scrap Metal"), LOCTEXT("ScrapMetalDesc", "Twisted aluminium from the wreck. Better tools will need it."), 30, ELIItemCategory::Resource, 0.f, 0.f },
 		{ LIItems::StoneAxe, LOCTEXT("StoneAxe", "Stone Axe"), LOCTEXT("StoneAxeDesc", "Sharp stone lashed to a branch. Fells trees faster."), 1, ELIItemCategory::Tool, 0.f, 0.f },
 		{ LIItems::StonePickaxe, LOCTEXT("StonePickaxe", "Stone Pickaxe"), LOCTEXT("StonePickaxeDesc", "Heavy pointed stone on a haft. Breaks rock faster."), 1, ELIItemCategory::Tool, 0.f, 0.f },
+		{ LIItems::StoneSpear, LOCTEXT("StoneSpear", "Stone Spear"), LOCTEXT("StoneSpearDesc", "A flint point on a long shaft. Hunts crabs and boars twice as fast, for more meat."), 1, ELIItemCategory::Tool, 0.f, 0.f },
 	};
 
 	for (const FBuiltIn& BuiltIn : BuiltIns)
@@ -119,6 +120,14 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 		Pickaxe->ToolType = ELIToolType::Pickaxe;
 		Pickaxe->MaxDurability = 40;
 	}
+	if (ULIItemDefinition* Spear = FindItem(LIItems::StoneSpear))
+	{
+		Spear->ToolType = ELIToolType::Spear;
+		Spear->MaxDurability = 40;
+		Spear->ToolYieldMultiplier = 1.5f;
+		Spear->ToolStaminaMultiplier = 0.7f;
+		Spear->ToolHitPower = 2; // a boar falls in 3 thrusts instead of 6
+	}
 	if (ULIItemDefinition* Flask = FindItem(LIItems::WaterFlask))
 	{
 		Flask->ConsumeReturnsItem = LIItems::EmptyFlask;
@@ -156,6 +165,7 @@ void ULIItemRegistrySubsystem::RegisterBuiltInRecipes()
 	{
 		{ LIItems::StoneAxe,     { { LIItems::Wood, 3 }, { LIItems::Stone, 2 }, { LIItems::Fiber, 4 } }, { LIItems::StoneAxe, 1 },     10 },
 		{ LIItems::StonePickaxe, { { LIItems::Wood, 3 }, { LIItems::Stone, 4 }, { LIItems::Fiber, 4 } }, { LIItems::StonePickaxe, 1 }, 20 },
+		{ LIItems::StoneSpear,   { { LIItems::Wood, 3 }, { LIItems::Stone, 2 }, { LIItems::Fiber, 3 } }, { LIItems::StoneSpear, 1 },   25 },
 		{ LIItems::FiberBandage, { { LIItems::Fiber, 6 } },                                              { LIItems::FiberBandage, 1 }, 30 },
 		{ LIItems::CookedMeat,   { { LIItems::RawMeat, 1 } },                                            { LIItems::CookedMeat, 1 },   35, true },
 		{ LIItems::EmptyFlask,   { { LIItems::ScrapMetal, 2 }, { LIItems::Fiber, 2 } },                  { LIItems::EmptyFlask, 1 },   32 },
