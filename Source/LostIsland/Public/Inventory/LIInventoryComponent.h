@@ -84,6 +84,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LostIsland|Inventory")
 	void RequestConsumeBest();
 
+	/** Client or server: eat / drink / use the item in a given slot (hotbar selection). */
+	UFUNCTION(BlueprintCallable, Category = "LostIsland|Inventory")
+	void RequestConsumeSlot(int32 SlotIndex);
+
 	/** Server: consume one ItemId, applying its food/water/health values. Returns true on success. */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "LostIsland|Inventory")
 	bool ConsumeItem(FName ItemId);
@@ -137,6 +141,9 @@ private:
 
 	UFUNCTION(Server, Reliable)
 	void ServerConsumeBest();
+
+	UFUNCTION(Server, Reliable)
+	void ServerConsumeSlot(int32 SlotIndex);
 
 	UFUNCTION(Client, Unreliable)
 	void ClientNotifyConsumed(FName ItemId);
