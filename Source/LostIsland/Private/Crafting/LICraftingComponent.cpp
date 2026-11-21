@@ -285,3 +285,20 @@ void ULICraftingComponent::ClientNotifyCrafted_Implementation(FName OutputItemId
 	UE_LOG(LogLostIsland, Log, TEXT("Crafted %d x %s."), Quantity, *OutputItemId.ToString());
 	RememberPlaceable(OutputItemId); // client side, so the [G] hint matches what the server will place
 }
+
+void ULICraftingComponent::RequestPlaceItem(FName ItemId)
+{
+	if (GetOwnerRole() == ROLE_Authority)
+	{
+		PlaceItem(ItemId);
+	}
+	else
+	{
+		ServerPlaceItem(ItemId);
+	}
+}
+
+void ULICraftingComponent::ServerPlaceItem_Implementation(FName ItemId)
+{
+	PlaceItem(ItemId); // validates that the item is carried and placeable
+}

@@ -74,6 +74,17 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Movement")
 	bool IsSwimming() const { return bIsSwimmingLocal; }
 
+	/** Hotbar = the first HotbarSize inventory slots, shown at the bottom centre; keys 1-8 select one. */
+	static constexpr int32 HotbarSize = 8;
+
+	int32 GetSelectedHotbarSlot() const { return SelectedHotbarSlot; }
+
+	/** Item definition in the selected hotbar slot, or null if it is empty. */
+	const class ULIItemDefinition* GetSelectedHotbarItem() const;
+
+	/** Local: choose the hotbar slot F (eat/use) and G (place) act on. */
+	void SelectHotbarSlot(int32 SlotIndex);
+
 	/** Server -> everyone: play a short body animation (mannequin only; the low-poly body ignores it). */
 	UFUNCTION(NetMulticast, Unreliable)
 	void MulticastPlayAction(ELICharacterAction Action);
@@ -339,6 +350,7 @@ private:
 	bool bSearchedIsland = false;
 	bool bIsSwimmingLocal = false;
 	bool bWantsToDive = false;
+	int32 SelectedHotbarSlot = 0;
 	bool bCameraUnderwater = false;
 
 	/** Local only: build mode shows a preview of the building piece G would place. */

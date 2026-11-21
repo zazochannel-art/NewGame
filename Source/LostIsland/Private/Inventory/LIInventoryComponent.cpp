@@ -464,3 +464,23 @@ const TArray<FLIInventoryNotice>& ULIInventoryComponent::GetActiveNotices()
 }
 
 #undef LOCTEXT_NAMESPACE
+
+void ULIInventoryComponent::RequestConsumeSlot(int32 SlotIndex)
+{
+	if (GetOwnerRole() == ROLE_Authority)
+	{
+		ServerConsumeSlot_Implementation(SlotIndex);
+	}
+	else
+	{
+		ServerConsumeSlot(SlotIndex);
+	}
+}
+
+void ULIInventoryComponent::ServerConsumeSlot_Implementation(int32 SlotIndex)
+{
+	if (Slots.IsValidIndex(SlotIndex) && !Slots[SlotIndex].IsEmpty())
+	{
+		ConsumeItem(Slots[SlotIndex].ItemId);
+	}
+}

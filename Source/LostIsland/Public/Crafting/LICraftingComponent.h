@@ -48,6 +48,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LostIsland|Crafting")
 	void RequestPlace();
 
+	/** Client or server: place this specific placeable item (hotbar selection). */
+	UFUNCTION(BlueprintCallable, Category = "LostIsland|Crafting")
+	void RequestPlaceItem(FName ItemId);
+
 	/** Server: craft once. Returns true on success. */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "LostIsland|Crafting")
 	bool Craft(FName RecipeId);
@@ -61,6 +65,9 @@ private:
 
 	UFUNCTION(Server, Reliable)
 	void ServerPlace();
+
+	UFUNCTION(Server, Reliable)
+	void ServerPlaceItem(FName ItemId);
 
 	/** Server: spawn the item's actor on the ground in front of the owner. */
 	bool PlaceItem(FName ItemId);

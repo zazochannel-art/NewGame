@@ -53,6 +53,7 @@ void ALIHUD::DrawHUD()
 	}
 
 	DrawSurvivalBars(Character);
+	DrawHotbar(Character);
 	DrawInventoryNotices(Character);
 
 	// Clock, top-left: "Day 2  21:30  Night"
@@ -134,7 +135,7 @@ void ALIHUD::DrawHUD()
 			UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
 			float W = 0.f, H = 0.f;
 			GetTextSize(Hint, W, H, Font, 1.f);
-			DrawText(Hint, PromptColor, CenterX - W * 0.5f, Canvas->ClipY - 68.f, Font, 1.f);
+			DrawText(Hint, PromptColor, CenterX - W * 0.5f, Canvas->ClipY - 148.f, Font, 1.f); // above the hotbar
 		}
 	}
 
@@ -150,7 +151,7 @@ void ALIHUD::DrawHUD()
 			UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
 			float W = 0.f, H = 0.f;
 			GetTextSize(Hint, W, H, Font, 1.f);
-			DrawText(Hint, PromptColor, CenterX - W * 0.5f, Canvas->ClipY - 48.f, Font, 1.f);
+			DrawText(Hint, PromptColor, CenterX - W * 0.5f, Canvas->ClipY - 128.f, Font, 1.f);
 		}
 	}
 }
@@ -361,3 +362,68 @@ void ALIHUD::DrawInventoryNotices(const ALICharacter* Character)
 }
 
 #undef LOCTEXT_NAMESPACE
+
+void ALIHUD::DrawHotbar(const ALICharacter* Character)
+{
+	// Bottom centre: the first HotbarSize inventory slots; keys 1-8 select, F uses and G places the selection.
+	const ULIInventoryComponent* Inventory = Character->GetInventoryComponent();
+	if (!Inventory || Character->IsDead())
+	{
+		return;
+	}
+	const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
+	const TArray<FLIInventorySlot>& Slots = Inventory->GetSlots();
+	const int32 Count = FMath::Min(ALICharacter::HotbarSize, Slots.Num());
+	const float Size = 64.f;
+	const float Gap = 6.f;
+	const float TotalW = Count * Size + (Count - 1) * Gap;
+	const float StartX = (Canvas->ClipX - TotalW) * 0.5f;
+	const float Y = Canvas->ClipY - Size - 16.f;
+	UFont* SmallFont = GEngine ? GEngine->GetSmallFont() : nullptr;
+
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		const float X = StartX + Index * (Size + Gap);
+		const bool bSelected = Index == Character->GetSelectedHotbarSlot();
+		if (bSelected)
+		{
+			DrawRect(FLinearColor(1.f, 0.85f, 0.35f, 0.95f), X - 3.f, Y - 3.f, Size + 6.f, Size + 6.f); // gold frame
+		}
+		DrawRect(FLinearColor(0.05f, 0.04f, 0.03f, bSelected ? 0.9f : 0.65f), X, Y, Size, Size);
+		DrawText(FString::FromInt(Index + 1), FLinearColor(1.f, 1.f, 1.f, 0.6f), X + 4.f, Y + 2.f, SmallFont, 1.f);
+
+		const FLIInventorySlot& Slot = Slots[Index];
+		if (Slot.IsEmpty())
+		{
+			continue;
+		}
+		// Item name, wrapped to two short lines.
+		FString Name = Registry ? Registry->GetDisplayName(Slot.ItemId).ToString() : Slot.ItemId.ToString();
+		FString First = Name, Second;
+		Name.Split(TEXT(" "), &First, &Second);
+		if (First.IsEmpty())
+		{
+			First = Name;
+		}
+		DrawText(First, FLinearColor::White, X + 5.f, Y + 18.f, SmallFont, 1.f);
+		if (!Second.IsEmpty())
+		{
+			DrawText(Second, FLinearColor::White, X + 5.f, Y + 31.f, SmallFont, 1.f);
+		}
+
+		const ULIItemDefinition* Def = Registry ? Registry->FindItem(Slot.ItemId) : nullptr;
+		if (Def && Def->MaxDurability > 0)
+		{
+			const float Pct = FMath::Clamp(static_cast<float>(Slot.Durability) / Def->MaxDurability, 0.f, 1.f);
+			DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.5f), X + 5.f, Y + Size - 9.f, Size - 10.f, 4.f);
+			DrawRect(Pct > 0.3f ? StaminaColor : HealthColor, X + 5.f, Y + Size - 9.f, (Size - 10.f) * Pct, 4.f);
+		}
+		else if (Slot.Quantity > 1)
+		{
+			const FString Qty = FString::Printf(TEXT("x%d"), Slot.Quantity);
+			float W = 0.f, H = 0.f;
+			GetTextSize(Qty, W, H, SmallFont, 1.f);
+			DrawText(Qty, PromptColor, X + Size - W - 4.f, Y + Size - H - 3.f, SmallFont, 1.f);
+		}
+	}
+}

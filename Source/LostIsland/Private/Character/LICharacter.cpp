@@ -491,7 +491,17 @@ void ALICharacter::ToggleInventory()
 
 void ALICharacter::Consume()
 {
-	if (!IsDead())
+	if (IsDead())
+	{
+		return;
+	}
+	// The selected hotbar slot wins when it holds something edible or usable; otherwise the best choice.
+	const ULIItemDefinition* Selected = GetSelectedHotbarItem();
+	if (Selected && Selected->IsConsumable())
+	{
+		InventoryComponent->RequestConsumeSlot(SelectedHotbarSlot);
+	}
+	else
 	{
 		InventoryComponent->RequestConsumeBest();
 	}
@@ -499,7 +509,16 @@ void ALICharacter::Consume()
 
 void ALICharacter::Place()
 {
-	if (!IsDead())
+	if (IsDead())
+	{
+		return;
+	}
+	const ULIItemDefinition* Selected = GetSelectedHotbarItem();
+	if (Selected && Selected->PlaceableActorClass)
+	{
+		CraftingComponent->RequestPlaceItem(Selected->ItemId);
+	}
+	else
 	{
 		CraftingComponent->RequestPlace();
 	}
@@ -507,9 +526,9 @@ void ALICharacter::Place()
 
 void ALICharacter::CraftSlot(const FInputActionInstance& Instance)
 {
-	// Crafting only from the inventory screen, so number keys stay free for a future hotbar.
+	// Number keys: craft while the inventory is open, otherwise select a hotbar slot.
 	const ALIPlayerController* PC = Cast<ALIPlayerController>(Controller);
-	if (!PC || !PC->IsInventoryOpen() || IsDead())
+	if (!PC || IsDead())
 	{
 		return;
 	}
@@ -518,6 +537,14 @@ void ALICharacter::CraftSlot(const FInputActionInstance& Instance)
 	{
 		if (CraftSlotActions[Index].Get() == Source)
 		{
+			if (!PC->IsInventoryOpen())
+			{
+				if (Index < HotbarSize)
+				{
+					SelectHotbarSlot(Index);
+				}
+				return;
+			}
 			CraftingComponent->RequestCraftByIndex(CraftPage * CraftKeysPerPage + Index);
 			return;
 		}
@@ -1083,4 +1110,24 @@ void ALICharacter::MulticastPlayAction_Implementation(ELICharacterAction Action)
 	{
 		GetMesh()->GetAnimInstance()->PlaySlotAnimationAsDynamicMontage(Anim, TEXT("DefaultSlot"), 0.1f, 0.2f, Rate);
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Hotbar: inventory slots 0..HotbarSize-1, selected with the number keys
+// ---------------------------------------------------------------------------
+
+void ALICharacter::SelectHotbarSlot(int32 SlotIndex)
+{
+	SelectedHotbarSlot = FMath::Clamp(SlotIndex, 0, HotbarSize - 1);
+}
+
+const ULIItemDefinition* ALICharacter::GetSelectedHotbarItem() const
+{
+	const ULIItemRegistrySubsystem* Registry = ULIItemRegistrySubsystem::Get(this);
+	const TArray<FLIInventorySlot>* Slots = InventoryComponent ? &InventoryComponent->GetSlots() : nullptr;
+	if (!Registry || !Slots || !Slots->IsValidIndex(SelectedHotbarSlot) || (*Slots)[SelectedHotbarSlot].IsEmpty())
+	{
+		return nullptr;
+	}
+	return Registry->FindItem((*Slots)[SelectedHotbarSlot].ItemId);
 }
