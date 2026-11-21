@@ -365,7 +365,7 @@ Checklist status from this run (automatic only; gameplay interaction items still
 
 Follow-ups: clouds read as dark grey against the brighter sky (cloud lighting is still tuned for the old sky); sunset colour is mostly visible looking toward the sun.
 
-## 4s. Milestone 22 test checklist (wild boars)
+## 4w. Milestone 22 test checklist (wild boars)
 
 - [ ] Dark brown long shapes roam forests and meadows (7 per island, far apart).
 - [ ] Within ~9 m a boar charges (330 cm/s). Next to you it bites: -8 HP every 1.5 s.
