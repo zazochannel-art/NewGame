@@ -402,7 +402,11 @@ protected:
 	FLinearColor NoonColor = FLinearColor(1.f, 0.92f, 0.78f);
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight")
-	FLinearColor SunsetColor = FLinearColor(1.f, 0.55f, 0.3f);
+	FLinearColor SunsetColor = FLinearColor(1.f, 0.45f, 0.18f);
+
+	/** Extra white-balance temperature (K) at sunset: the whole picture turns golden, not only the sunlight. */
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight", meta = (ClampMin = "0.0"))
+	float GoldenHourWarmth = 2600.f;
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight")
 	FLinearColor MoonColor = FLinearColor(0.55f, 0.65f, 1.f);
