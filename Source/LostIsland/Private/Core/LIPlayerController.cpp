@@ -49,7 +49,7 @@ void ALIPlayerController::BeginPlay()
 
 namespace LIScreenshotTourSteps
 {
-	enum class ELocation : uint8 { Spring, Shore, Forest, CrashSite };
+	enum class ELocation : uint8 { Spring, Shore, Forest, CrashSite, Underwater };
 
 	struct FStep
 	{
@@ -64,6 +64,7 @@ namespace LIScreenshotTourSteps
 		{ TEXT("forest"), 14.0f, ELocation::Forest },
 		{ TEXT("wreck"),  15.0f, ELocation::CrashSite },
 		{ TEXT("sunset"), 17.6f, ELocation::Shore },
+		{ TEXT("underwater"), 12.0f, ELocation::Underwater },
 	};
 
 	/** Seconds to let lighting, streaming and the camera settle after each teleport. */
@@ -148,6 +149,11 @@ void ALIPlayerController::AdvanceScreenshotTour()
 
 		const FStep& Step = Steps[ScreenshotTourStep];
 		ServerDebugSetTime(Step.Hours);
+		ALICharacter* TourCharacter = Cast<ALICharacter>(GetPawn());
+		if (TourCharacter)
+		{
+			TourCharacter->StopDive();
+		}
 		bool bPlaced = true;
 		switch (Step.Location)
 		{
@@ -155,6 +161,13 @@ void ALIPlayerController::AdvanceScreenshotTour()
 		case ELocation::Shore:     ServerDebugGoToShore(); break;
 		case ELocation::CrashSite: ServerDebugGoToCrashSite(); break;
 		case ELocation::Forest:    bPlaced = TeleportToForest(); break;
+		case ELocation::Underwater:
+			ServerDebugGoToSea();
+			if (TourCharacter)
+			{
+				TourCharacter->StartDive(); // held for the settle time: about 8 s of diving
+			}
+			break;
 		}
 		if (!bPlaced)
 		{
