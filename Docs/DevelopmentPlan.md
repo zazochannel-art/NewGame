@@ -422,3 +422,17 @@ Test checklist:
 - [ ] E on a tree, rock, bush or animal: a short swing each time; the other player sees it too.
 - [ ] A boar bite makes the survivor flinch.
 - [ ] `LIDamage 500`: the survivor falls forward and stays down until respawn.
+
+## Real character (MetaHuman) support (2026-11-21)
+
+The survivor can wear a MetaHuman instead of the grey mannequin. No asset is in the repo: the MetaHuman is created in the editor.
+
+- `LostIsland.uproject` enables the **MetaHumanCharacter** plugin (MetaHuman Creator inside the editor).
+- `ALICharacter::AttachRealCharacter`: if `ULIVisualAssets::CharacterBlueprint` is set, or a blueprint named `BP_*` exists under `/Game/MetaHumans`, it is spawned as a child actor on the mannequin. Every skeletal mesh in it follows the mannequin's animation (`SetLeaderPoseComponent`), so walking, gathering, hit and death animations still play. The mannequin keeps animating but is not drawn.
+- Without a MetaHuman nothing changes (mannequin with castaway colours).
+
+How to make one (editor):
+1. Open `C:\Dev\NewGame\LostIsland.uproject`, accept the plugin restart if asked.
+2. Content Browser: create a folder `MetaHumans`, right-click inside it -> **MetaHuman -> MetaHuman Character**, open it and design the survivor (body type, face, skin, hair, clothes).
+3. In the MetaHuman Character editor use **Assemble** (build) so a `BP_<Name>` blueprint is created inside `/Game/MetaHumans/...`.
+4. Close the editor; the next start picks it up automatically (log: `Real character: using ...`).

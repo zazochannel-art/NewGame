@@ -171,6 +171,13 @@ protected:
 	/** Weathered colours on the mannequin material ("Paint Tint"). */
 	void ApplyCastawayLook();
 
+	/** Wears a MetaHuman (see ULIVisualAssets::CharacterBlueprint) over the animated mannequin, if one exists. */
+	void AttachRealCharacter();
+	static UClass* FindRealCharacterClass();
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UChildActorComponent> RealCharacter;
+
 	/** Loads a Third Person pack animation by path under /Game/Characters/Mannequins/Anims (null if missing). */
 	static UAnimSequenceBase* LoadCharacterAnim(const TCHAR* RelativePath);
 

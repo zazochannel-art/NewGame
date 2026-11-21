@@ -22,7 +22,8 @@ public class LostIsland : ModuleRules
 		{
 			"AnimGraphRuntime",        // UKismetAnimationLibrary (ULIAnimInstance)
 			"ProceduralMeshComponent", // island terrain (ALIIslandGenerator)
-			"CoreOnline"               // FUniqueNetIdWrapper::ToString (ULISaveSubsystem player keys)
+			"CoreOnline",              // FUniqueNetIdWrapper::ToString (ULISaveSubsystem player keys)
+			"AssetRegistry"            // finds a MetaHuman blueprint under /Game/MetaHumans (ALICharacter)
 		});
 
 		// Editor builds only: the realistic materials (vertex colour, water) are built at runtime with the

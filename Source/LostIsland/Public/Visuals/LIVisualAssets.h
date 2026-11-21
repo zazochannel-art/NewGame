@@ -105,4 +105,14 @@ public:
 
 	/** Animation Blueprint class for CharacterMesh (path ending in _C). */
 	UPROPERTY(config, EditAnywhere, Category = "Character") FSoftClassPath CharacterAnimClass;
+
+	/**
+	 * Optional MetaHuman (or any actor blueprint with skeletal meshes on the UE5 mannequin skeleton) worn as the
+	 * survivor body. Empty = use the first blueprint named BP_* under MetaHumanSearchPath. Its meshes follow the
+	 * mannequin animation (leader pose); the mannequin itself keeps animating but is not drawn.
+	 */
+	UPROPERTY(config, EditAnywhere, Category = "Character") FSoftClassPath CharacterBlueprint;
+
+	/** Content folder searched for a MetaHuman blueprint when CharacterBlueprint is empty. */
+	UPROPERTY(config, EditAnywhere, Category = "Character") FString MetaHumanSearchPath = TEXT("/Game/MetaHumans");
 };

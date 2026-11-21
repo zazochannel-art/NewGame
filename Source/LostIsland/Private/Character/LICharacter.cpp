@@ -45,6 +45,9 @@
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimSequenceBase.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "Components/ChildActorComponent.h"
+#include "Engine/Blueprint.h"
 
 ALICharacter::ALICharacter()
 {
@@ -165,6 +168,7 @@ void ALICharacter::BeginPlay()
 		PlaceholderBody->SetHiddenInGame(true);
 		BodyRoot->SetVisibility(false, /*bPropagateToChildren*/ true);
 		ApplyCastawayLook();
+		AttachRealCharacter();
 	}
 	else
 	{
@@ -1130,4 +1134,92 @@ const ULIItemDefinition* ALICharacter::GetSelectedHotbarItem() const
 		return nullptr;
 	}
 	return Registry->FindItem((*Slots)[SelectedHotbarSlot].ItemId);
+}
+
+// ---------------------------------------------------------------------------
+// Real character (MetaHuman) worn over the animated mannequin
+// ---------------------------------------------------------------------------
+
+UClass* ALICharacter::FindRealCharacterClass()
+{
+	const ULIVisualAssets& Assets = ULIVisualAssets::Get();
+	if (UClass* Explicit = ULIVisualAssets::LoadOptional<UClass>(Assets.CharacterBlueprint))
+	{
+		return Explicit;
+	}
+	if (Assets.MetaHumanSearchPath.IsEmpty())
+	{
+		return nullptr;
+	}
+
+	// First blueprint named BP_* under the MetaHumans folder (the MetaHuman Creator's assembled output).
+	IAssetRegistry& Registry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	TArray<FAssetData> Found;
+	FARFilter Filter;
+	Filter.PackagePaths.Add(FName(*Assets.MetaHumanSearchPath));
+	Filter.bRecursivePaths = true;
+	Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
+	Registry.GetAssets(Filter, Found);
+	Found.Sort([](const FAssetData& A, const FAssetData& B) { return A.AssetName.LexicalLess(B.AssetName); });
+	for (const FAssetData& Asset : Found)
+	{
+		if (!Asset.AssetName.ToString().StartsWith(TEXT("BP_")))
+		{
+			continue;
+		}
+		const FString ClassPath = Asset.GetObjectPathString() + TEXT("_C");
+		if (UClass* Class = LoadClass<AActor>(nullptr, *ClassPath, nullptr, LOAD_NoWarn | LOAD_Quiet))
+		{
+			UE_LOG(LogLostIsland, Log, TEXT("Real character: using %s."), *ClassPath);
+			return Class;
+		}
+	}
+	return nullptr;
+}
+
+void ALICharacter::AttachRealCharacter()
+{
+	UClass* RealClass = FindRealCharacterClass();
+	USkeletalMeshComponent* Mannequin = GetMesh();
+	if (!RealClass || !Mannequin)
+	{
+		return;
+	}
+
+	RealCharacter = NewObject<UChildActorComponent>(this, TEXT("RealCharacter"));
+	RealCharacter->SetupAttachment(Mannequin);
+	RealCharacter->SetChildActorClass(RealClass);
+	RealCharacter->RegisterComponent();
+
+	AActor* Body = RealCharacter->GetChildActor();
+	if (!Body)
+	{
+		RealCharacter->DestroyComponent();
+		RealCharacter = nullptr;
+		return;
+	}
+	Body->SetActorEnableCollision(false);
+
+	// Every skeletal mesh of the MetaHuman (body, face, clothes...) follows the mannequin's animated bones.
+	int32 Driven = 0;
+	TArray<USkeletalMeshComponent*> Meshes;
+	Body->GetComponents<USkeletalMeshComponent>(Meshes);
+	for (USkeletalMeshComponent* Part : Meshes)
+	{
+		Part->SetLeaderPoseComponent(Mannequin);
+		++Driven;
+	}
+	if (Driven == 0)
+	{
+		RealCharacter->DestroyComponent();
+		RealCharacter = nullptr;
+		return;
+	}
+
+	// Keep the mannequin animating (it drives the bones) but do not draw it.
+	Mannequin->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+	Mannequin->SetRenderInMainPass(false);
+	Mannequin->SetRenderInDepthPass(false);
+	Mannequin->SetCastShadow(false);
+	UE_LOG(LogLostIsland, Log, TEXT("Real character: %d skeletal meshes follow the mannequin."), Driven);
 }
