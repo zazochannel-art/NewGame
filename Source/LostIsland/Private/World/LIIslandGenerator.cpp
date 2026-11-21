@@ -346,10 +346,29 @@ FLinearColor ALIIslandGenerator::GetSurfaceColor(const FVector2D& LocalXY, float
 		case ELIIslandBiome::Meadow:
 		default:                     Color = MeadowColor; break;
 		}
+
+		// Large soft patches so open ground is not one flat colour: dry, sun-bleached grass in some places,
+		// lush dark grass in others; damp, darker sand along the waterline.
+		const float Patch = 1.4f * FMath::PerlinNoise2D(LocalXY / 1700.f + DetailOffset * 1.37f)
+			+ 0.6f * FMath::PerlinNoise2D(LocalXY / 600.f - DetailOffset * 0.71f);
+		if (Biome == ELIIslandBiome::Meadow || Biome == ELIIslandBiome::Forest)
+		{
+			const FLinearColor Dry(0.72f, 0.68f, 0.33f);
+			const FLinearColor Lush(Color.R * 0.45f, Color.G * 0.70f, Color.B * 0.40f);
+			Color = Patch > 0.f
+				? FLinearColor::LerpUsingHSV(Color, Dry, FMath::Clamp(Patch * (Biome == ELIIslandBiome::Forest ? 0.4f : 0.9f), 0.f, 0.75f))
+				: FLinearColor::LerpUsingHSV(Color, Lush, FMath::Clamp(-Patch * 1.2f, 0.f, 0.9f));
+		}
+		else if (Biome == ELIIslandBiome::Beach)
+		{
+			const float Wet = 1.f - FMath::Clamp(Height / 70.f, 0.f, 1.f);
+			Color = FLinearColor::LerpUsingHSV(Color, FLinearColor(Color.R * 0.62f, Color.G * 0.58f, Color.B * 0.5f), Wet * 0.85f);
+			Color = FLinearColor::LerpUsingHSV(Color, FLinearColor(0.80f, 0.74f, 0.58f), FMath::Clamp(Patch * 0.4f, 0.f, 0.4f));
+		}
 	}
 
-	// Small per-face brightness variation for the faceted low-poly look.
-	const float Variation = 1.f + 0.06f * FMath::PerlinNoise2D(LocalXY / (CellSize * 1.7f) + DetailOffset);
+	// Per-face brightness variation for the faceted look.
+	const float Variation = 1.f + 0.10f * FMath::PerlinNoise2D(LocalXY / (CellSize * 1.7f) + DetailOffset);
 	return FLinearColor(Color.R * Variation, Color.G * Variation, Color.B * Variation, 1.f);
 }
 
@@ -562,7 +581,7 @@ void ALIIslandGenerator::SetupEnvironment()
 	{
 		const float Brightness = FMath::Max(1.f, SkyBrightness);
 		SkyAtmosphere->SetSkyLuminanceFactor(FLinearColor(Brightness, Brightness, Brightness));
-		SkyLight->SetIntensity(1.f);
+		SkyLight->SetIntensity(1.8f); // soft, bright shadows for the stylised look
 	}
 
 	// Realistic sky: the engine's volumetric clouds, lit by the sun and the sky atmosphere.

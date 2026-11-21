@@ -36,6 +36,8 @@
 #include "Materials/MaterialExpressionCosine.h"
 #include "Materials/MaterialExpressionDotProduct.h"
 #include "Materials/MaterialExpressionTime.h"
+#include "Materials/MaterialExpressionPixelDepth.h"
+#include "Materials/MaterialExpressionSaturate.h"
 #endif
 
 /**
@@ -365,6 +367,22 @@ namespace
 		{
 			return;
 		}
+		// Fade the waves out with distance: far away they alias into a visible repeating pattern.
+		UMaterialExpressionPixelDepth* PixelDepth = AddExpression<UMaterialExpressionPixelDepth>(Material, -800, 1500);
+		UMaterialExpressionDivide* DepthRatio = AddExpression<UMaterialExpressionDivide>(Material, -650, 1500);
+		UMaterialExpressionSaturate* DepthClamp = AddExpression<UMaterialExpressionSaturate>(Material, -550, 1500);
+		UMaterialExpressionOneMinus* NearWeight = AddExpression<UMaterialExpressionOneMinus>(Material, -450, 1500);
+		UMaterialExpressionMultiply* Faded = AddExpression<UMaterialExpressionMultiply>(Material, -350, 1400);
+		if (PixelDepth && DepthRatio && DepthClamp && NearWeight && Faded)
+		{
+			DepthRatio->ConstB = 9000.f; // flat by 90 m
+			LIMaterialGraph::ConnectMaterialExpressions(PixelDepth, TEXT(""), DepthRatio, TEXT("A"));
+			LIMaterialGraph::ConnectMaterialExpressions(DepthRatio, TEXT(""), DepthClamp, TEXT(""));
+			LIMaterialGraph::ConnectMaterialExpressions(DepthClamp, TEXT(""), NearWeight, TEXT(""));
+			LIMaterialGraph::ConnectMaterialExpressions(Slope, TEXT(""), Faded, TEXT("A"));
+			LIMaterialGraph::ConnectMaterialExpressions(NearWeight, TEXT(""), Faded, TEXT("B"));
+			Slope = Faded;
+		}
 		Negate->ConstB = -1.f;
 		LIMaterialGraph::ConnectMaterialExpressions(Slope, TEXT(""), Negate, TEXT("A"));
 		LIMaterialGraph::ConnectMaterialExpressions(Negate, TEXT(""), Normal, TEXT("A"));
@@ -385,8 +403,8 @@ namespace
 		UMaterialExpressionDepthFade* Shore = AddExpression<UMaterialExpressionDepthFade>(Material, -900, 300);
 		UMaterialExpressionOneMinus* Foam = AddExpression<UMaterialExpressionOneMinus>(Material, -700, 300);
 
-		UMaterialExpressionConstant3Vector* Shallow = AddColor(Material, FLinearColor(0.10f, 0.55f, 0.52f), -700, -200);
-		UMaterialExpressionConstant3Vector* Deep = AddColor(Material, FLinearColor(0.01f, 0.09f, 0.16f), -700, -100);
+		UMaterialExpressionConstant3Vector* Shallow = AddColor(Material, FLinearColor(0.06f, 0.80f, 0.72f), -700, -200); // bright lagoon turquoise
+		UMaterialExpressionConstant3Vector* Deep = AddColor(Material, FLinearColor(0.01f, 0.22f, 0.38f), -700, -100);
 		UMaterialExpressionConstant3Vector* FoamColor = AddColor(Material, FLinearColor(0.85f, 0.90f, 0.90f), -500, -300);
 		UMaterialExpressionLinearInterpolate* WaterColor = AddExpression<UMaterialExpressionLinearInterpolate>(Material, -500, -150);
 		UMaterialExpressionLinearInterpolate* BaseColor = AddExpression<UMaterialExpressionLinearInterpolate>(Material, -300, -150);
