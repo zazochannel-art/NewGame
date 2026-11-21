@@ -409,3 +409,16 @@ A brighter, more colourful casual look of our own (not modelled on any specific 
 - Grading: saturation 1.05 -> 1.3, contrast 1.02 -> 0.95 (softer), bloom 0.5 -> 0.8, vignette 0.25 -> 0.15, AO 0.5 -> 0.35.
 - Lighting: warmer noon sun, sky light 1 -> 1.8 for soft, bright shadows.
 All values are the island generator's editable properties (`LostIsland|Island|...`), so they can be tuned in the editor.
+## Character pass (2026-11-21)
+
+- **Castaway colours:** the mannequin's "Paint Tint" is set per material slot (weathered tan and dark slate) instead of plain grey.
+- **Gather swing:** every successful gather (chop, mine, pick, spear) plays one of the Third Person pack's `MM_Attack_01..03` on `DefaultSlot` at 1.4x, for every player (`MulticastPlayAction`).
+- **Hit reaction:** a boar bite plays `MM_HitReact_Front_Lgt_01`.
+- **Death animation:** the mannequin plays `MM_Death_Front_01` once and holds the last frame (the low-poly body keeps its lie-down pose).
+- Debug: `LIShotIn <seconds>` (delayed 1280x720 screenshot), `LIAction gather|hit`.
+
+Test checklist:
+- [ ] The survivor is tan with dark slate parts, not grey.
+- [ ] E on a tree, rock, bush or animal: a short swing each time; the other player sees it too.
+- [ ] A boar bite makes the survivor flinch.
+- [ ] `LIDamage 500`: the survivor falls forward and stays down until respawn.
