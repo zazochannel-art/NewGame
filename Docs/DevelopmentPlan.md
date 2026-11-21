@@ -57,6 +57,8 @@ Because nothing existed, Milestone 1 creates a minimal C++ project. It does not 
 | 19 | Realistic style: materials generated in code (vertex colour, translucent water with depth fade and foam), smooth vertex-coloured terrain on a finer grid, rounded models with ground shading, volumetric clouds, Lumen GI and reflections, virtual shadow maps, TSR; `li.RealisticStyle 0` brings back the low-poly look | **Code written; not compiled yet.** See [Systems/Visuals.md](Systems/Visuals.md) |
 | 20 | Real art when available: photo-textured terrain (4 textures + normals blended per vertex), wave normals on the sea, real rock/bush meshes, configurable real trees and grass, the animated UE5 mannequin; all from engine content packs or Fab, with code-built art as fallback | **Code written; not compiled yet.** See [GraficaRealista_RO.md](GraficaRealista_RO.md) |
 | 21 | Detailed props: plank floors, log walls and doorways, shingle roofs, a lashed raft with a curved sail, a banded chest, a padded sleeping bag, a leather loot sack and a detailed plane wreck; real wood and metal materials from Starter Content | **Code written; not compiled yet.** See [Systems/Visuals.md](Systems/Visuals.md) |
+| 22 | Wild boars (7, forest and meadow): charge players within 9 m, bite for 8 HP every 1.5 s, 6 hits for 6-12 Raw Meat; crabs and boars share ALIAnimalNode | **Compiles; headless test passed (boar charges, bites, kills an idle player, respawn); awaiting PIE test.** See [Systems/FoodWater.md](Systems/FoodWater.md) |
+| 23 | Stone Spear (3 Wood, 2 Stone, 3 Fiber): the effective tool against crabs and boars, counts as 2 hits, x1.5 meat, 40 uses; tools can now hit harder (`ToolHitPower`) | **Compiles; crafted in a headless run; awaiting PIE test.** |
 
 Each milestone ends with a compile, a PIE test, and a fix pass before the next one starts.
 
@@ -364,3 +366,19 @@ Checklist status from this run (automatic only; gameplay interaction items still
 
 Follow-ups: sunset colour is mostly visible looking toward the sun. (Fixed afterwards: clouds read as dark grey against the brighter sky; the sun's `CloudScatteredLuminanceScale` now uses `SkyBrightness` and cloud bottom occlusion is 0.2, so clouds are white.)
 
+## 4w. Milestone 22 test checklist (wild boars)
+
+- [ ] Dark brown long shapes roam forests and meadows (7 per island, far apart).
+- [ ] Within ~9 m a boar charges (330 cm/s). Next to you it bites: -8 HP every 1.5 s.
+- [ ] Sprinting (650 cm/s) outruns it; it gives up about 27 m from home. Swimming does not (it stops at the water's edge, though).
+- [ ] `[E] Fight Boar (6/6)`: six hits give 6-12 Raw Meat (no tool bonus yet); then it disappears and returns after 20 min.
+- [ ] Raw Meat and Cooked Meat are now generic (crab or boar).
+- [ ] Debug: `LIGoToBoar` (6 m from the nearest boar).
+- [ ] Co-op: the boar picks the nearest living player; both see it move.
+
+## 4x. Milestone 23 test checklist (stone spear)
+
+- [ ] Crafting: Stone Spear (3 Wood, 2 Stone, 3 Fiber) next to the pickaxes.
+- [ ] With the spear, a boar's prompt says `with Stone Spear` and drops from 6/6 to 0 in three E presses (2 per thrust); a crab falls in one.
+- [ ] More meat per thrust (x1.5) and less stamina (x0.7); the spear wears out after 40 thrusts.
+- [ ] Without a spear, animals take the old number of hits.

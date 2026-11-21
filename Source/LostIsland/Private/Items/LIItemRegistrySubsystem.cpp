@@ -57,8 +57,8 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 		{ LIItems::Stone,   LOCTEXT("Stone",   "Stone"),   LOCTEXT("StoneDesc",   "Heavy chunks of island rock."),               40, ELIItemCategory::Resource, 0.f,  0.f },
 		{ LIItems::Fiber,   LOCTEXT("Fiber",   "Fiber"),   LOCTEXT("FiberDesc",   "Plant fibres for rope and bindings."),        80, ELIItemCategory::Resource, 0.f,  0.f },
 		{ LIItems::Berries, LOCTEXT("Berries", "Berries"), LOCTEXT("BerriesDesc", "Tart wild berries. A little food, a little water."), 20, ELIItemCategory::Food, 8.f, 2.f },
-		{ LIItems::RawMeat,    LOCTEXT("RawMeat", "Raw Crab Meat"),    LOCTEXT("RawMeatDesc", "Stringy and cold. Better cooked at a fire."), 10, ELIItemCategory::Food, 3.f, 0.f },
-		{ LIItems::CookedMeat, LOCTEXT("CookedMeat", "Cooked Crab Meat"), LOCTEXT("CookedMeatDesc", "Hot, salty and filling."), 10, ELIItemCategory::Food, 22.f, -2.f },
+		{ LIItems::RawMeat,    LOCTEXT("RawMeat", "Raw Meat"),    LOCTEXT("RawMeatDesc", "Crab or boar, raw and cold. Better cooked at a fire."), 10, ELIItemCategory::Food, 3.f, 0.f },
+		{ LIItems::CookedMeat, LOCTEXT("CookedMeat", "Cooked Meat"), LOCTEXT("CookedMeatDesc", "Hot, salty and filling."), 10, ELIItemCategory::Food, 22.f, -2.f },
 		{ LIItems::EmptyFlask, LOCTEXT("EmptyFlask", "Empty Flask"), LOCTEXT("EmptyFlaskDesc", "A dented aluminium flask. Fill it at a spring."), 5, ELIItemCategory::Misc, 0.f, 0.f },
 		{ LIItems::WaterFlask, LOCTEXT("WaterFlask", "Water Flask"), LOCTEXT("WaterFlaskDesc", "Fresh spring water to carry. Drink with F."), 5, ELIItemCategory::Food, 0.f, 30.f },
 		{ LIItems::MetalAxe, LOCTEXT("MetalAxe", "Scrap Axe"), LOCTEXT("MetalAxeDesc", "A sharpened aluminium blade on a haft. Fells trees fast."), 1, ELIItemCategory::Tool, 0.f, 0.f },
@@ -75,6 +75,7 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 		{ LIItems::ScrapMetal, LOCTEXT("ScrapMetal", "Scrap Metal"), LOCTEXT("ScrapMetalDesc", "Twisted aluminium from the wreck. Better tools will need it."), 30, ELIItemCategory::Resource, 0.f, 0.f },
 		{ LIItems::StoneAxe, LOCTEXT("StoneAxe", "Stone Axe"), LOCTEXT("StoneAxeDesc", "Sharp stone lashed to a branch. Fells trees faster."), 1, ELIItemCategory::Tool, 0.f, 0.f },
 		{ LIItems::StonePickaxe, LOCTEXT("StonePickaxe", "Stone Pickaxe"), LOCTEXT("StonePickaxeDesc", "Heavy pointed stone on a haft. Breaks rock faster."), 1, ELIItemCategory::Tool, 0.f, 0.f },
+		{ LIItems::StoneSpear, LOCTEXT("StoneSpear", "Stone Spear"), LOCTEXT("StoneSpearDesc", "A flint point on a long shaft. Hunts crabs and boars twice as fast, for more meat."), 1, ELIItemCategory::Tool, 0.f, 0.f },
 	};
 
 	for (const FBuiltIn& BuiltIn : BuiltIns)
@@ -119,6 +120,14 @@ void ULIItemRegistrySubsystem::RegisterBuiltInItems()
 		Pickaxe->ToolType = ELIToolType::Pickaxe;
 		Pickaxe->MaxDurability = 40;
 	}
+	if (ULIItemDefinition* Spear = FindItem(LIItems::StoneSpear))
+	{
+		Spear->ToolType = ELIToolType::Spear;
+		Spear->MaxDurability = 40;
+		Spear->ToolYieldMultiplier = 1.5f;
+		Spear->ToolStaminaMultiplier = 0.7f;
+		Spear->ToolHitPower = 2; // a boar falls in 3 thrusts instead of 6
+	}
 	if (ULIItemDefinition* Flask = FindItem(LIItems::WaterFlask))
 	{
 		Flask->ConsumeReturnsItem = LIItems::EmptyFlask;
@@ -156,6 +165,7 @@ void ULIItemRegistrySubsystem::RegisterBuiltInRecipes()
 	{
 		{ LIItems::StoneAxe,     { { LIItems::Wood, 3 }, { LIItems::Stone, 2 }, { LIItems::Fiber, 4 } }, { LIItems::StoneAxe, 1 },     10 },
 		{ LIItems::StonePickaxe, { { LIItems::Wood, 3 }, { LIItems::Stone, 4 }, { LIItems::Fiber, 4 } }, { LIItems::StonePickaxe, 1 }, 20 },
+		{ LIItems::StoneSpear,   { { LIItems::Wood, 3 }, { LIItems::Stone, 2 }, { LIItems::Fiber, 3 } }, { LIItems::StoneSpear, 1 },   25 },
 		{ LIItems::FiberBandage, { { LIItems::Fiber, 6 } },                                              { LIItems::FiberBandage, 1 }, 30 },
 		{ LIItems::CookedMeat,   { { LIItems::RawMeat, 1 } },                                            { LIItems::CookedMeat, 1 },   35, true },
 		{ LIItems::EmptyFlask,   { { LIItems::ScrapMetal, 2 }, { LIItems::Fiber, 2 } },                  { LIItems::EmptyFlask, 1 },   32 },

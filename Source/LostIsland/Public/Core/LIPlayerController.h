@@ -87,6 +87,13 @@ public:
 	UFUNCTION(Exec)
 	void LIGoToSpring();
 
+	/** Teleport 6 m from the nearest wild boar (it will charge). */
+	UFUNCTION(Exec)
+	void LIGoToBoar();
+
+	UFUNCTION(Server, Reliable)
+	void ServerDebugGoToBoar();
+
 	UFUNCTION(Server, Reliable)
 	void ServerDebugGoToSpring();
 

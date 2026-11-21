@@ -20,6 +20,7 @@ namespace LIItems
 	inline const FName MetalPickaxe(TEXT("MetalPickaxe"));
 	inline const FName RaftKit(TEXT("RaftKit"));
 	inline const FName StorageChest(TEXT("StorageChest"));
+	inline const FName StoneSpear(TEXT("StoneSpear"));
 	inline const FName StoneAxe(TEXT("StoneAxe"));
 	inline const FName StonePickaxe(TEXT("StonePickaxe"));
 	inline const FName FiberBandage(TEXT("FiberBandage"));
@@ -38,7 +39,8 @@ enum class ELIToolType : uint8
 {
 	None,
 	Axe,
-	Pickaxe
+	Pickaxe,
+	Spear
 };
 
 UENUM(BlueprintType)
