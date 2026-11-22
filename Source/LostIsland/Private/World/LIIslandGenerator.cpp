@@ -661,12 +661,15 @@ void ALIIslandGenerator::ApplyTimeOfDay(float Hours, float SunriseHours, float S
 	float Elevation;
 	float Intensity;
 	FLinearColor Color;
+	float Warmth = 0.f; // 0 = noon light, 1 = sunset
 	if (bSunUp)
 	{
 		Elevation = FMath::Clamp(SinceSunrise / DayLength * 180.f, 2.f, 178.f);
 		const float Height01 = FMath::Sin(FMath::DegreesToRadians(Elevation)); // 0 at horizon, 1 at noon
 		Intensity = SunIntensity * FMath::Clamp(Height01 * 1.5f, 0.05f, 1.f);
-		Color = FLinearColor::LerpUsingHSV(SunsetColor, NoonColor, FMath::Clamp(Height01 * 2.f, 0.f, 1.f));
+		// Golden hour: warm light from about 35 degrees down to the horizon, deepest orange right at sunset.
+		Warmth = 1.f - FMath::SmoothStep(0.f, 0.6f, Height01);
+		Color = FLinearColor::LerpUsingHSV(NoonColor, SunsetColor, Warmth);
 	}
 	else
 	{
@@ -683,6 +686,16 @@ void ALIIslandGenerator::ApplyTimeOfDay(float Hours, float SunriseHours, float S
 	Sun->SetWorldRotation(FRotator(Pitch, Yaw, 0.f));
 	Sun->SetIntensity(Intensity);
 	Sun->SetLightColor(Color);
+
+	// Warm the whole picture with the light (white balance) so sunsets read as sunsets, not just a lower sun.
+	if (PostProcess)
+	{
+		PostProcess->Settings.bOverride_WhiteTemp = true;
+		PostProcess->Settings.WhiteTemp = 6500.f + GoldenHourWarmth * Warmth;
+		PostProcess->Settings.bOverride_ColorSaturation = true;
+		const float Saturation = LookSaturation * (1.f + 0.12f * Warmth);
+		PostProcess->Settings.ColorSaturation = FVector4(Saturation, Saturation, Saturation, 1.f);
+	}
 }
 
 FTransform ALIIslandGenerator::GetCrashSiteTransform() const

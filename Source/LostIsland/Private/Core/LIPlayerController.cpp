@@ -64,7 +64,7 @@ namespace LIScreenshotTourSteps
 		{ TEXT("beach"),  10.0f, ELocation::Shore },
 		{ TEXT("forest"), 14.0f, ELocation::Forest },
 		{ TEXT("wreck"),  15.0f, ELocation::CrashSite },
-		{ TEXT("sunset"), 17.6f, ELocation::Shore },
+		{ TEXT("sunset"), 19.4f, ELocation::Shore }, // sun about 10 degrees above the horizon
 		{ TEXT("underwater"), 12.0f, ELocation::Underwater },
 	};
 
