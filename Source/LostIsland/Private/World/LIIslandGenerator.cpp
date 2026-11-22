@@ -679,6 +679,14 @@ void ALIIslandGenerator::ApplyTimeOfDay(float Hours, float SunriseHours, float S
 		Color = MoonColor;
 	}
 
+	// Deeper night sky: the boosted daytime sky would otherwise stay dusk-blue all night.
+	if (SkyAtmosphere && bSunUp != bSkyWasDay)
+	{
+		bSkyWasDay = bSunUp;
+		const float Brightness = FMath::Max(1.f, SkyBrightness) * (bSunUp ? 1.f : NightSkyFactor);
+		SkyAtmosphere->SetSkyLuminanceFactor(FLinearColor(Brightness, Brightness, Brightness));
+	}
+
 	// A directional light shines along its forward vector: pitch down by the elevation.
 	// Past 90 degrees the light comes from the opposite side of the sky.
 	const float Yaw = Elevation <= 90.f ? SunYaw : SunYaw + 180.f;

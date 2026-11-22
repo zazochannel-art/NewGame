@@ -78,11 +78,19 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Campfire", meta = (ClampMin = "1.0", Units = "s"))
 	float MaxFuel = 600.f;
 
+	/** Fire light brightness (candela) before flicker. Bright enough to light a camp at night. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Campfire", meta = (ClampMin = "0.0"))
+	float BaseLightIntensity = 16000.f;
+
 private:
 	/** Builds the low-poly stones, logs and flames (cosmetic, every machine). */
 	void BuildVisuals();
 
 	void BurnFuel();
+	void Flicker();
+	FTimerHandle FlickerTimerHandle;
+	float FlickerPhase = 0.f;
+	FVector FlameBaseScale = FVector(0.4f, 0.4f, 0.7f);
 	void ApplyLitState();
 
 	UFUNCTION()
