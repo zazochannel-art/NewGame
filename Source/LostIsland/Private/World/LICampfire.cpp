@@ -57,8 +57,8 @@ ALICampfire::ALICampfire()
 	FireLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("FireLight"));
 	FireLight->SetupAttachment(SceneRoot);
 	FireLight->SetRelativeLocation(FVector(0.f, 0.f, 90.f));
-	FireLight->SetIntensity(5000.f);
-	FireLight->SetAttenuationRadius(1200.f);
+	FireLight->SetIntensity(BaseLightIntensity);
+	FireLight->SetAttenuationRadius(1800.f);
 	FireLight->SetLightColor(FLinearColor(1.f, 0.55f, 0.2f));
 	FireLight->SetCastShadows(false); // cheap: many fires in co-op
 
@@ -83,6 +83,9 @@ void ALICampfire::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
 void ALICampfire::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Cosmetic flicker on every machine: the light breathes like real flames.
+	GetWorldTimerManager().SetTimer(FlickerTimerHandle, this, &ALICampfire::Flicker, 0.08f, true);
 
 	auto Tint = [](UStaticMeshComponent* Part, const FLinearColor& Color)
 	{
@@ -148,6 +151,7 @@ void ALICampfire::BuildVisuals()
 void ALICampfire::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	GetWorldTimerManager().ClearTimer(BurnTimerHandle);
+	GetWorldTimerManager().ClearTimer(FlickerTimerHandle);
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -249,3 +253,20 @@ void ALICampfire::OnFocusEnd_Implementation(APawn* InstigatorPawn)
 }
 
 #undef LOCTEXT_NAMESPACE
+
+void ALICampfire::Flicker()
+{
+	if (!FireLight || !FireLight->IsVisible())
+	{
+		return;
+	}
+	// Two layered random wobbles: slow breathing plus quick sparks.
+	FlickerPhase += 0.08f;
+	const float Slow = 0.85f + 0.15f * FMath::Sin(FlickerPhase * 2.3f + FMath::Sin(FlickerPhase * 0.7f) * 2.f);
+	const float Quick = FMath::FRandRange(0.88f, 1.08f);
+	FireLight->SetIntensity(BaseLightIntensity * Slow * Quick);
+	if (Flame)
+	{
+		Flame->SetRelativeScale3D(FlameBaseScale * FVector(1.f, 1.f, 0.9f + 0.2f * Slow * Quick));
+	}
+}

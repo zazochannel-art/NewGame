@@ -408,6 +408,12 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight", meta = (ClampMin = "0.0"))
 	float GoldenHourWarmth = 2600.f;
 
+	/** Sky brightness multiplier at night (1 = as bright as the day sky). */
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float NightSkyFactor = 0.3f;
+
+	bool bSkyWasDay = true;
+
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight")
 	FLinearColor MoonColor = FLinearColor(0.55f, 0.65f, 1.f);
 
