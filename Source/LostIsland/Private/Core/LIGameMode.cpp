@@ -256,6 +256,18 @@ void ALIGameMode::SpawnStartingVehicles()
 			SpawnOnGround(StartingVehicles[Index], Spots[Index].GetLocation(), Spots[Index].Rotator(), 130.f); // drops onto its wheels
 		}
 	}
+
+	// The grain trailer starts hitched behind the tractor (HitchTo lines it up on the coupling).
+	for (TActorIterator<ALITractor> It(World); It; ++It)
+	{
+		const FTransform TractorTransform = It->GetActorTransform();
+		const FVector Behind = TractorTransform.TransformPosition(It->GetTowPoint() - FVector(470.f, 0.f, 0.f));
+		if (ALIGrainTrailer* Trailer = Cast<ALIGrainTrailer>(SpawnOnGround(ALIGrainTrailer::StaticClass(), Behind, TractorTransform.Rotator(), 130.f)))
+		{
+			Trailer->HitchTo(*It);
+		}
+		break;
+	}
 }
 
 void ALIGameMode::SpawnFarm()

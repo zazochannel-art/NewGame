@@ -612,7 +612,7 @@ void ALIVehicle::SimulatePhysics(float DeltaSeconds)
 	// W while rolling backwards brakes first, S while rolling forwards brakes first; otherwise they drive.
 	float Drive = 0.f;
 	float Brake = 0.f;
-	if (!Driver)
+	if (IsParked())
 	{
 		Brake = 1.f; // parked
 	}
@@ -697,7 +697,7 @@ void ALIVehicle::SimulatePhysics(float DeltaSeconds)
 
 		const bool bRear = !Wheel.bSteers;
 		const float Grip = TyreGrip * ((bRear && bHandbrake) ? HandbrakeRearGrip : 1.f);
-		const float MaxFriction = Grip * SpringForce;
+		const float MaxFriction = Grip * Wheel.GripScale * SpringForce;
 
 		// Sideways: cancel most of the slide this step, as far as the grip allows.
 		const float LateralForce = -LateralSpeed * WheelMass / Dt * 0.6f;

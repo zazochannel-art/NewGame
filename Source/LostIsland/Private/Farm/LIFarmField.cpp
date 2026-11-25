@@ -6,11 +6,13 @@
 #include "Core/LIPlayerController.h"
 #include "LostIsland.h"
 #include "Visuals/LILowPolyMesh.h"
+#include "Vehicles/LIFarmVehicles.h"
 
 #include "Components/CapsuleComponent.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "Math/RandomStream.h"
 #include "Net/UnrealNetwork.h"
 #include "ProceduralMeshComponent.h"
@@ -401,33 +403,67 @@ void ALIGrainSilo::BeginPlay()
 	Mesh.ApplyTo(Visual);
 }
 
+namespace
+{
+	/** A grain trailer with something in it, parked (or towed) by the silo. */
+	ALIGrainTrailer* FindLoadedTrailer(const AActor* Silo, float Radius)
+	{
+		ALIGrainTrailer* Best = nullptr;
+		double BestDistSq = FMath::Square(Radius);
+		for (TActorIterator<ALIGrainTrailer> It(Silo->GetWorld()); It; ++It)
+		{
+			const double DistSq = FVector::DistSquared2D(It->GetActorLocation(), Silo->GetActorLocation());
+			if (It->GetGrainKg() > 0 && DistSq < BestDistSq)
+			{
+				BestDistSq = DistSq;
+				Best = *It;
+			}
+		}
+		return Best;
+	}
+
+	constexpr float SiloTrailerRadius = 1800.f;
+}
+
 bool ALIGrainSilo::CanInteract_Implementation(APawn* InstigatorPawn) const
 {
-	const ALIGameState* GameState = GetWorld() ? GetWorld()->GetGameState<ALIGameState>() : nullptr;
-	return GameState && GameState->GetGrainKg() > 0;
+	return true; // the prompt explains what to bring
 }
 
 FText ALIGrainSilo::GetInteractionPrompt_Implementation(APawn* InstigatorPawn) const
 {
 	const ALIGameState* GameState = GetWorld() ? GetWorld()->GetGameState<ALIGameState>() : nullptr;
-	if (!GameState || GameState->GetGrainKg() <= 0)
+	if (!GameState)
 	{
-		return LOCTEXT("SiloEmpty", "Grain silo (harvest a field first)");
+		return FText::GetEmpty();
 	}
-	return FText::Format(LOCTEXT("SellGrain", "Sell {0} kg grain (+{1} coins)"),
-		FText::AsNumber(GameState->GetGrainKg()), FText::AsNumber(GameState->GetGrainValue(GameState->GetGrainKg())));
+	const ALIGrainTrailer* Trailer = FindLoadedTrailer(this, SiloTrailerRadius);
+	const int32 Kg = GameState->GetGrainKg() + (Trailer ? Trailer->GetGrainKg() : 0);
+	if (Kg <= 0)
+	{
+		return LOCTEXT("SiloEmpty", "Grain silo: bring the grain trailer here to sell a harvest");
+	}
+	return FText::Format(LOCTEXT("SellGrain", "Unload and sell {0} kg grain (+{1} coins)"),
+		FText::AsNumber(Kg), FText::AsNumber(GameState->GetGrainValue(Kg)));
 }
 
 void ALIGrainSilo::Interact_Implementation(APawn* InstigatorPawn)
 {
 	ALIGameState* GameState = GetWorld() ? GetWorld()->GetGameState<ALIGameState>() : nullptr;
-	const int32 Earned = GameState ? GameState->SellGrain() : 0;
-	if (Earned > 0 && InstigatorPawn)
+	if (!GameState || !HasAuthority())
 	{
-		if (ALIPlayerController* PC = Cast<ALIPlayerController>(InstigatorPawn->GetController()))
-		{
-			PC->ClientShowMessage(FText::Format(LOCTEXT("Sold", "Sold grain: +{0} coins"), FText::AsNumber(Earned)));
-		}
+		return;
+	}
+	if (ALIGrainTrailer* Trailer = FindLoadedTrailer(this, SiloTrailerRadius))
+	{
+		GameState->AddGrain(Trailer->EmptyGrain());
+	}
+	const int32 Earned = GameState->SellGrain();
+	if (ALIPlayerController* PC = InstigatorPawn ? Cast<ALIPlayerController>(InstigatorPawn->GetController()) : nullptr)
+	{
+		PC->ClientShowMessage(Earned > 0
+			? FText::Format(LOCTEXT("Sold", "Sold grain: +{0} coins"), FText::AsNumber(Earned))
+			: LOCTEXT("NothingToSell", "Nothing to sell: park the loaded grain trailer next to the silo."));
 	}
 }
 

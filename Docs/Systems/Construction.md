@@ -5,9 +5,9 @@ Build a barn and a farmhouse in the yard with the dump truck. Everything is gene
 ## Loop
 
 1. Earn coins: harvest grain with the tractor and sell it at the silo (see [Farming.md](Farming.md)). You start with 500.
-2. Park the dump truck (empty, bed down, stopped) next to a depot on the east side of the yard. Get out, look at the depot and press F. One load is paid for and drops into the bed.
+2. Park the dump truck (empty, bed down, stopped) next to a depot on the east side of the yard. Get out, look at the depot and press E. One load is paid for and drops into the bed.
 3. Drive to a staked-out plot. Back the tail of the truck up to it (within about 4.5 m of the tape), stop and press Q to tip the bed. The load slides out once the bed passes 35 degrees, and the building grows.
-4. The board by each plot (F) says what the site needs next.
+4. The board by each plot (E) says what the site needs next.
 
 | Depot | Material | Coins per load |
 |---|---|---|
