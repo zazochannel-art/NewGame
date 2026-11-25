@@ -378,8 +378,8 @@ TArray<FTransform> ALIIslandGenerator::GetVehicleSpawnTransforms(int32 Count) co
 	const float YardZ = GetValleyFloorAt(FVector2D::ZeroVector);
 	for (int32 Index = 0; Index < Count; ++Index)
 	{
-		// A row along the north edge of the yard, all facing the main road.
-		const FVector Local(-900.f + Index * 650.f, 1100.f, YardZ + 90.f);
+		// Side by side in the north half of the yard, noses toward the east end of the main road.
+		const FVector Local(200.f, 700.f + Index * 500.f, YardZ + 90.f);
 		Result.Add(FTransform(FRotator(0.f, 0.f, 0.f), GetActorTransform().TransformPosition(Local)));
 	}
 	return Result;
@@ -1000,7 +1000,7 @@ FTransform ALIIslandGenerator::FindPlayerSpawnTransform() const
 	{
 		// In the farmyard, facing the parked vehicles.
 		const FVector Local(-300.f, -400.f, GetValleyFloorAt(FVector2D::ZeroVector) + 120.f);
-		return FTransform(FRotator(0.f, 112.f, 0.f), GetActorTransform().TransformPosition(Local));
+		return FTransform(FRotator(0.f, 73.f, 0.f), GetActorTransform().TransformPosition(Local));
 	}
 
 	FRandomStream Random(static_cast<int32>(HashCombine(GetTypeHash(Seed), 0x51A7u)));

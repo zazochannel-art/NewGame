@@ -10,7 +10,7 @@ The game is moving from island survival to **building and farming with vehicles*
 - A flat **farmyard** (44 x 44 m) in the middle: gravel colour, no grass, no trees.
 - A **dirt road**: a wandering loop around the valley plus a straight road (with an S-bend) through the yard. Roads follow the smooth floor, so they are easy to drive.
 - Trees, rocks, bushes, berries and springs as before, kept off the roads and the yard. No wreck, crabs or boars.
-- The player starts in the yard; a **pickup** is parked at the north edge of the yard.
+- The player starts in the yard; a **pickup**, a **tractor** and a **dump truck** are parked side by side in its north half.
 
 URL option: `?World=Island` plays the original survival island, `?World=Valley` the valley. Each world has its own save slot (`LostIsland_Slot0`, `Valley_Slot0`), so old island saves are kept.
 
@@ -28,6 +28,16 @@ A drivable pawn built entirely in code, so it needs no skeletal mesh, physics as
 
 `ALIPickupTruck` is the first vehicle: 1700 kg, 4x4, 95 km/h, low-poly body with a cargo bed (original design and colours).
 
+### ALITractor
+
+3800 kg, 32 km/h, big driven rear wheels and small steering front wheels (tight 42 degree lock, extra grip). Open cab under a sun roof, original teal and cream livery. A hitch at the back (`GetHitchPoint`) is where the plough and seeder will attach in the farming step.
+
+### ALIDumpTruck
+
+9000 kg, six wheels (steering front axle, two driven rear axles), 70 km/h, heavy and slow to stop. **Q** tips the bed up to 48 degrees on its rear hinge and back down; it only starts tipping below 5 km/h. The bed is cosmetic for now: cargo comes with the building step.
+
+Each vehicle can have a tool on Q (`HasTool`, `ToggleTool`, replicated `bToolActive`); the HUD adds its hint.
+
 Saving: a player at the wheel is saved as the seated character. Vehicles are not saved yet; they are parked in the yard again on load.
 
 ## Controls in a vehicle
@@ -39,6 +49,7 @@ Saving: a player at the wheel is saved as the seated character. Vehicles are not
 | Handbrake | Space | B / Circle |
 | Get out | E | X / Square |
 | Put back on the wheels | R | Y / Triangle |
+| Tool: tip the bed (dump truck) | Q | RB / R1 |
 | Look around / camera distance | Mouse / wheel | Right stick |
 
 ## Test checklist (PIE)
@@ -48,11 +59,12 @@ Saving: a player at the wheel is saved as the seated character. Vehicles are not
 3. W accelerates to ~95 km/h, S brakes then reverses (~22 km/h), A/D steer, Space slides the rear.
 4. Drive the loop road; the suspension should soak up the rolls without bouncing.
 5. E: you get out next to the driver's door. The pickup stays parked (does not roll away on a slope).
-6. Roll it over on a mountain slope: the HUD suggests R; R puts it back on its wheels.
-7. `?World=Island` still plays the old island with its own save.
+6. Tractor: slow (~32 km/h) but turns tightly and climbs the rolls without slipping.
+7. Dump truck: heavy, ~70 km/h, long braking. Stopped, Q raises the bed, Q again lowers it; while driving Q does not raise it.
+8. Roll a vehicle over on a mountain slope: the HUD suggests R; R puts it back on its wheels.
+9. `?World=Island` still plays the old island with its own save.
 
 ## Next
 
-- Tractor (slow, strong, with a hitch for tools) and a dump truck (tipping bed).
 - Fields: plough with the tractor, sow, crops grow, harvest and sell.
 - Building: buy materials, haul them with the truck, build a barn or a house.
