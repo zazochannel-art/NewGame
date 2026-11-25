@@ -171,7 +171,7 @@ public:
 	 * with its night window, so the sun sets when night starts and rises when it ends.
 	 * No effect when the level provides its own lighting.
 	 */
-	void ApplyTimeOfDay(float Hours, float SunriseHours = 6.f, float SunsetHours = 18.f);
+	void ApplyTimeOfDay(float Hours, float SunriseHours = 6.f, float SunsetHours = 18.f, float Rain = 0.f);
 
 	/** Half the width of the generated grid (cm). */
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Island")
@@ -476,6 +476,10 @@ protected:
 	float NightSkyFactor = 0.3f;
 
 	bool bSkyWasDay = true;
+
+	/** Last sky luminance / rain amount pushed to the components (to skip redundant updates). */
+	float AppliedSkyLuminance = -1.f;
+	float AppliedFogRain = -1.f;
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Rendering|DayNight")
 	FLinearColor MoonColor = FLinearColor(0.55f, 0.65f, 1.f);

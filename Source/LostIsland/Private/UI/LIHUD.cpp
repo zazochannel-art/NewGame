@@ -13,6 +13,9 @@
 #include "Core/LIPlayerController.h"
 #include "Core/LIGameState.h"
 #include "Vehicles/LIVehicle.h"
+#include "UI/LIGameSettings.h"
+#include "UI/LISettingsMenu.h"
+#include "Misc/App.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
@@ -22,11 +25,57 @@
 void ALIHUD::DrawHUD()
 {
 	Super::DrawHUD();
-
 	if (!Canvas)
 	{
 		return;
 	}
+
+	DrawGameHUD();
+	DrawFpsCounter();
+
+	// The menu goes on top of everything else.
+	if (const ALIPlayerController* PC = Cast<ALIPlayerController>(GetOwningPlayerController()); PC && PC->IsSettingsMenuOpen())
+	{
+		PC->GetSettingsMenu()->Draw(this, Canvas);
+	}
+}
+
+void ALIHUD::NotifyHitBoxClick(FName BoxName)
+{
+	Super::NotifyHitBoxClick(BoxName);
+	if (const ALIPlayerController* PC = Cast<ALIPlayerController>(GetOwningPlayerController()); PC && PC->IsSettingsMenuOpen())
+	{
+		PC->GetSettingsMenu()->OnHitBoxClick(BoxName);
+	}
+}
+
+void ALIHUD::NotifyHitBoxBeginCursorOver(FName BoxName)
+{
+	Super::NotifyHitBoxBeginCursorOver(BoxName);
+	if (const ALIPlayerController* PC = Cast<ALIPlayerController>(GetOwningPlayerController()); PC && PC->IsSettingsMenuOpen())
+	{
+		PC->GetSettingsMenu()->OnHitBoxHover(BoxName);
+	}
+}
+
+void ALIHUD::DrawFpsCounter()
+{
+	// Real frame time (keeps counting while the game is paused).
+	SmoothedFrameSeconds = FMath::Lerp(SmoothedFrameSeconds, static_cast<float>(FMath::Max(FApp::GetDeltaTime(), 0.0001)), 0.05f);
+	if (!FLIGameSettings::Get().bShowFps)
+	{
+		return;
+	}
+	const FString Fps = FString::Printf(TEXT("%d FPS  (%.1f ms)"), FMath::RoundToInt(1.f / SmoothedFrameSeconds), SmoothedFrameSeconds * 1000.f);
+	UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
+	float W = 0.f, H = 0.f;
+	GetTextSize(Fps, W, H, Font, 1.f);
+	DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.4f), Canvas->ClipX - W - 28.f, 12.f, W + 16.f, H + 8.f);
+	DrawText(Fps, FLinearColor(0.6f, 1.f, 0.6f), Canvas->ClipX - W - 20.f, 16.f, Font, 1.f);
+}
+
+void ALIHUD::DrawGameHUD()
+{
 
 	const float CenterX = Canvas->ClipX * 0.5f;
 	const float CenterY = Canvas->ClipY * 0.5f;
@@ -70,7 +119,10 @@ void ALIHUD::DrawHUD()
 		const int32 Min = FMath::FloorToInt((Hours - H) * 60.f);
 		const FString Clock = FString::Printf(TEXT("Day %d   %02d:%02d   %s"), GameState->GetDayNumber(), H, Min,
 			GameState->IsNight() ? TEXT("Night") : TEXT("Day"));
-		DrawText(Clock, PromptColor, 24.f, 20.f, GEngine ? GEngine->GetMediumFont() : nullptr, 1.f);
+		const float Rain = GameState->GetRainAmount();
+		const FString Weather = Rain > 0.6f ? TEXT("   Heavy rain (crops grow faster, roads slippery)")
+			: Rain > 0.15f ? TEXT("   Rain (crops grow faster)") : TEXT("");
+		DrawText(Clock + Weather, PromptColor, 24.f, 20.f, GEngine ? GEngine->GetMediumFont() : nullptr, 1.f);
 		if (GameState->IsFarmEconomyEnabled())
 		{
 			FString Farm = FString::Printf(TEXT("Coins: %d      Grain: %d kg"), FMath::Max(GameState->GetMoney(), 0), GameState->GetGrainKg());
@@ -194,6 +246,19 @@ void ALIHUD::DrawVehicleHUD(const ALIVehicle* Vehicle)
 	DrawText(TEXT("km/h"), PromptColor, Right - 62.f, Bottom - 52.f, Font, 1.f);
 	const FString Name = Vehicle->GetDisplayName().ToString();
 	DrawText(Name, PromptColor, Right - 180.f, Bottom - 24.f, Font, 1.f);
+
+	// Fuel gauge above the speedometer: green, then amber, red when nearly empty.
+	if (Vehicle->UsesFuel())
+	{
+		const float Fraction = FMath::Clamp(Vehicle->GetFuel() / FMath::Max(1.f, Vehicle->GetFuelCapacity()), 0.f, 1.f);
+		const FLinearColor Gauge = Fraction < 0.15f ? FLinearColor(0.9f, 0.15f, 0.1f)
+			: Fraction < 0.35f ? FLinearColor(1.f, 0.7f, 0.15f) : FLinearColor(0.3f, 0.85f, 0.35f);
+		const float GaugeTop = Bottom - 134.f;
+		DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.35f), Right - 190.f, GaugeTop, 190.f, 20.f);
+		DrawRect(Gauge, Right - 140.f, GaugeTop + 5.f, 132.f * Fraction, 10.f);
+		const FString FuelLabel = Fraction <= 0.f ? TEXT("EMPTY") : FString::Printf(TEXT("%d L"), FMath::RoundToInt(Vehicle->GetFuel()));
+		DrawText(FuelLabel, Fraction < 0.15f ? Gauge : PromptColor, Right - 186.f, GaugeTop + 3.f, Font, 1.f);
+	}
 
 	// Controls, bottom centre.
 	FString Help = Vehicle->IsTippedOver()

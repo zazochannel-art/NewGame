@@ -86,6 +86,22 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Farm")
 	float GetGrainPriceMultiplier() const { return GrainPriceMultiplier; }
 
+	// ---- Weather (valley only) ----
+	/** How hard it rains right now, 0 (clear) .. 1 (downpour). Same value on every machine. */
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Weather")
+	float GetRainAmount() const;
+
+	/** Server: start fading towards a rain amount (0 = clear). The next weather change is scheduled from here. */
+	void SetRain(float Target, float FadeSeconds = -1.f);
+
+	/** Crops grow this much faster in a full downpour (0.5 = 50% faster). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Weather", meta = (ClampMin = "0.0"))
+	float RainGrowthBonus = 0.5f;
+
+	/** Tyres lose this fraction of their grip in a full downpour. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Weather", meta = (ClampMin = "0.0", ClampMax = "0.9"))
+	float RainGripLoss = 0.2f;
+
 	/** Server: sell everything in store. Returns the coins earned. */
 	int32 SellGrain();
 
@@ -126,10 +142,29 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Time", meta = (ClampMin = "0.02", Units = "s"))
 	float LightingUpdateInterval = 0.1f;
 
+	/** Real seconds of clear sky between showers (random in this range). */
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Weather", meta = (Units = "s"))
+	FVector2D ClearSeconds = FVector2D(360.f, 840.f);
+
+	/** Real seconds a shower lasts (random in this range). */
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Weather", meta = (Units = "s"))
+	FVector2D RainSeconds = FVector2D(120.f, 300.f);
+
+	/** How long the sky takes to cloud over or clear up. */
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Weather", meta = (ClampMin = "1.0", Units = "s"))
+	float RainFadeSeconds = 40.f;
+
 private:
 	/** Total in-game hours elapsed since day 1, 00:00. */
 	double GetTotalGameHours() const;
 	void UpdateLighting();
+
+	/** Server: the scheduled weather change (clear -> rain -> clear ...). */
+	void OnWeatherTimer();
+	void ScheduleWeather();
+
+	/** Local: the falling-rain effect around this machine's camera. */
+	void EnsureRainEffect();
 
 	UPROPERTY(Replicated)
 	double AnchorServerSeconds = 0.0;
@@ -161,4 +196,22 @@ private:
 
 	UPROPERTY(Replicated)
 	float GrainPriceMultiplier = 1.f;
+
+	// Weather: like the clock, only the start and end of the current fade replicate.
+	UPROPERTY(Replicated)
+	float RainFrom = 0.f;
+
+	UPROPERTY(Replicated)
+	float RainTo = 0.f;
+
+	UPROPERTY(Replicated)
+	double RainChangeServerSeconds = 0.0;
+
+	UPROPERTY(Replicated)
+	float RainFadeActive = 40.f;
+
+	FTimerHandle WeatherTimerHandle;
+
+	UPROPERTY(Transient)
+	TObjectPtr<AActor> RainEffect;
 };

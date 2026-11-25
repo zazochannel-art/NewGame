@@ -206,6 +206,7 @@ bool ULISaveSubsystem::SaveCurrentGame()
 			Vehicle.VehicleClass = It->GetClass();
 			Vehicle.Transform = It->GetActorTransform();
 			It->GetSaveState(Vehicle.Mode, Vehicle.Amount, Vehicle.bHitched);
+			Vehicle.Fuel = It->UsesFuel() ? It->GetFuel() : -1.f;
 		}
 	}
 	for (TActorIterator<ALIConstructionSite> It(World); It; ++It)

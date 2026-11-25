@@ -59,6 +59,9 @@ ALITractor::ALITractor()
 	HighSpeedSteerFactor = 0.6f;
 	TyreGrip = 1.3f;
 	DragArea = 2.5f;
+	FuelCapacity = 150.f;
+	FuelBurnIdle = 0.015f;
+	FuelBurnFull = 0.16f;
 	HeadlightOffset = FVector(175.f, 0.f, 38.f); // between the grille lamps
 
 	CameraDistance = 800.f;
@@ -411,6 +414,9 @@ ALIDumpTruck::ALIDumpTruck()
 	MaxSpeedKmh = 70.f;
 	MaxReverseKmh = 15.f;
 	DragArea = 5.0f; // a brick on wheels
+	FuelCapacity = 200.f;
+	FuelBurnIdle = 0.02f;
+	FuelBurnFull = 0.22f;
 	AntiRoll = 0.9f;
 	HeadlightOffset = FVector(368.f, 0.f, 50.f);
 	Acceleration = 2.4f;
@@ -738,6 +744,7 @@ ALIGrainTrailer::ALIGrainTrailer()
 	Wheels[2].GripScale = 0.05f;
 	Headlight->SetIntensity(0.f); // trailers have no headlights, only the tail glow
 	DustRate = 8.f;
+	FuelCapacity = 0.f; // no engine
 	DragArea = 1.2f;
 
 	Coupling = CreateDefaultSubobject<UPhysicsConstraintComponent>(TEXT("Coupling"));

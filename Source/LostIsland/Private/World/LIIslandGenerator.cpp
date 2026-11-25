@@ -731,6 +731,7 @@ void ALIIslandGenerator::SetupEnvironment()
 	{
 		const float Brightness = FMath::Max(1.f, SkyBrightness);
 		SkyAtmosphere->SetSkyLuminanceFactor(FLinearColor(Brightness, Brightness, Brightness));
+		AppliedSkyLuminance = Brightness;
 		SkyLight->SetIntensity(1.8f); // soft, bright shadows for the stylised look
 	}
 
@@ -788,8 +789,9 @@ void ALIIslandGenerator::SetupEnvironment()
 // Resources (server)
 // ---------------------------------------------------------------------------
 
-void ALIIslandGenerator::ApplyTimeOfDay(float Hours, float SunriseHours, float SunsetHours)
+void ALIIslandGenerator::ApplyTimeOfDay(float Hours, float SunriseHours, float SunsetHours, float Rain)
 {
+	Rain = FMath::Clamp(Rain, 0.f, 1.f);
 	// Clouds drift with the clock (same time on every machine -> same sky), even with a level-provided sun.
 	if (CloudRoot)
 	{
@@ -829,12 +831,29 @@ void ALIIslandGenerator::ApplyTimeOfDay(float Hours, float SunriseHours, float S
 		Color = MoonColor;
 	}
 
+	// Rain: overcast light (weaker, cooler sun) and a duller sky.
+	Intensity *= FMath::Lerp(1.f, 0.3f, Rain);
+	Color = FLinearColor::LerpUsingHSV(Color, FLinearColor(0.75f, 0.8f, 0.9f), Rain * 0.6f);
+	Warmth *= 1.f - Rain;
+
 	// Deeper night sky: the boosted daytime sky would otherwise stay dusk-blue all night.
-	if (SkyAtmosphere && bSunUp != bSkyWasDay)
+	if (SkyAtmosphere)
 	{
 		bSkyWasDay = bSunUp;
-		const float Brightness = FMath::Max(1.f, SkyBrightness) * (bSunUp ? 1.f : NightSkyFactor);
-		SkyAtmosphere->SetSkyLuminanceFactor(FLinearColor(Brightness, Brightness, Brightness));
+		const float Brightness = FMath::Max(1.f, SkyBrightness) * (bSunUp ? 1.f : NightSkyFactor) * FMath::Lerp(1.f, 0.45f, Rain);
+		if (!FMath::IsNearlyEqual(Brightness, AppliedSkyLuminance, 0.02f))
+		{
+			AppliedSkyLuminance = Brightness;
+			SkyAtmosphere->SetSkyLuminanceFactor(FLinearColor(Brightness, Brightness, Brightness));
+		}
+	}
+
+	// Rain haze: thicker fog that starts close, so the far side of the valley greys out.
+	if (HeightFog && !FMath::IsNearlyEqual(Rain, AppliedFogRain, 0.01f))
+	{
+		AppliedFogRain = Rain;
+		HeightFog->SetFogDensity(FMath::Lerp(0.006f, 0.035f, Rain));
+		HeightFog->SetStartDistance(FMath::Lerp(4000.f, 500.f, Rain));
 	}
 
 	// A directional light shines along its forward vector: pitch down by the elevation.
@@ -851,7 +870,7 @@ void ALIIslandGenerator::ApplyTimeOfDay(float Hours, float SunriseHours, float S
 		PostProcess->Settings.bOverride_WhiteTemp = true;
 		PostProcess->Settings.WhiteTemp = 6500.f + GoldenHourWarmth * Warmth;
 		PostProcess->Settings.bOverride_ColorSaturation = true;
-		const float Saturation = LookSaturation * (1.f + 0.12f * Warmth);
+		const float Saturation = LookSaturation * (1.f + 0.12f * Warmth) * FMath::Lerp(1.f, 0.75f, Rain);
 		PostProcess->Settings.ColorSaturation = FVector4(Saturation, Saturation, Saturation, 1.f);
 	}
 }

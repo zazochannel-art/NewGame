@@ -141,6 +141,10 @@ struct FLIVehicleSaveData
 	/** A trailer that was hitched (re-hitched to the nearest tractor on load). */
 	UPROPERTY(SaveGame)
 	bool bHitched = false;
+
+	/** Litres in the tank; -1 (older saves) = full. */
+	UPROPERTY(SaveGame)
+	float Fuel = -1.f;
 };
 
 /** One construction site: loads delivered so far (see ALIConstructionSite). */

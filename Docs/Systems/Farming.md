@@ -7,7 +7,7 @@ The farm loop in the valley: **plough, sow, wait, harvest, sell**.
 - Four fields of 20 x 20 m, one in each corner around the farmyard, marked by wooden corner posts. The valley generator flattens them (`GetFieldRects`, `GetFieldWeight`) and keeps grass, trees and rocks off them.
 - Each field is a grid of 2 m patches (10 x 10). A patch goes:
   Grass -> **Plowed** (plough) -> **Sown** (seeder) -> Sprout -> Growing -> **Ripe** (time) -> **Stubble** (harvester, gives grain) -> plough again.
-- Growing from sowing to ripe takes `GrowthSeconds` (8 real minutes by default). Ploughing destroys whatever grows.
+- Growing from sowing to ripe takes `GrowthSeconds` (8 real minutes by default), up to 50% faster while it rains (see [Weather.md](Weather.md)). Ploughing destroys whatever grows.
 - The server owns the state; the per-patch states replicate as one byte array, and every machine rebuilds the look (soil and furrows as a procedural mesh, wheat as instanced cones) at most 4 times a second.
 
 ## Tractor implements

@@ -6,6 +6,8 @@
 #include "GameFramework/PlayerController.h"
 #include "LIPlayerController.generated.h"
 
+class ULISettingsMenu;
+
 /**
  * ALIPlayerController
  *
@@ -23,6 +25,7 @@
  *     LIGoToSea                      (deep water off the start beach, to test swimming)
  *     LIPlace                        (same as G)
  *     LISetTime <Hours>              (e.g. 21 for night)
+ *     LIRain <0..1>                  (0 = clear sky, 1 = downpour)
  *     LIScreenshotTour [Quit]        (day, beach, forest, wreck, sunset: screenshot + FPS each; 1 = quit after)
  *
  * Save commands (all builds):  LISave, LILoad, LINewGame   (also F5 / F9 on the character)
@@ -39,6 +42,16 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "LostIsland|UI")
 	bool IsInventoryOpen() const { return bInventoryOpen; }
+
+	/** The in-game menu with the settings (Esc / P / gamepad View). Local controllers only. */
+	ULISettingsMenu* GetSettingsMenu() const { return SettingsMenu; }
+
+	UFUNCTION(BlueprintPure, Category = "LostIsland|UI")
+	bool IsSettingsMenuOpen() const;
+
+	/** Open or close the menu: mouse cursor, input focus and (standalone only) pause. */
+	UFUNCTION(BlueprintCallable, Category = "LostIsland|UI")
+	void SetSettingsMenuOpen(bool bOpen);
 
 	/** Server -> owning client: short HUD message ("Game saved"). */
 	UFUNCTION(Client, Unreliable)
@@ -133,6 +146,10 @@ public:
 	UFUNCTION(Exec)
 	void LISetTime(float Hours);
 
+	/** Start (or stop, with 0) a rain shower: 0..1. */
+	UFUNCTION(Exec)
+	void LIRain(float Amount);
+
 	UFUNCTION(Exec)
 	void LISetStat(const FString& StatName, float Value);
 
@@ -152,6 +169,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void SetupInputComponent() override;
 
 private:
 	UFUNCTION(Server, Reliable)
@@ -182,6 +200,9 @@ private:
 	void ServerDebugSetTime(float Hours);
 
 	UFUNCTION(Server, Reliable)
+	void ServerDebugRain(float Amount);
+
+	UFUNCTION(Server, Reliable)
 	void ServerSaveGame();
 
 	UFUNCTION(Server, Reliable)
@@ -205,4 +226,19 @@ private:
 
 	FText HudMessage;
 	double HudMessageExpireTime = 0.0;
+
+	// ---- Settings menu (local) ----
+	void ToggleSettingsMenu();
+	void MenuUp();
+	void MenuDown();
+	void MenuLeft();
+	void MenuRight();
+	void MenuActivate();
+
+	UPROPERTY(Transient)
+	TObjectPtr<ULISettingsMenu> SettingsMenu;
+
+	/** Pushed on top of the input stack while the menu is open; blocks the pawn's input. */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputComponent> MenuInput;
 };

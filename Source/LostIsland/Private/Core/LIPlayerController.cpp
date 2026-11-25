@@ -3,6 +3,10 @@
 #include "Core/LIPlayerController.h"
 
 #include "Character/LICharacter.h"
+#include "UI/LISettingsMenu.h"
+#include "UI/LIGameSettings.h"
+#include "Components/InputComponent.h"
+#include "InputCoreTypes.h"
 #include "LostIsland.h"
 #include "Engine/World.h"
 #include "GameFramework/GameModeBase.h"
@@ -35,6 +39,7 @@ void ALIPlayerController::BeginPlay()
 	{
 		SetInputMode(FInputModeGameOnly());
 		SetShowMouseCursor(false);
+		FLIGameSettings::Get(); // load and apply the saved settings (render scale)
 
 #if !UE_BUILD_SHIPPING
 		// -LIScreenshotTour on the command line: run the visual smoke test, then quit.
@@ -45,6 +50,116 @@ void ALIPlayerController::BeginPlay()
 #endif
 	}
 }
+
+// --- Settings menu ---
+
+void ALIPlayerController::SetupInputComponent()
+{
+	Super::SetupInputComponent();
+
+	// The menu key works with any pawn (on foot or driving). Esc ends Play-In-Editor, so P works too.
+	for (const FKey& Key : { EKeys::Escape, EKeys::P, EKeys::Gamepad_Special_Left })
+	{
+		InputComponent->BindKey(Key, IE_Pressed, this, &ALIPlayerController::ToggleSettingsMenu).bExecuteWhenPaused = true;
+	}
+}
+
+bool ALIPlayerController::IsSettingsMenuOpen() const
+{
+	return SettingsMenu && SettingsMenu->IsOpen();
+}
+
+void ALIPlayerController::ToggleSettingsMenu()
+{
+	SetSettingsMenuOpen(!IsSettingsMenuOpen());
+}
+
+void ALIPlayerController::SetSettingsMenuOpen(bool bOpen)
+{
+	if (!IsLocalController() || bOpen == IsSettingsMenuOpen())
+	{
+		return;
+	}
+	if (!SettingsMenu)
+	{
+		SettingsMenu = NewObject<ULISettingsMenu>(this);
+		SettingsMenu->Init(this);
+	}
+	if (!MenuInput)
+	{
+		// While open, this sits on top of the input stack and swallows everything the pawn would get.
+		MenuInput = NewObject<UInputComponent>(this, TEXT("SettingsMenuInput"));
+		MenuInput->bBlockInput = true;
+		MenuInput->Priority = 100;
+		auto Bind = [this](const FKey& Key, void (ALIPlayerController::*Handler)())
+		{
+			MenuInput->BindKey(Key, IE_Pressed, this, Handler).bExecuteWhenPaused = true;
+		};
+		for (const FKey& Key : { EKeys::Escape, EKeys::P, EKeys::Gamepad_Special_Left, EKeys::Gamepad_FaceButton_Right })
+		{
+			Bind(Key, &ALIPlayerController::ToggleSettingsMenu);
+		}
+		for (const FKey& Key : { EKeys::Up, EKeys::W, EKeys::Gamepad_DPad_Up })
+		{
+			Bind(Key, &ALIPlayerController::MenuUp);
+		}
+		for (const FKey& Key : { EKeys::Down, EKeys::S, EKeys::Gamepad_DPad_Down })
+		{
+			Bind(Key, &ALIPlayerController::MenuDown);
+		}
+		for (const FKey& Key : { EKeys::Left, EKeys::A, EKeys::Gamepad_DPad_Left })
+		{
+			Bind(Key, &ALIPlayerController::MenuLeft);
+		}
+		for (const FKey& Key : { EKeys::Right, EKeys::D, EKeys::Gamepad_DPad_Right })
+		{
+			Bind(Key, &ALIPlayerController::MenuRight);
+		}
+		for (const FKey& Key : { EKeys::Enter, EKeys::SpaceBar, EKeys::Gamepad_FaceButton_Bottom })
+		{
+			Bind(Key, &ALIPlayerController::MenuActivate);
+		}
+	}
+
+	SettingsMenu->SetOpen(bOpen);
+	if (bOpen)
+	{
+		PushInputComponent(MenuInput);
+		FInputModeGameAndUI Mode;
+		Mode.SetHideCursorDuringCapture(false);
+		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		SetInputMode(Mode);
+		SetShowMouseCursor(true);
+		bEnableClickEvents = true;
+		bEnableMouseOverEvents = true;
+		SetIgnoreMoveInput(true);
+		SetIgnoreLookInput(true);
+		if (GetNetMode() == NM_Standalone)
+		{
+			SetPause(true); // single player: the world waits
+		}
+	}
+	else
+	{
+		PopInputComponent(MenuInput);
+		SetInputMode(FInputModeGameOnly());
+		SetShowMouseCursor(false);
+		bEnableClickEvents = false;
+		bEnableMouseOverEvents = false;
+		ResetIgnoreMoveInput();
+		ResetIgnoreLookInput();
+		if (IsPaused())
+		{
+			SetPause(false);
+		}
+	}
+}
+
+void ALIPlayerController::MenuUp() { if (SettingsMenu) { SettingsMenu->MoveSelection(-1); } }
+void ALIPlayerController::MenuDown() { if (SettingsMenu) { SettingsMenu->MoveSelection(1); } }
+void ALIPlayerController::MenuLeft() { if (SettingsMenu) { SettingsMenu->ChangeValue(-1); } }
+void ALIPlayerController::MenuRight() { if (SettingsMenu) { SettingsMenu->ChangeValue(1); } }
+void ALIPlayerController::MenuActivate() { if (SettingsMenu) { SettingsMenu->Activate(); } }
 
 // --- Screenshot tour (visual smoke test) ---
 
@@ -332,6 +447,7 @@ void ALIPlayerController::LIRegenerateIsland(int32 Seed) { ServerDebugRegenerate
 void ALIPlayerController::LIGoToCrashSite() { ServerDebugGoToCrashSite(); }
 void ALIPlayerController::LIGoToSea() { ServerDebugGoToSea(); }
 void ALIPlayerController::LISetTime(float Hours) { ServerDebugSetTime(Hours); }
+void ALIPlayerController::LIRain(float Amount) { ServerDebugRain(Amount); }
 
 // --- Debug commands (server) ---
 
@@ -435,6 +551,16 @@ void ALIPlayerController::ServerDebugSetTime_Implementation(float Hours)
 	if (ALIGameState* GameState = GetWorld()->GetGameState<ALIGameState>())
 	{
 		GameState->SetTime(GameState->GetDayNumber(), FMath::Fmod(FMath::Max(0.f, Hours), 24.f));
+	}
+#endif
+}
+
+void ALIPlayerController::ServerDebugRain_Implementation(float Amount)
+{
+#if !UE_BUILD_SHIPPING
+	if (ALIGameState* GameState = GetWorld()->GetGameState<ALIGameState>())
+	{
+		GameState->SetRain(Amount, 8.f);
 	}
 #endif
 }

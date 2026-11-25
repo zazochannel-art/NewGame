@@ -5,6 +5,8 @@
 #include "Character/LICharacter.h"
 #include "Core/LIGameMode.h"
 #include "Core/LIGameState.h"
+#include "Core/LIPlayerController.h"
+#include "UI/LIGameSettings.h"
 #include "LostIsland.h"
 #include "Visuals/LILowPolyMesh.h"
 
@@ -124,6 +126,7 @@ void ALIVehicle::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifeti
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ALIVehicle, Driver);
 	DOREPLIFETIME(ALIVehicle, bToolActive);
+	DOREPLIFETIME(ALIVehicle, Fuel);
 	DOREPLIFETIME_CONDITION(ALIVehicle, ThrottleInput, COND_SkipOwner);
 	DOREPLIFETIME_CONDITION(ALIVehicle, SteerInput, COND_SkipOwner);
 	DOREPLIFETIME_CONDITION(ALIVehicle, bHandbrake, COND_SkipOwner);
@@ -143,6 +146,10 @@ void ALIVehicle::BeginPlay()
 	if (HasAuthority())
 	{
 		Chassis->SetSimulatePhysics(true);
+		if (Fuel < 0.f)
+		{
+			Fuel = FuelCapacity; // new vehicles come with a full tank; a save may set it afterwards
+		}
 	}
 
 	for (FLIVehicleWheel& Wheel : Wheels)
@@ -467,8 +474,10 @@ void ALIVehicle::OnHandbrake(const FInputActionValue& Value)
 void ALIVehicle::OnLook(const FInputActionValue& Value)
 {
 	const FVector2D Look = Value.Get<FVector2D>();
-	LookYawOffset = FMath::Clamp(LookYawOffset + static_cast<float>(Look.X) * 1.5f, -170.f, 170.f);
-	LookPitchOffset = FMath::Clamp(LookPitchOffset + static_cast<float>(Look.Y) * 1.5f, -35.f, 30.f);
+	const FLIGameSettings& Settings = FLIGameSettings::Get();
+	const float Sensitivity = 1.5f * Settings.MouseSensitivity;
+	LookYawOffset = FMath::Clamp(LookYawOffset + static_cast<float>(Look.X) * Sensitivity, -170.f, 170.f);
+	LookPitchOffset = FMath::Clamp(LookPitchOffset + static_cast<float>(Look.Y) * Sensitivity * (Settings.bInvertY ? -1.f : 1.f), -35.f, 30.f);
 	LastLookTime = GetWorld()->GetTimeSeconds();
 }
 
@@ -619,6 +628,10 @@ void ALIVehicle::Tick(float DeltaSeconds)
 		ServerSetInput(ThrottleInput, SteerInput, bHandbrake);
 	}
 
+	if (HasAuthority())
+	{
+		UpdateFuel(DeltaSeconds);
+	}
 	SimulatePhysics(DeltaSeconds);
 	UpdateWheelVisuals(DeltaSeconds);
 	if (GetNetMode() != NM_DedicatedServer)
@@ -629,6 +642,57 @@ void ALIVehicle::Tick(float DeltaSeconds)
 	if (IsLocallyControlled())
 	{
 		UpdateCamera(DeltaSeconds);
+	}
+}
+
+float ALIVehicle::AddFuel(float Litres)
+{
+	if (!HasAuthority() || !UsesFuel() || Litres <= 0.f)
+	{
+		return 0.f;
+	}
+	const float Before = GetFuel();
+	Fuel = FMath::Min(FuelCapacity, Before + Litres);
+	if (Fuel > FuelCapacity * 0.15f)
+	{
+		FuelWarningLevel = 0;
+	}
+	return Fuel - Before;
+}
+
+void ALIVehicle::SetFuel(float Litres)
+{
+	if (HasAuthority())
+	{
+		Fuel = Litres < 0.f ? FuelCapacity : FMath::Clamp(Litres, 0.f, FuelCapacity);
+		FuelWarningLevel = 0;
+	}
+}
+
+void ALIVehicle::UpdateFuel(float DeltaSeconds)
+{
+	if (!UsesFuel() || IsParked() || Fuel <= 0.f || !Driver)
+	{
+		return;
+	}
+	Fuel = FMath::Max(0.f, Fuel - (FuelBurnIdle + FuelBurnFull * FMath::Abs(ThrottleInput)) * DeltaSeconds);
+
+	ALIPlayerController* PC = Cast<ALIPlayerController>(GetController());
+	if (Fuel <= 0.f && FuelWarningLevel < 2)
+	{
+		FuelWarningLevel = 2;
+		if (PC)
+		{
+			PC->ClientShowMessage(LOCTEXT("OutOfFuel", "Out of fuel! The engine only limps along now. Crawl to the fuel pump by the road."));
+		}
+	}
+	else if (Fuel < FuelCapacity * 0.15f && FuelWarningLevel < 1)
+	{
+		FuelWarningLevel = 1;
+		if (PC)
+		{
+			PC->ClientShowMessage(LOCTEXT("LowFuel", "Fuel is low. Refuel at the pump by the road (E at the pump)."));
+		}
 	}
 }
 
@@ -648,6 +712,10 @@ void ALIVehicle::SimulatePhysics(float DeltaSeconds)
 
 	const int32 NumWheels = Wheels.Num();
 	const float Gravity = FMath::Abs(World->GetGravityZ());
+
+	// Wet ground in the rain: less grip for every tyre.
+	const ALIGameState* WeatherState = World->GetGameState<ALIGameState>();
+	const float WetGrip = WeatherState ? 1.f - WeatherState->RainGripLoss * WeatherState->GetRainAmount() : 1.f;
 	const float WheelMass = Mass / NumWheels;
 	const float Stiffness = WheelMass * Gravity / FMath::Max(1.f, RestCompression * SuspensionLength); // per cm
 	const float Damping = DampingRatio * 2.f * FMath::Sqrt(Stiffness * WheelMass);
@@ -681,6 +749,16 @@ void ALIVehicle::SimulatePhysics(float DeltaSeconds)
 		else
 		{
 			Drive = ThrottleInput;
+		}
+	}
+
+	// Empty tank: only a little power, and none above a crawl.
+	if (UsesFuel() && Fuel == 0.f && Drive != 0.f)
+	{
+		Drive *= EmptyPowerFraction;
+		if (FMath::Abs(ForwardSpeed) > EmptyMaxKmh * CmPerSecPerKmh)
+		{
+			Drive = 0.f;
 		}
 	}
 
@@ -749,7 +827,7 @@ void ALIVehicle::SimulatePhysics(float DeltaSeconds)
 
 		const bool bRear = !Wheel.bSteers;
 		const float Grip = TyreGrip * ((bRear && bHandbrake) ? HandbrakeRearGrip : 1.f);
-		const float MaxFriction = Grip * Wheel.GripScale * SpringForce;
+		const float MaxFriction = Grip * Wheel.GripScale * WetGrip * SpringForce;
 
 		// Sideways: cancel most of the slide this step, as far as the grip allows.
 		const float LateralForce = -LateralSpeed * WheelMass / Dt * 0.6f;
@@ -840,8 +918,9 @@ void ALIVehicle::UpdateLights(float DeltaSeconds)
 		LightCheckTimer = 1.f;
 		const ALIGameState* GameState = GetWorld()->GetGameState<ALIGameState>();
 		const float Hours = GameState ? GameState->GetTimeOfDayHours() : 12.f;
-		// On from dusk to a little after dawn, only while someone drives or a trailer is towed.
-		bLightsOn = (Hours > 19.5f || Hours < 6.5f) && !IsParked();
+		const bool bHeavyRain = GameState && GameState->GetRainAmount() > 0.5f;
+		// On from dusk to a little after dawn (and in heavy rain), only while someone drives or a trailer is towed.
+		bLightsOn = (Hours > 19.5f || Hours < 6.5f || bHeavyRain) && !IsParked();
 		Headlight->SetVisibility(bLightsOn);
 	}
 
@@ -861,7 +940,10 @@ void ALIVehicle::UpdateEffects(float DeltaSeconds)
 	const float Speed = FMath::Abs(GetSpeedKmh());
 	if (Speed > 6.f && DustPuffs->GetStaticMesh())
 	{
-		const float Amount = FMath::Clamp((Speed - 6.f) / 40.f, 0.f, 1.f);
+		// Wet ground hardly dusts.
+		const ALIGameState* GameState = GetWorld()->GetGameState<ALIGameState>();
+		const float Dry = GameState ? 1.f - 0.85f * GameState->GetRainAmount() : 1.f;
+		const float Amount = FMath::Clamp((Speed - 6.f) / 40.f, 0.f, 1.f) * Dry;
 		DustAccumulator += DustRate * Amount * DeltaSeconds;
 		const FVector Velocity = GetVelocity();
 		while (DustAccumulator >= 1.f && Puffs.Num() < 64)
@@ -949,7 +1031,7 @@ void ALIVehicle::UpdateCamera(float DeltaSeconds)
 
 	// A wider view at speed sells the motion.
 	const float SpeedAlpha = FMath::Clamp(FMath::Abs(GetSpeedKmh()) / 90.f, 0.f, 1.f);
-	Camera->SetFieldOfView(FMath::FInterpTo(Camera->FieldOfView, FMath::Lerp(88.f, 102.f, SpeedAlpha), DeltaSeconds, 3.f));
+	Camera->SetFieldOfView(FMath::FInterpTo(Camera->FieldOfView, FMath::Lerp(88.f, 102.f, SpeedAlpha) + (FLIGameSettings::Get().FieldOfView - 90.f), DeltaSeconds, 3.f));
 }
 
 // ---------------------------------------------------------------------------
