@@ -148,6 +148,23 @@ public:
 	/** The physics body (the root). */
 	UBoxComponent* GetChassis() const { return Chassis; }
 
+	// ---- Fuel ----
+	/** Litres in the tank (replicated). */
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Vehicle|Fuel")
+	float GetFuel() const { return FMath::Max(Fuel, 0.f); }
+
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Vehicle|Fuel")
+	float GetFuelCapacity() const { return FuelCapacity; }
+
+	/** Whether this vehicle has an engine that burns fuel (the trailer does not). */
+	bool UsesFuel() const { return FuelCapacity > 0.f; }
+
+	/** Server: add litres (clamped to the tank). Returns how much went in. */
+	float AddFuel(float Litres);
+
+	/** Server: set the tank from a save (negative = full). */
+	void SetFuel(float Litres);
+
 	/** Lying on its side or roof (the HUD suggests R). */
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Vehicle")
 	bool IsTippedOver() const;
@@ -242,6 +259,26 @@ protected:
 	/** Fraction of critical damping. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle|Suspension", meta = (ClampMin = "0.0", ClampMax = "2.0"))
 	float DampingRatio = 0.55f;
+
+	// ---- Fuel ----
+	/** Tank size in litres. 0 = no engine (trailers). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle|Fuel", meta = (ClampMin = "0.0"))
+	float FuelCapacity = 60.f;
+
+	/** Litres per second with the engine idling while someone sits at the wheel. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle|Fuel", meta = (ClampMin = "0.0"))
+	float FuelBurnIdle = 0.01f;
+
+	/** Extra litres per second at full throttle. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle|Fuel", meta = (ClampMin = "0.0"))
+	float FuelBurnFull = 0.1f;
+
+	/** With an empty tank the engine limps on the last drops: this fraction of the power, up to EmptyMaxKmh. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle|Fuel", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float EmptyPowerFraction = 0.25f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle|Fuel", meta = (Units = "km/h"))
+	float EmptyMaxKmh = 12.f;
 
 	// ---- Drive ----
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle|Drive", meta = (Units = "km/h"))
@@ -365,6 +402,14 @@ private:
 	// Input the simulation uses. Set by the driving client locally, sent to the server, and replicated to the
 	// other machines (which run the same suspension so the replicated physics only needs small corrections).
 	// Throttle: -1 (brake / reverse) .. 1.
+	/** Litres in the tank; -1 until BeginPlay fills it. */
+	UPROPERTY(Replicated)
+	float Fuel = -1.f;
+
+	/** Server: burn fuel while driven, warn the driver when it runs low / out. */
+	void UpdateFuel(float DeltaSeconds);
+	uint8 FuelWarningLevel = 0; // 0 ok, 1 low warned, 2 empty warned
+
 	UPROPERTY(Replicated) float ThrottleInput = 0.f;
 	UPROPERTY(Replicated) float SteerInput = 0.f;
 	UPROPERTY(Replicated) bool bHandbrake = false;

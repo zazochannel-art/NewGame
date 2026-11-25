@@ -23,6 +23,7 @@
 #include "Vehicles/LIVehicle.h"
 #include "Vehicles/LIFarmVehicles.h"
 #include "Vehicles/LIVehicleDealer.h"
+#include "Vehicles/LIFuelPump.h"
 #include "Farm/LIFarmField.h"
 #include "Construction/LIConstruction.h"
 
@@ -270,6 +271,7 @@ void ALIGameMode::SpawnStartingVehicles(bool bFromSave)
 			if (ALIVehicle* Vehicle = World->SpawnActor<ALIVehicle>(Class, Transform, Params))
 			{
 				Vehicle->ApplySaveState(Data.Mode, Data.Amount);
+				Vehicle->SetFuel(Data.Fuel);
 				if (Data.bHitched)
 				{
 					if (ALIGrainTrailer* Trailer = Cast<ALIGrainTrailer>(Vehicle))
@@ -368,9 +370,20 @@ void ALIGameMode::SpawnDealers()
 	{
 		It->Destroy();
 	}
+	for (TActorIterator<ALIFuelPump> It(World); It; ++It)
+	{
+		It->Destroy();
+	}
 	if (!Island || !Island->IsValley())
 	{
 		return;
+	}
+
+	// Diesel pump beside the yard road (north side, east of the parked vehicles), long side along the road.
+	{
+		const FTransform PumpFrame = Island->GetActorTransform();
+		const FVector PumpLocation = PumpFrame.TransformPosition(FVector(700.f, 380.f, 0.f));
+		SpawnOnGround(ALIFuelPump::StaticClass(), PumpLocation, FRotator(0.f, PumpFrame.Rotator().Yaw + 90.f, 0.f), 95.f);
 	}
 
 	// West side of the yard: boards on the yard side (x -1230), bays behind them toward the edge (x ~ -1700).

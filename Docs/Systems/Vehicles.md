@@ -95,3 +95,20 @@ PIE: buy a tractor (coins go down, it appears on the bay); buy again with the ba
 - The camera's field of view widens from 88 to 102 degrees with speed.
 
 PIE: corner hard with the pickup (it leans, but much less than before); drive at night (lights on); brake (tail glow); jump off a slope (it lands level); drive on dirt (dust).
+
+## Fuel
+
+Every vehicle with an engine burns diesel while someone sits at the wheel: a little at idle, more with the throttle down. The trailer has no engine.
+
+| Vehicle | Tank | Full throttle lasts about |
+|---|---|---|
+| Pickup | 60 L | 9 min |
+| Tractor | 150 L | 14 min |
+| Dump truck | 200 L | 14 min |
+
+- The HUD shows a fuel gauge above the speedometer (green, amber below 35%, red below 15%). A message warns at 15% and when the tank is empty.
+- **Empty tank:** the engine limps along at a quarter of its power and no faster than 12 km/h, so you can always crawl back to the pump.
+- **Fuel pump** (`ALIFuelPump`): the red pump under the canopy on the north side of the yard road, east of the parked vehicles. Park within about 8 m, get out, look at the pump and press E: "Refuel the Tractor: 120 L (180 coins)". 1.5 coins per litre; with too few coins it fills as much as you can pay for.
+- New vehicles (start of a game, the dealer) come with a full tank. The tank level is saved with the vehicle; older saves load with full tanks.
+
+Test: drive the pickup until the gauge drops (or watch it at full throttle), park by the pump, E: coins go down, gauge full. Drive one until empty: the warning appears and it only crawls.

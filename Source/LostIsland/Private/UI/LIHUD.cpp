@@ -198,6 +198,19 @@ void ALIHUD::DrawVehicleHUD(const ALIVehicle* Vehicle)
 	const FString Name = Vehicle->GetDisplayName().ToString();
 	DrawText(Name, PromptColor, Right - 180.f, Bottom - 24.f, Font, 1.f);
 
+	// Fuel gauge above the speedometer: green, then amber, red when nearly empty.
+	if (Vehicle->UsesFuel())
+	{
+		const float Fraction = FMath::Clamp(Vehicle->GetFuel() / FMath::Max(1.f, Vehicle->GetFuelCapacity()), 0.f, 1.f);
+		const FLinearColor Gauge = Fraction < 0.15f ? FLinearColor(0.9f, 0.15f, 0.1f)
+			: Fraction < 0.35f ? FLinearColor(1.f, 0.7f, 0.15f) : FLinearColor(0.3f, 0.85f, 0.35f);
+		const float GaugeTop = Bottom - 134.f;
+		DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.35f), Right - 190.f, GaugeTop, 190.f, 20.f);
+		DrawRect(Gauge, Right - 140.f, GaugeTop + 5.f, 132.f * Fraction, 10.f);
+		const FString FuelLabel = Fraction <= 0.f ? TEXT("EMPTY") : FString::Printf(TEXT("%d L"), FMath::RoundToInt(Vehicle->GetFuel()));
+		DrawText(FuelLabel, Fraction < 0.15f ? Gauge : PromptColor, Right - 186.f, GaugeTop + 3.f, Font, 1.f);
+	}
+
 	// Controls, bottom centre.
 	FString Help = Vehicle->IsTippedOver()
 		? LOCTEXT("TippedOver", "[R] Put back on the wheels    [E] Get out").ToString()

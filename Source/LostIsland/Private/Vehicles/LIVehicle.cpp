@@ -5,6 +5,7 @@
 #include "Character/LICharacter.h"
 #include "Core/LIGameMode.h"
 #include "Core/LIGameState.h"
+#include "Core/LIPlayerController.h"
 #include "LostIsland.h"
 #include "Visuals/LILowPolyMesh.h"
 
@@ -124,6 +125,7 @@ void ALIVehicle::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifeti
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ALIVehicle, Driver);
 	DOREPLIFETIME(ALIVehicle, bToolActive);
+	DOREPLIFETIME(ALIVehicle, Fuel);
 	DOREPLIFETIME_CONDITION(ALIVehicle, ThrottleInput, COND_SkipOwner);
 	DOREPLIFETIME_CONDITION(ALIVehicle, SteerInput, COND_SkipOwner);
 	DOREPLIFETIME_CONDITION(ALIVehicle, bHandbrake, COND_SkipOwner);
@@ -143,6 +145,10 @@ void ALIVehicle::BeginPlay()
 	if (HasAuthority())
 	{
 		Chassis->SetSimulatePhysics(true);
+		if (Fuel < 0.f)
+		{
+			Fuel = FuelCapacity; // new vehicles come with a full tank; a save may set it afterwards
+		}
 	}
 
 	for (FLIVehicleWheel& Wheel : Wheels)
@@ -619,6 +625,10 @@ void ALIVehicle::Tick(float DeltaSeconds)
 		ServerSetInput(ThrottleInput, SteerInput, bHandbrake);
 	}
 
+	if (HasAuthority())
+	{
+		UpdateFuel(DeltaSeconds);
+	}
 	SimulatePhysics(DeltaSeconds);
 	UpdateWheelVisuals(DeltaSeconds);
 	if (GetNetMode() != NM_DedicatedServer)
@@ -629,6 +639,57 @@ void ALIVehicle::Tick(float DeltaSeconds)
 	if (IsLocallyControlled())
 	{
 		UpdateCamera(DeltaSeconds);
+	}
+}
+
+float ALIVehicle::AddFuel(float Litres)
+{
+	if (!HasAuthority() || !UsesFuel() || Litres <= 0.f)
+	{
+		return 0.f;
+	}
+	const float Before = GetFuel();
+	Fuel = FMath::Min(FuelCapacity, Before + Litres);
+	if (Fuel > FuelCapacity * 0.15f)
+	{
+		FuelWarningLevel = 0;
+	}
+	return Fuel - Before;
+}
+
+void ALIVehicle::SetFuel(float Litres)
+{
+	if (HasAuthority())
+	{
+		Fuel = Litres < 0.f ? FuelCapacity : FMath::Clamp(Litres, 0.f, FuelCapacity);
+		FuelWarningLevel = 0;
+	}
+}
+
+void ALIVehicle::UpdateFuel(float DeltaSeconds)
+{
+	if (!UsesFuel() || IsParked() || Fuel <= 0.f || !Driver)
+	{
+		return;
+	}
+	Fuel = FMath::Max(0.f, Fuel - (FuelBurnIdle + FuelBurnFull * FMath::Abs(ThrottleInput)) * DeltaSeconds);
+
+	ALIPlayerController* PC = Cast<ALIPlayerController>(GetController());
+	if (Fuel <= 0.f && FuelWarningLevel < 2)
+	{
+		FuelWarningLevel = 2;
+		if (PC)
+		{
+			PC->ClientShowMessage(LOCTEXT("OutOfFuel", "Out of fuel! The engine only limps along now. Crawl to the fuel pump by the road."));
+		}
+	}
+	else if (Fuel < FuelCapacity * 0.15f && FuelWarningLevel < 1)
+	{
+		FuelWarningLevel = 1;
+		if (PC)
+		{
+			PC->ClientShowMessage(LOCTEXT("LowFuel", "Fuel is low. Refuel at the pump by the road (E at the pump)."));
+		}
 	}
 }
 
@@ -685,6 +746,16 @@ void ALIVehicle::SimulatePhysics(float DeltaSeconds)
 		else
 		{
 			Drive = ThrottleInput;
+		}
+	}
+
+	// Empty tank: only a little power, and none above a crawl.
+	if (UsesFuel() && Fuel == 0.f && Drive != 0.f)
+	{
+		Drive *= EmptyPowerFraction;
+		if (FMath::Abs(ForwardSpeed) > EmptyMaxKmh * CmPerSecPerKmh)
+		{
+			Drive = 0.f;
 		}
 	}
 
