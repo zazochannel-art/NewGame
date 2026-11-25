@@ -84,3 +84,14 @@ Four bays on the west side of the farmyard, each with a blue price board. Look a
 In the valley, every vehicle is saved with its position, the tractor's implement, the dump truck's load and the trailer's grain. A trailer that was hitched is hitched again to the nearest tractor on load. A player saved at the wheel comes back standing next to the vehicle. Saves from before this change start with the default vehicles.
 
 PIE: buy a tractor (coins go down, it appears on the bay); buy again with the bay occupied (refused); drive vehicles around, load the dump truck, fill the trailer, F5, F9: everything is where it was.
+
+## Physics and effects
+
+- Anti-roll bars (`AntiRoll`, a fraction of the spring rate): wheels across an axle share their compression difference, so bodies lean less in corners and roll over far less.
+- Air resistance (`DragArea`, Cd x area in m^2): the dump truck (5.0) tops out earlier than the pickup (0.9).
+- Air control (`AirControl`): with all wheels off the ground the vehicle gently levels itself to land on its tyres.
+- Headlights (spot light, no shadows) come on from 19:30 to 6:30 while someone drives. A red tail glow is dim at night and bright while braking or on the handbrake. Trailers only get the tail glow.
+- Dust: tan puffs (world-space instanced spheres) rise from grounded wheels above 6 km/h, more with speed. They are cosmetic and simulated on every machine, but not on a dedicated server.
+- The camera's field of view widens from 88 to 102 degrees with speed.
+
+PIE: corner hard with the pickup (it leans, but much less than before); drive at night (lights on); brake (tail glow); jump off a slope (it lands level); drive on dirt (dust).

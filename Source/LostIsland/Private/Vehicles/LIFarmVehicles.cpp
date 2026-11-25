@@ -58,6 +58,8 @@ ALITractor::ALITractor()
 	MaxSteerAngle = 42.f;
 	HighSpeedSteerFactor = 0.6f;
 	TyreGrip = 1.3f;
+	DragArea = 2.5f;
+	HeadlightOffset = FVector(175.f, 0.f, 38.f); // between the grille lamps
 
 	CameraDistance = 800.f;
 	CameraHeight = 260.f;
@@ -144,6 +146,11 @@ void ALITractor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifeti
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ALITractor, Implement);
 	DOREPLIFETIME(ALITractor, Trailer);
+}
+
+ALIGrainTrailer* ALITractor::GetTrailer() const
+{
+	return Trailer.Get();
 }
 
 void ALITractor::SetTrailer(ALIGrainTrailer* InTrailer)
@@ -403,6 +410,9 @@ ALIDumpTruck::ALIDumpTruck()
 
 	MaxSpeedKmh = 70.f;
 	MaxReverseKmh = 15.f;
+	DragArea = 5.0f; // a brick on wheels
+	AntiRoll = 0.9f;
+	HeadlightOffset = FVector(368.f, 0.f, 50.f);
 	Acceleration = 2.4f;
 	BrakeDeceleration = 6.5f;
 	CoastDeceleration = 1.5f;
@@ -726,6 +736,9 @@ ALIGrainTrailer::ALIGrainTrailer()
 		MakeFarmWheel(FVector(250.f,    0.f, -60.f), 20.f, 10.f, false, false),
 	};
 	Wheels[2].GripScale = 0.05f;
+	Headlight->SetIntensity(0.f); // trailers have no headlights, only the tail glow
+	DustRate = 8.f;
+	DragArea = 1.2f;
 
 	Coupling = CreateDefaultSubobject<UPhysicsConstraintComponent>(TEXT("Coupling"));
 	Coupling->SetupAttachment(Chassis);

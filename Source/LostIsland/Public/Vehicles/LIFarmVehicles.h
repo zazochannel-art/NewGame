@@ -38,7 +38,7 @@ public:
 	/** Where a trailer's drawbar couples, behind the implement, in chassis space. */
 	FVector GetTowPoint() const { return TowPoint; }
 
-	ALIGrainTrailer* GetTrailer() const { return Trailer; }
+	ALIGrainTrailer* GetTrailer() const;
 
 	/** Server: called by the trailer when it is hitched (or unhitched, with null). */
 	void SetTrailer(ALIGrainTrailer* InTrailer);
