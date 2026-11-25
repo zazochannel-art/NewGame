@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Vehicles/LIVehicle.h"
 #include "Farm/LIFarmField.h"
+#include "Construction/LIConstruction.h"
 #include "LIFarmVehicles.generated.h"
 
 class UProceduralMeshComponent;
@@ -81,7 +82,8 @@ private:
  * ALIDumpTruck
  *
  * Six-wheeled site truck. Q tips the bed (hinged at the back) up to BedMaxAngle and back down; the bed only tips
- * while the truck is nearly stopped. Cargo for the bed comes with the building step.
+ * while the truck is nearly stopped. A material depot (ALIMaterialDepot) fills the bed with one load; tipping it
+ * with the tail at a construction site (ALIConstructionSite) that needs that material delivers it.
  */
 UCLASS()
 class LOSTISLAND_API ALIDumpTruck : public ALIVehicle
@@ -98,11 +100,33 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Vehicle")
 	float GetBedAngle() const { return BedAngle; }
 
+	ELIBuildMaterial GetCargo() const { return Cargo; }
+
+	/** Whether a depot may load the truck now: empty bed, bed down, standing still. */
+	bool CanLoadCargo() const;
+
+	/** Server: a depot put one load in the bed. */
+	void LoadCargo(ELIBuildMaterial Material);
+
+	/** World position of the bed's tail, where the load comes out. */
+	FVector GetTipPoint() const;
+
+	virtual FText GetStatusText() const override;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void BuildBody(FLILowPolyMesh& Mesh) const override;
 	virtual void ToggleTool() override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	/** The load in the bed (child of the bed, so it tips with it). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UProceduralMeshComponent> CargoMesh;
+
+	/** Bed angle at which the load slides out. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle|Bed")
+	float UnloadAngle = 35.f;
 
 	/** The tipping bed, pivoting on its rear hinge. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -124,5 +148,17 @@ protected:
 	float MaxTipSpeedKmh = 5.f;
 
 private:
+	UFUNCTION()
+	void OnRep_Cargo() { BuildCargo(); }
+
+	void BuildCargo();
+	void TryUnload();
+	void TellDriver(const FText& Message) const;
+
+	UPROPERTY(ReplicatedUsing = OnRep_Cargo)
+	ELIBuildMaterial Cargo = ELIBuildMaterial::None;
+
 	float BedAngle = 0.f;
+	/** One "nobody needs this here" message per raise of the bed. */
+	bool bUnloadTried = false;
 };

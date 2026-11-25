@@ -3,11 +3,13 @@
 #include "Vehicles/LIFarmVehicles.h"
 
 #include "Core/LIGameState.h"
+#include "Core/LIPlayerController.h"
 #include "Visuals/LILowPolyMesh.h"
 
 #include "Components/BoxComponent.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
+#include "Math/RandomStream.h"
 #include "Net/UnrealNetwork.h"
 #include "ProceduralMeshComponent.h"
 
@@ -371,6 +373,95 @@ ALIDumpTruck::ALIDumpTruck()
 	BedMesh->SetupAttachment(Chassis);
 	BedMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	BedMesh->SetCanEverAffectNavigation(false);
+
+	CargoMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("CargoMesh"));
+	CargoMesh->SetupAttachment(BedMesh);
+	CargoMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	CargoMesh->SetCanEverAffectNavigation(false);
+}
+
+void ALIDumpTruck::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ALIDumpTruck, Cargo);
+}
+
+bool ALIDumpTruck::CanLoadCargo() const
+{
+	return Cargo == ELIBuildMaterial::None && !bToolActive && BedAngle < 2.f && FMath::Abs(GetSpeedKmh()) < 3.f;
+}
+
+void ALIDumpTruck::LoadCargo(ELIBuildMaterial Material)
+{
+	if (HasAuthority())
+	{
+		Cargo = Material;
+		BuildCargo();
+	}
+}
+
+FVector ALIDumpTruck::GetTipPoint() const
+{
+	return GetActorTransform().TransformPosition(BedHinge + FVector(-120.f, 0.f, -60.f));
+}
+
+FText ALIDumpTruck::GetStatusText() const
+{
+	if (Cargo == ELIBuildMaterial::None)
+	{
+		return LOCTEXT("BedEmpty", "Bed empty: park by a depot and buy a load (F)");
+	}
+	return FText::Format(LOCTEXT("BedLoaded", "Load: {0}. Back up to a building site and tip it (Q)"),
+		LIConstruction::GetMaterialName(Cargo));
+}
+
+void ALIDumpTruck::TellDriver(const FText& Message) const
+{
+	if (ALIPlayerController* PC = Cast<ALIPlayerController>(GetController()))
+	{
+		PC->ClientShowMessage(Message);
+	}
+}
+
+void ALIDumpTruck::TryUnload()
+{
+	if (Cargo == ELIBuildMaterial::None || bUnloadTried)
+	{
+		return;
+	}
+	bUnloadTried = true;
+
+	const FVector TipPoint = GetTipPoint();
+	ALIConstructionSite* InRange = nullptr;
+	for (TActorIterator<ALIConstructionSite> It(GetWorld()); It; ++It)
+	{
+		if (!It->IsInDeliveryRange(TipPoint))
+		{
+			continue;
+		}
+		InRange = *It;
+		if (It->DeliverLoad(Cargo))
+		{
+			TellDriver(FText::Format(LOCTEXT("Delivered", "{0} delivered to the {1}. {2}"),
+				LIConstruction::GetMaterialName(Cargo), It->GetDisplayName(), It->GetStatusText()));
+			Cargo = ELIBuildMaterial::None;
+			BuildCargo();
+			return;
+		}
+	}
+
+	if (InRange)
+	{
+		const ELIBuildMaterial Needed = InRange->GetNeededMaterial();
+		TellDriver(Needed == ELIBuildMaterial::None
+			? FText::Format(LOCTEXT("SiteDone", "The {0} is already finished."), InRange->GetDisplayName())
+			: FText::Format(LOCTEXT("SiteNeedsOther", "The {0} needs {1} now, not {2}."),
+				InRange->GetDisplayName(), LIConstruction::GetMaterialName(Needed), LIConstruction::GetMaterialName(Cargo)));
+	}
+	else
+	{
+		TellDriver(LOCTEXT("NoSite", "No building site behind the truck: back the tail up to a staked plot."));
+	}
 }
 
 FText ALIDumpTruck::GetToolHint() const
@@ -416,6 +507,7 @@ void ALIDumpTruck::BeginPlay()
 	AddPart(Bed, FVector(4.f, 0.f, 16.f + WallHeight * 0.5f), FVector(4.f, HalfWidth - 8.f, WallHeight * 0.5f), SteelDark);  // tailgate
 	Bed.ApplyTo(BedMesh);
 	BedMesh->SetRelativeLocation(BedHinge);
+	BuildCargo();
 }
 
 void ALIDumpTruck::Tick(float DeltaSeconds)
@@ -428,6 +520,81 @@ void ALIDumpTruck::Tick(float DeltaSeconds)
 		BedAngle = FMath::FInterpConstantTo(BedAngle, Target, DeltaSeconds, BedSpeed);
 		BedMesh->SetRelativeRotation(FRotator(BedAngle, 0.f, 0.f)); // pitch up: the front of the bed rises
 	}
+
+	if (HasAuthority())
+	{
+		if (!bToolActive)
+		{
+			bUnloadTried = false; // lowered again: the next raise may try once more
+		}
+		else if (BedAngle >= UnloadAngle)
+		{
+			TryUnload();
+		}
+	}
+}
+
+void ALIDumpTruck::BuildCargo()
+{
+	CargoMesh->ClearAllMeshSections();
+	if (Cargo == ELIBuildMaterial::None)
+	{
+		return;
+	}
+
+	// Bed space: x 10..490 (hinge at 0), y -108..108, floor at z 18.
+	FLILowPolyMesh Mesh;
+	FRandomStream Random(1234);
+	switch (Cargo)
+	{
+	case ELIBuildMaterial::Gravel:
+	{
+		const FLinearColor Stone(0.55f, 0.54f, 0.50f);
+		const FLinearColor StoneLight(0.68f, 0.66f, 0.61f);
+		for (int32 Index = 0; Index < 4; ++Index)
+		{
+			Mesh.AddBlob(FTransform(FVector(90.f + Index * 105.f, 0.f, 40.f)), FVector(90.f, 100.f, 55.f), 0.18f, Random, Stone, &StoneLight);
+		}
+		break;
+	}
+	case ELIBuildMaterial::Lumber:
+	{
+		const FLinearColor Wood(0.70f, 0.52f, 0.32f);
+		const FLinearColor WoodDark(0.50f, 0.35f, 0.20f);
+		for (int32 Layer = 0; Layer < 4; ++Layer)
+		{
+			for (int32 Row = 0; Row < 6; ++Row)
+			{
+				const float Y = -90.f + Row * 36.f;
+				AddPart(Mesh, FVector(250.f + Random.FRandRange(-12.f, 12.f), Y, 30.f + Layer * 22.f), FVector(225.f, 16.f, 10.f),
+					(Row + Layer) % 3 == 0 ? WoodDark : Wood);
+			}
+		}
+		for (const float X : { 90.f, 410.f })
+		{
+			AddPart(Mesh, FVector(X, 0.f, 64.f), FVector(4.f, 112.f, 46.f), WoodDark); // binding straps
+		}
+		break;
+	}
+	case ELIBuildMaterial::Bricks:
+	{
+		const FLinearColor Brick(0.66f, 0.30f, 0.20f);
+		const FLinearColor Pallet(0.58f, 0.45f, 0.28f);
+		for (int32 Index = 0; Index < 4; ++Index)
+		{
+			for (const float Y : { -54.f, 54.f })
+			{
+				const FVector Center(75.f + Index * 112.f, Y, 18.f);
+				AddPart(Mesh, Center + FVector(0.f, 0.f, 6.f), FVector(50.f, 50.f, 6.f), Pallet);
+				AddPart(Mesh, Center + FVector(0.f, 0.f, 47.f), FVector(46.f, 46.f, 35.f), Brick);
+			}
+		}
+		break;
+	}
+	default:
+		break;
+	}
+	Mesh.ApplyTo(CargoMesh);
 }
 
 void ALIDumpTruck::BuildBody(FLILowPolyMesh& Mesh) const

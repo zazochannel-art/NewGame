@@ -118,6 +118,19 @@ struct FLIFieldSaveData
 	TArray<float> Growth;
 };
 
+/** One construction site: loads delivered so far (see ALIConstructionSite). */
+USTRUCT(BlueprintType)
+struct FLISiteSaveData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(SaveGame)
+	int32 SiteIndex = 0;
+
+	UPROPERTY(SaveGame)
+	int32 DeliveredLoads = 0;
+};
+
 UCLASS()
 class LOSTISLAND_API ULISaveGame : public USaveGame
 {
@@ -165,6 +178,9 @@ public:
 
 	UPROPERTY(SaveGame)
 	TArray<FLIFieldSaveData> Fields;
+
+	UPROPERTY(SaveGame)
+	TArray<FLISiteSaveData> Sites;
 
 	const FLIPlayerSaveData* FindPlayer(const FString& Key) const
 	{

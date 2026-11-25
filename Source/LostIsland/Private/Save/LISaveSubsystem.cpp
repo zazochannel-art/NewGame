@@ -3,6 +3,7 @@
 #include "Save/LISaveSubsystem.h"
 #include "Vehicles/LIVehicle.h"
 #include "Farm/LIFarmField.h"
+#include "Construction/LIConstruction.h"
 
 #include "Save/LISaveGame.h"
 #include "Character/LICharacter.h"
@@ -189,6 +190,12 @@ bool ULISaveSubsystem::SaveCurrentGame()
 		Field.Cells = It->GetCellStates();
 		Field.Growth = It->GetCellGrowth();
 	}
+	for (TActorIterator<ALIConstructionSite> It(World); It; ++It)
+	{
+		FLISiteSaveData& Site = Save->Sites.AddDefaulted_GetRef();
+		Site.SiteIndex = It->GetSiteIndex();
+		Site.DeliveredLoads = It->GetDeliveredLoads();
+	}
 	for (TActorIterator<ALICampfire> It(World); It; ++It)
 	{
 		FLIStructureSaveData& Structure = Save->Structures.AddDefaulted_GetRef();
@@ -371,6 +378,14 @@ void ULISaveSubsystem::ApplyWorldState()
 		if (const FLIFieldSaveData* Data = PendingSave->Fields.FindByPredicate([Index](const FLIFieldSaveData& D) { return D.FieldIndex == Index; }))
 		{
 			It->RestoreState(Data->Cells, Data->Growth);
+		}
+	}
+	for (TActorIterator<ALIConstructionSite> It(World); It; ++It)
+	{
+		const int32 Index = It->GetSiteIndex();
+		if (const FLISiteSaveData* Data = PendingSave->Sites.FindByPredicate([Index](const FLISiteSaveData& D) { return D.SiteIndex == Index; }))
+		{
+			It->RestoreProgress(Data->DeliveredLoads);
 		}
 	}
 

@@ -78,7 +78,13 @@ public:
 	void AddGrain(int32 Kg);
 
 	/** Server: coins for Kg of grain at the current price. */
-	int32 GetGrainValue(int32 Kg) const { return FMath::FloorToInt(Kg * GrainPricePerKg); }
+	int32 GetGrainValue(int32 Kg) const { return FMath::FloorToInt(Kg * GrainPricePerKg * GrainPriceMultiplier); }
+
+	/** Server: price multiplier from farm buildings (a finished barn). */
+	void SetGrainPriceMultiplier(float Multiplier) { GrainPriceMultiplier = FMath::Max(Multiplier, 0.f); }
+
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Farm")
+	float GetGrainPriceMultiplier() const { return GrainPriceMultiplier; }
 
 	/** Server: sell everything in store. Returns the coins earned. */
 	int32 SellGrain();
@@ -152,4 +158,7 @@ private:
 
 	UPROPERTY(Replicated)
 	bool bFarmEconomy = false;
+
+	UPROPERTY(Replicated)
+	float GrainPriceMultiplier = 1.f;
 };
