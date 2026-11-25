@@ -7,6 +7,8 @@ Windows PC / Steam · Unreal Engine 5 · C++ with Blueprint configuration · sin
 
 **Milestones 1–16: character + interaction, survival (health/hunger/thirst/stamina), resource gathering, inventory, procedural island, save system, food and water, crafting and tools, plane wreck, day/night with campfires., swimming, death and respawn, building, crabs and cooking, metal tools and flasks, and the raft escape (the goal of a run).** The code is written. It **compiles with UE 5.8** (Development Editor, Win64) and is awaiting in-editor testing; see [Docs/DevelopmentPlan.md](Docs/DevelopmentPlan.md).
 
+**New direction (2026-11-25): building and farming with vehicles.** A new game starts in a farm valley with a drivable pickup (E to get in). The original island is still there with `?World=Island`. See [Docs/Systems/Vehicles.md](Docs/Systems/Vehicles.md).
+
 ## Getting started (Windows)
 
 1. Install **Unreal Engine 5.5** from the Epic Games Launcher, and **Visual Studio 2022** with the "Game development with C++" workload.
@@ -33,6 +35,9 @@ The project contains no `.uasset` content yet. It starts in the empty engine map
 | Craft (inventory open) | 1–9 | —            |
 | Place campfire | G          | D-pad down       |
 | Save / Load | F5 / F9       | —                |
+| Drive a vehicle | E (look at it) | X / Square    |
+
+In a vehicle: W/S drive and brake (reverse when stopped), A/D steer, Space handbrake, E get out, R put it back on its wheels. Full table in [Docs/Systems/Vehicles.md](Docs/Systems/Vehicles.md).
 
 ## Layout
 
@@ -48,7 +53,8 @@ Source/LostIsland/
   Public|Private/Inventory/   ULIInventoryComponent
   Public|Private/Crafting/    ULIRecipeDefinition, ULICraftingComponent
   Public|Private/Resources/   ALIResourceNode + Tree / Rock / FiberBush presets
-  Public|Private/World/       ALIIslandGenerator (procedural island)
+  Public|Private/World/       ALIIslandGenerator (procedural island / farm valley)
+  Public|Private/Vehicles/    ALIVehicle (raycast-wheel physics), ALIPickupTruck
   Public|Private/Save/        ULISaveGame, ULISaveSubsystem
   Public|Private/UI/          ALIHUD (prototype canvas HUD: bars + prompt)
 Docs/                         Development plan and per-system documentation

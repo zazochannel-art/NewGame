@@ -196,6 +196,7 @@ void ALIIslandGenerator::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ALIIslandGenerator, Seed);
+	DOREPLIFETIME(ALIIslandGenerator, bValley);
 }
 
 // ---------------------------------------------------------------------------
@@ -273,6 +274,11 @@ float ALIIslandGenerator::Fbm(const FVector2D& P, int32 Octaves) const
 
 float ALIIslandGenerator::GetHeightAt(const FVector2D& LocalXY) const
 {
+	if (bValley)
+	{
+		return GetValleyHeightAt(LocalXY);
+	}
+
 	const FVector2D N = LocalXY / GetIslandRadius();
 
 	// Distance from centre, distorted by noise for an irregular coastline.
@@ -291,6 +297,92 @@ float ALIIslandGenerator::GetHeightAt(const FVector2D& LocalXY) const
 		+ Detail * DetailHeight;
 
 	return FMath::Lerp(SeabedHeight, LandHeight, LandMask);
+}
+
+// ---------------------------------------------------------------------------
+// Farm valley
+// ---------------------------------------------------------------------------
+
+float ALIIslandGenerator::GetValleyFloorAt(const FVector2D& LocalXY) const
+{
+	const FVector2D N = LocalXY / GetIslandRadius();
+	const float Rolling = Fbm(N * 1.3f + DetailOffset * 0.5f, 2); // -1..1, wavelengths of ~100 m
+	return ValleyFloorHeight + Rolling * ValleyRollingHeight;
+}
+
+float ALIIslandGenerator::GetRingRoadRadiusAt(float Angle) const
+{
+	// A loop that wanders a little, so it does not look drawn with a compass.
+	return GetIslandRadius() * RingRoadRadius * (1.f + 0.07f * FMath::Sin(3.f * Angle + HillOffset.X) + 0.04f * FMath::Sin(5.f * Angle + HillOffset.Y));
+}
+
+float ALIIslandGenerator::GetRoadWeight(const FVector2D& LocalXY) const
+{
+	if (!bValley)
+	{
+		return 0.f;
+	}
+	const float Angle = static_cast<float>(FMath::Atan2(LocalXY.Y, LocalXY.X));
+	const float Ring = GetRingRoadRadiusAt(Angle);
+	const float RingDistance = FMath::Abs(static_cast<float>(LocalXY.Size()) - Ring);
+
+	// Main road along X through the yard, ending on the loop on both sides; a gentle S-bend.
+	float MainDistance = TNumericLimits<float>::Max();
+	const float MainEnd = GetRingRoadRadiusAt(LocalXY.X >= 0.f ? 0.f : PI);
+	if (FMath::Abs(LocalXY.X) < MainEnd)
+	{
+		const float CenterY = 900.f * FMath::Sin(static_cast<float>(LocalXY.X) / 5200.f) * FMath::SmoothStep(YardHalfSize, YardHalfSize * 2.f, static_cast<float>(FMath::Abs(LocalXY.X)));
+		MainDistance = FMath::Abs(LocalXY.Y - CenterY);
+	}
+
+	const float Distance = FMath::Min(RingDistance, MainDistance);
+	return 1.f - FMath::SmoothStep(RoadHalfWidth, RoadHalfWidth + 260.f, Distance);
+}
+
+float ALIIslandGenerator::GetYardWeight(const FVector2D& LocalXY) const
+{
+	if (!bValley)
+	{
+		return 0.f;
+	}
+	const float Chebyshev = static_cast<float>(FMath::Max(FMath::Abs(LocalXY.X), FMath::Abs(LocalXY.Y)));
+	return 1.f - FMath::SmoothStep(YardHalfSize, YardHalfSize + 900.f, Chebyshev);
+}
+
+float ALIIslandGenerator::GetValleyHeightAt(const FVector2D& LocalXY) const
+{
+	const FVector2D N = LocalXY / GetIslandRadius();
+	const float Warp = Fbm(N * CoastNoiseFrequency + CoastOffset, 3) * CoastNoiseStrength * 0.5f;
+	const float D = N.Size() + Warp;
+
+	const float LandMask = 1.f - FMath::SmoothStep(0.9f, 1.02f, D);
+	const float Rim = FMath::SmoothStep(ValleyRimStart, 0.88f, D);
+
+	const float Hill = FMath::Clamp(Fbm(N * HillNoiseFrequency + HillOffset, 4) * HillContrast + 0.5f, 0.f, 1.f);
+	const float Detail = Fbm(N * DetailNoiseFrequency + DetailOffset, 3);
+
+	const float Floor = GetValleyFloorAt(LocalXY);
+	const float Mountains = (0.35f + 0.65f * Hill) * HillHeight * 0.8f * Rim;
+	float Land = Floor + Mountains + Detail * DetailHeight * (0.25f + 0.75f * Rim);
+
+	// Roads follow the smooth floor; the yard is one flat level (the floor height at its centre).
+	Land = FMath::Lerp(Land, Floor, GetRoadWeight(LocalXY) * (1.f - Rim));
+	Land = FMath::Lerp(Land, GetValleyFloorAt(FVector2D::ZeroVector), GetYardWeight(LocalXY));
+
+	return FMath::Lerp(SeabedHeight, Land, LandMask);
+}
+
+TArray<FTransform> ALIIslandGenerator::GetVehicleSpawnTransforms(int32 Count) const
+{
+	TArray<FTransform> Result;
+	const float YardZ = GetValleyFloorAt(FVector2D::ZeroVector);
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		// A row along the north edge of the yard, all facing the main road.
+		const FVector Local(-900.f + Index * 650.f, 1100.f, YardZ + 90.f);
+		Result.Add(FTransform(FRotator(0.f, 0.f, 0.f), GetActorTransform().TransformPosition(Local)));
+	}
+	return Result;
 }
 
 FVector ALIIslandGenerator::GetNormalAt(const FVector2D& LocalXY) const
@@ -365,6 +457,13 @@ FLinearColor ALIIslandGenerator::GetSurfaceColor(const FVector2D& LocalXY, float
 			Color = FLinearColor::LerpUsingHSV(Color, FLinearColor(Color.R * 0.62f, Color.G * 0.58f, Color.B * 0.5f), Wet * 0.85f);
 			Color = FLinearColor::LerpUsingHSV(Color, FLinearColor(0.80f, 0.74f, 0.58f), FMath::Clamp(Patch * 0.4f, 0.f, 0.4f));
 		}
+	}
+
+	// Valley: dirt road and the gravel farmyard on top of the grass.
+	if (bValley && NormalZ >= RockSlopeNormalZ)
+	{
+		Color = FLinearColor::LerpUsingHSV(Color, YardColor, GetYardWeight(LocalXY) * 0.85f);
+		Color = FLinearColor::LerpUsingHSV(Color, RoadColor, GetRoadWeight(LocalXY));
 	}
 
 	// Per-face brightness variation for the faceted look.
@@ -714,7 +813,7 @@ FTransform ALIIslandGenerator::GetCrashSiteTransform() const
 void ALIIslandGenerator::ChooseCrashSite()
 {
 	bHasCrashSite = false;
-	if (!CrashSiteClass)
+	if (!CrashSiteClass || bValley)
 	{
 		return;
 	}
@@ -794,6 +893,11 @@ void ALIIslandGenerator::BuildSpawnPoints()
 		{
 			continue;
 		}
+		// The farm valley keeps trees, rocks, bushes, berries and springs; no crabs or charging boars.
+		if (bValley && (Rule.NodeClass->IsChildOf(ALICrabNode::StaticClass()) || Rule.NodeClass->IsChildOf(ALIBoarNode::StaticClass())))
+		{
+			continue;
+		}
 
 		const float MinSpacingSq = FMath::Square(Rule.MinSpacing);
 		const int32 MaxAttempts = Rule.Count * 40;
@@ -814,6 +918,13 @@ void ALIIslandGenerator::BuildSpawnPoints()
 				continue;
 			}
 			if (bHasCrashSite && FVector2D::DistSquared(XY, CrashXY) < CrashClearanceSq)
+			{
+				continue;
+			}
+			// Keep the roads and the farmyard (plus a margin) clear for driving.
+			if (bValley && (FMath::Max(FMath::Abs(XY.X), FMath::Abs(XY.Y)) < YardHalfSize + 1700.f || GetRoadWeight(XY) > 0.f
+				|| GetRoadWeight(XY + FVector2D(400.f, 0.f)) > 0.f || GetRoadWeight(XY - FVector2D(400.f, 0.f)) > 0.f
+				|| GetRoadWeight(XY + FVector2D(0.f, 400.f)) > 0.f || GetRoadWeight(XY - FVector2D(0.f, 400.f)) > 0.f))
 			{
 				continue;
 			}
@@ -885,6 +996,13 @@ void ALIIslandGenerator::SpawnResourceNodes()
 
 FTransform ALIIslandGenerator::FindPlayerSpawnTransform() const
 {
+	if (bValley)
+	{
+		// In the farmyard, facing the parked vehicles.
+		const FVector Local(-300.f, -400.f, GetValleyFloorAt(FVector2D::ZeroVector) + 120.f);
+		return FTransform(FRotator(0.f, 112.f, 0.f), GetActorTransform().TransformPosition(Local));
+	}
+
 	FRandomStream Random(static_cast<int32>(HashCombine(GetTypeHash(Seed), 0x51A7u)));
 	const float Radius = GetIslandRadius();
 
@@ -1086,6 +1204,10 @@ void ALIIslandGenerator::BuildDecorations(const TArray<float>& Heights)
 					continue; // keep the waterline clean
 				}
 				const FVector Ground(XY.X, XY.Y, Height);
+				if (bValley && (GetRoadWeight(XY) > 0.35f || GetYardWeight(XY) > 0.5f))
+				{
+					continue; // bare earth on the roads and in the yard
+				}
 
 				if (bSteep)
 				{
@@ -1360,6 +1482,14 @@ FLinearColor ALIIslandGenerator::GetTerrainBlendWeights(const FVector2D& LocalXY
 
 	const float Land = (1.f - Rock) * (1.f - Sand);
 	FLinearColor Weights(Land * (1.f - Forest), Rock, (1.f - Rock) * Sand, Land * Forest);
+	if (bValley)
+	{
+		// Roads read as bare forest-floor earth, the yard as packed earth and gravel.
+		const float Road = GetRoadWeight(LocalXY);
+		const float Yard = GetYardWeight(LocalXY) * 0.8f;
+		const float Bare = FMath::Max(Road, Yard);
+		Weights = FMath::Lerp(Weights, FLinearColor(0.f, Yard * 0.35f, 0.f, 1.f - Yard * 0.35f), Bare);
+	}
 	const float Sum = Weights.R + Weights.G + Weights.B + Weights.A;
 	if (Sum > KINDA_SMALL_NUMBER)
 	{

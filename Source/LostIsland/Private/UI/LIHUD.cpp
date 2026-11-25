@@ -12,6 +12,7 @@
 #include "Crafting/LIRecipeDefinition.h"
 #include "Core/LIPlayerController.h"
 #include "Core/LIGameState.h"
+#include "Vehicles/LIVehicle.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
@@ -46,15 +47,20 @@ void ALIHUD::DrawHUD()
 		return;
 	}
 
-	const ALICharacter* Character = Cast<ALICharacter>(GetOwningPawn());
+	// At the wheel the HUD shows the driver's stats plus the speedometer, without hotbar or crosshair.
+	const ALIVehicle* Vehicle = Cast<ALIVehicle>(GetOwningPawn());
+	const ALICharacter* Character = ALIVehicle::GetCharacterFromPawn(GetOwningPawn());
 	if (!Character)
 	{
 		return;
 	}
 
 	DrawSurvivalBars(Character);
-	DrawHotbar(Character);
-	DrawInventoryNotices(Character);
+	if (!Vehicle)
+	{
+		DrawHotbar(Character);
+		DrawInventoryNotices(Character);
+	}
 
 	// Clock, top-left: "Day 2  21:30  Night"
 	if (const ALIGameState* GameState = GetWorld() ? GetWorld()->GetGameState<ALIGameState>() : nullptr)
@@ -121,6 +127,12 @@ void ALIHUD::DrawHUD()
 		return;
 	}
 
+	if (Vehicle)
+	{
+		DrawVehicleHUD(Vehicle);
+		return;
+	}
+
 	DrawRect(CrosshairColor, CenterX - 2.f, CenterY - 2.f, 4.f, 4.f);
 	DrawInteractionPrompt(Character, CenterX, CenterY);
 
@@ -154,6 +166,33 @@ void ALIHUD::DrawHUD()
 			DrawText(Hint, PromptColor, CenterX - W * 0.5f, Canvas->ClipY - 128.f, Font, 1.f);
 		}
 	}
+}
+
+void ALIHUD::DrawVehicleHUD(const ALIVehicle* Vehicle)
+{
+	UFont* BigFont = GEngine ? GEngine->GetLargeFont() : nullptr;
+	UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
+
+	// Speedometer, bottom right.
+	const int32 Kmh = FMath::RoundToInt(FMath::Abs(Vehicle->GetSpeedKmh()));
+	const FString Speed = FString::Printf(TEXT("%d"), Kmh);
+	float SW = 0.f, SH = 0.f;
+	GetTextSize(Speed, SW, SH, BigFont, 2.f);
+	const float Right = Canvas->ClipX - 40.f;
+	const float Bottom = Canvas->ClipY - 40.f;
+	DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.35f), Right - 190.f, Bottom - 110.f, 190.f, 110.f);
+	DrawText(Speed, FLinearColor::White, Right - 70.f - SW, Bottom - 100.f, BigFont, 2.f);
+	DrawText(TEXT("km/h"), PromptColor, Right - 62.f, Bottom - 52.f, Font, 1.f);
+	const FString Name = Vehicle->GetDisplayName().ToString();
+	DrawText(Name, PromptColor, Right - 180.f, Bottom - 24.f, Font, 1.f);
+
+	// Controls, bottom centre.
+	const FString Help = Vehicle->IsTippedOver()
+		? LOCTEXT("TippedOver", "[R] Put back on the wheels    [E] Get out").ToString()
+		: LOCTEXT("DriveHelp", "[W/S] Drive / brake    [A/D] Steer    [Space] Handbrake    [E] Get out").ToString();
+	float HW = 0.f, HH = 0.f;
+	GetTextSize(Help, HW, HH, Font, 1.f);
+	DrawText(Help, Vehicle->IsTippedOver() ? StaminaColor : PromptColor, (Canvas->ClipX - HW) * 0.5f, Canvas->ClipY - 48.f, Font, 1.f);
 }
 
 void ALIHUD::DrawInteractionPrompt(const ALICharacter* Character, float CenterX, float CenterY)

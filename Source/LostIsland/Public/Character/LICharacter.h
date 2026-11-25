@@ -132,6 +132,16 @@ public:
 	/** Routes engine damage (ApplyDamage, damage volumes...) into the survival component. */
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 
+	/**
+	 * Server: seat the character in a vehicle (hidden, no collision, attached to the vehicle) or, with null, put it
+	 * back on foot. Replicates, so every machine hides / shows the body (including the MetaHuman).
+	 */
+	void SetSeatedVehicle(AActor* Vehicle);
+
+	/** The vehicle this character is driving, or null on foot. */
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Vehicle")
+	AActor* GetSeatedVehicle() const { return SeatedVehicle; }
+
 	/** Fired on server and all clients whenever sprint state changes. */
 	UPROPERTY(BlueprintAssignable, Category = "LostIsland|Movement")
 	FLIOnSprintStateChanged OnSprintStateChanged;
@@ -177,6 +187,15 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<class UChildActorComponent> RealCharacter;
+
+	UPROPERTY(ReplicatedUsing = OnRep_SeatedVehicle)
+	TObjectPtr<AActor> SeatedVehicle;
+
+	UFUNCTION()
+	void OnRep_SeatedVehicle() { ApplySeatedState(); }
+
+	/** Hides / shows the body and switches collision for the current SeatedVehicle (all machines). */
+	void ApplySeatedState();
 
 	/** Loads a Third Person pack animation by path under /Game/Characters/Mannequins/Anims (null if missing). */
 	static UAnimSequenceBase* LoadCharacterAnim(const TCHAR* RelativePath);

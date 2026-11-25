@@ -24,6 +24,7 @@ public:
 
 protected:
 	void DrawInteractionPrompt(const class ALICharacter* Character, float CenterX, float CenterY);
+	void DrawVehicleHUD(const class ALIVehicle* Vehicle);
 	void DrawSurvivalBars(const class ALICharacter* Character);
 	void DrawBar(float X, float Y, float Percent, const FLinearColor& Color, const FString& Label);
 	void DrawInventoryPanel(const class ALICharacter* Character);

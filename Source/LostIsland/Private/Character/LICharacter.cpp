@@ -131,6 +131,7 @@ void ALICharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ALICharacter, bIsSprinting);
+	DOREPLIFETIME(ALICharacter, SeatedVehicle);
 }
 
 void ALICharacter::PostInitializeComponents()
@@ -832,9 +833,9 @@ float ALICharacter::GetSeaLevelZ()
 void ALICharacter::UpdateSwimming(float DeltaSeconds)
 {
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
-	if (!Movement || IsDead())
+	if (!Movement || IsDead() || SeatedVehicle)
 	{
-		return;
+		return; // a seated driver never swims (the vehicle owns the movement)
 	}
 
 	const float SeaLevel = GetSeaLevelZ();
@@ -1224,4 +1225,50 @@ void ALICharacter::AttachRealCharacter()
 	Mannequin->SetRenderInDepthPass(false);
 	Mannequin->SetCastShadow(false);
 	UE_LOG(LogLostIsland, Log, TEXT("Real character: %d skeletal meshes follow the mannequin."), Driven);
+}
+
+// ---------------------------------------------------------------------------
+// Vehicles
+// ---------------------------------------------------------------------------
+
+void ALICharacter::SetSeatedVehicle(AActor* Vehicle)
+{
+	if (!HasAuthority() || SeatedVehicle == Vehicle)
+	{
+		return;
+	}
+	SeatedVehicle = Vehicle;
+
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	if (Vehicle)
+	{
+		bWantsToSprint = false;
+		SetSprinting(false);
+		Movement->StopMovementImmediately();
+		Movement->DisableMovement();
+		AttachToActor(Vehicle, FAttachmentTransformRules::KeepWorldTransform);
+	}
+	else
+	{
+		DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		SetActorRotation(FRotator(0.f, GetActorRotation().Yaw, 0.f));
+		Movement->SetMovementMode(MOVE_Walking);
+	}
+	ApplySeatedState();
+	ForceNetUpdate();
+}
+
+void ALICharacter::ApplySeatedState()
+{
+	const bool bSeated = SeatedVehicle != nullptr;
+	SetActorHiddenInGame(bSeated);
+	SetActorEnableCollision(!bSeated);
+	if (RealCharacter)
+	{
+		if (AActor* Body = RealCharacter->GetChildActor())
+		{
+			Body->SetActorHiddenInGame(bSeated);
+		}
+	}
+	InteractionComponent->SetScanningEnabled(!bSeated && IsLocallyControlled() && IsPlayerControlled());
 }
