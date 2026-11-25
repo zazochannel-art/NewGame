@@ -9,6 +9,8 @@
 #include "LIFarmVehicles.generated.h"
 
 class UProceduralMeshComponent;
+class UPhysicsConstraintComponent;
+class ALIGrainTrailer;
 
 /**
  * ALITractor
@@ -33,6 +35,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Vehicle")
 	ELIFarmTool GetImplement() const { return Implement; }
 
+	/** Where a trailer's drawbar couples, behind the implement, in chassis space. */
+	FVector GetTowPoint() const { return TowPoint; }
+
+	ALIGrainTrailer* GetTrailer() const { return Trailer; }
+
+	/** Server: called by the trailer when it is hitched (or unhitched, with null). */
+	void SetTrailer(ALIGrainTrailer* InTrailer);
+
 	virtual bool HasTool() const override { return true; }
 	virtual FText GetToolHint() const override;
 	virtual bool HasToolModes() const override { return true; }
@@ -48,6 +58,10 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle")
 	FVector HitchPoint = FVector(-190.f, 0.f, -40.f);
+
+	/** Trailer coupling, behind the longest implement. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle")
+	FVector TowPoint = FVector(-470.f, 0.f, -30.f);
 
 	/** Working width of every implement. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Farm", meta = (Units = "cm"))
@@ -68,9 +82,16 @@ private:
 	void WorkFields();
 	ALIFarmField* FindFieldUnder(const FVector& WorldPoint);
 	void RefreshFields();
+	void TellDriver(const FText& Message);
 
 	UPROPERTY(ReplicatedUsing = OnRep_Implement)
 	ELIFarmTool Implement = ELIFarmTool::Plough;
+
+	UPROPERTY(Replicated)
+	TObjectPtr<ALIGrainTrailer> Trailer;
+
+	/** Throttles "hitch the trailer" / "trailer full" messages while harvesting. */
+	double LastHarvestWarning = -100.0;
 
 	float RoadMaxSpeedKmh = 32.f;
 	float ImplementDrop = 0.f;
@@ -161,4 +182,86 @@ private:
 	float BedAngle = 0.f;
 	/** One "nobody needs this here" message per raise of the bed. */
 	bool bUnloadTried = false;
+};
+
+/**
+ * ALIGrainTrailer
+ *
+ * Single-axle grain trailer with a small jockey wheel at the front. Walk up to it and press E to hitch it to a
+ * tractor whose coupling (behind the implement) is close to the drawbar, or to unhitch it. While hitched it rolls
+ * freely behind the tractor (a physics constraint at the drawbar); unhitched it stands on its brakes.
+ * The harvester fills it (up to Capacity); at the grain silo, E unloads and sells what it carries.
+ */
+UCLASS()
+class LOSTISLAND_API ALIGrainTrailer : public ALIVehicle
+{
+	GENERATED_BODY()
+
+public:
+	ALIGrainTrailer();
+
+	virtual bool CanInteract_Implementation(APawn* InstigatorPawn) const override;
+	virtual void Interact_Implementation(APawn* InstigatorPawn) override;
+	virtual FText GetInteractionPrompt_Implementation(APawn* InstigatorPawn) const override;
+
+	ALITractor* GetTractor() const { return HitchedTractor; }
+	int32 GetGrainKg() const { return GrainKg; }
+	int32 GetCapacityKg() const { return CapacityKg; }
+	bool IsFull() const { return GrainKg >= CapacityKg; }
+
+	/** Server: harvested grain in. Returns how much fitted. */
+	int32 AddGrain(int32 Kg);
+
+	/** Server: everything out (to the silo). Returns the amount. */
+	int32 EmptyGrain();
+
+	/** Server: couple to Tractor (lines the trailer up behind it first). */
+	bool HitchTo(ALITractor* Tractor);
+
+	/** Server: uncouple. */
+	void Unhitch();
+
+	/** The closest tractor whose coupling is within reach of the drawbar, or null. */
+	ALITractor* FindTractorInReach() const;
+
+protected:
+	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void BuildBody(FLILowPolyMesh& Mesh) const override;
+	virtual bool IsParked() const override { return HitchedTractor == nullptr; }
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UPhysicsConstraintComponent> Coupling;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UProceduralMeshComponent> GrainMesh;
+
+	/** Front tip of the drawbar, in chassis space. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle")
+	FVector DrawbarTip = FVector(470.f, 0.f, -30.f);
+
+	/** How far the tractor's coupling may be from the drawbar for E to hitch. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle", meta = (Units = "cm"))
+	float HitchReach = 400.f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Farm", meta = (ClampMin = "1"))
+	int32 CapacityKg = 2000;
+
+private:
+	UFUNCTION()
+	void OnRep_Grain() { UpdateGrain(); }
+
+	void UpdateGrain();
+
+	UPROPERTY(Replicated)
+	TObjectPtr<ALITractor> HitchedTractor;
+
+	UPROPERTY(ReplicatedUsing = OnRep_Grain)
+	int32 GrainKg = 0;
+
+	float EmptyMass = 1400.f;
+	/** Fill fraction the grain model was last built for (rebuilt in 5% steps). */
+	int32 BuiltFillStep = -1;
 };

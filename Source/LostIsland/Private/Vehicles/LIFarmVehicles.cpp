@@ -4,6 +4,7 @@
 
 #include "Core/LIGameState.h"
 #include "Core/LIPlayerController.h"
+#include "LostIsland.h"
 #include "Visuals/LILowPolyMesh.h"
 
 #include "Components/BoxComponent.h"
@@ -11,6 +12,7 @@
 #include "Engine/World.h"
 #include "Math/RandomStream.h"
 #include "Net/UnrealNetwork.h"
+#include "PhysicsEngine/PhysicsConstraintComponent.h"
 #include "ProceduralMeshComponent.h"
 
 #define LOCTEXT_NAMESPACE "LIFarmVehicles"
@@ -141,6 +143,30 @@ void ALITractor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifeti
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ALITractor, Implement);
+	DOREPLIFETIME(ALITractor, Trailer);
+}
+
+void ALITractor::SetTrailer(ALIGrainTrailer* InTrailer)
+{
+	if (HasAuthority())
+	{
+		Trailer = InTrailer;
+		ForceNetUpdate();
+	}
+}
+
+void ALITractor::TellDriver(const FText& Message)
+{
+	const double Now = GetWorld()->GetTimeSeconds();
+	if (Now - LastHarvestWarning < 4.0)
+	{
+		return;
+	}
+	LastHarvestWarning = Now;
+	if (ALIPlayerController* PC = Cast<ALIPlayerController>(GetController()))
+	{
+		PC->ClientShowMessage(Message);
+	}
 }
 
 void ALITractor::BeginPlay()
@@ -170,14 +196,23 @@ FText ALITractor::GetStatusText() const
 {
 	// The field under the tractor (clients search their own copy of the fields).
 	const FVector Location = GetActorLocation();
+	FText FieldText;
 	for (TActorIterator<ALIFarmField> It(GetWorld()); It; ++It)
 	{
 		if (It->ContainsPoint(Location))
 		{
-			return It->GetStatusText();
+			FieldText = It->GetStatusText();
+			break;
 		}
 	}
-	return FText::GetEmpty();
+	if (!Trailer)
+	{
+		return Implement == ELIFarmTool::Harvester
+			? FText::Format(LOCTEXT("NoTrailerStatus", "{0}   No trailer: the harvester needs one for the grain"), FieldText)
+			: FieldText;
+	}
+	return FText::Format(LOCTEXT("TrailerStatus", "{0}   Trailer: {1} / {2} kg"), FieldText,
+		FText::AsNumber(Trailer->GetGrainKg()), FText::AsNumber(Trailer->GetCapacityKg()));
 }
 
 void ALITractor::CycleTool()
@@ -241,6 +276,22 @@ ALIFarmField* ALITractor::FindFieldUnder(const FVector& WorldPoint)
 
 void ALITractor::WorkFields()
 {
+	// The harvester needs somewhere to put the grain.
+	ALIGrainTrailer* GrainTrailer = (Trailer && IsValid(Trailer) && Trailer->GetTractor() == this) ? Trailer.Get() : nullptr;
+	if (Implement == ELIFarmTool::Harvester)
+	{
+		if (!GrainTrailer)
+		{
+			TellDriver(LOCTEXT("NeedTrailer", "Hitch the grain trailer first: the harvester has nowhere to put the grain."));
+			return;
+		}
+		if (GrainTrailer->IsFull())
+		{
+			TellDriver(LOCTEXT("TrailerFull", "The trailer is full: take it to the grain silo and unload it (E at the silo)."));
+			return;
+		}
+	}
+
 	// Sample points across the working width, under the middle of the implement.
 	const FTransform Transform = GetActorTransform();
 	const FVector Center = HitchPoint - FVector(90.f, 0.f, 0.f);
@@ -258,12 +309,9 @@ void ALITractor::WorkFields()
 			}
 		}
 	}
-	if (Harvested > 0)
+	if (Harvested > 0 && GrainTrailer)
 	{
-		if (ALIGameState* GameState = GetWorld()->GetGameState<ALIGameState>())
-		{
-			GameState->AddGrain(Harvested);
-		}
+		GrainTrailer->AddGrain(Harvested); // the last bit of a full trailer spills
 	}
 }
 
@@ -409,7 +457,7 @@ FText ALIDumpTruck::GetStatusText() const
 {
 	if (Cargo == ELIBuildMaterial::None)
 	{
-		return LOCTEXT("BedEmpty", "Bed empty: park by a depot and buy a load (F)");
+		return LOCTEXT("BedEmpty", "Bed empty: park by a depot and buy a load (E at the depot)");
 	}
 	return FText::Format(LOCTEXT("BedLoaded", "Load: {0}. Back up to a building site and tip it (Q)"),
 		LIConstruction::GetMaterialName(Cargo));
@@ -633,6 +681,292 @@ void ALIDumpTruck::BuildBody(FLILowPolyMesh& Mesh) const
 	AddPart(Mesh, FVector(330.f, -118.f, 150.f), FVector(6.f, 8.f, 16.f), Frame);     // mirrors
 	AddPart(Mesh, FVector(330.f, 118.f, 150.f), FVector(6.f, 8.f, 16.f), Frame);
 	Mesh.AddFrustum(FTransform(FVector(215.f, 90.f, 22.f)), 8, 7.f, 7.f, 190.f, Frame); // exhaust stack behind the cab
+}
+
+// ---------------------------------------------------------------------------
+// Grain trailer
+// ---------------------------------------------------------------------------
+
+ALIGrainTrailer::ALIGrainTrailer()
+{
+	DisplayName = LOCTEXT("GrainTrailer", "Grain Trailer");
+	SetChassisExtent(FVector(220.f, 105.f, 55.f));
+	Mass = EmptyMass;
+	CenterOfMassOffset = FVector(0.f, 0.f, -25.f);
+	SuspensionLength = 30.f;
+	RestCompression = 0.5f;
+	DampingRatio = 0.6f;
+	CoastDeceleration = 0.25f; // free-rolling when towed
+	BrakeDeceleration = 8.f;
+	TyreGrip = 1.1f;
+
+	// One axle a little behind the middle; a small, almost grip-less jockey wheel under the drawbar.
+	// Wheel bottoms: -30 - 15 - 50 = -95 and -60 - 15 - 20 = -95.
+	Wheels =
+	{
+		MakeFarmWheel(FVector(-20.f, -118.f, -30.f), 50.f, 30.f, false, false),
+		MakeFarmWheel(FVector(-20.f,  118.f, -30.f), 50.f, 30.f, false, false),
+		MakeFarmWheel(FVector(250.f,    0.f, -60.f), 20.f, 10.f, false, false),
+	};
+	Wheels[2].GripScale = 0.05f;
+
+	Coupling = CreateDefaultSubobject<UPhysicsConstraintComponent>(TEXT("Coupling"));
+	Coupling->SetupAttachment(Chassis);
+	Coupling->SetRelativeLocation(DrawbarTip);
+	Coupling->SetLinearXLimit(ELinearConstraintMotion::LCM_Locked, 0.f);
+	Coupling->SetLinearYLimit(ELinearConstraintMotion::LCM_Locked, 0.f);
+	Coupling->SetLinearZLimit(ELinearConstraintMotion::LCM_Locked, 0.f);
+	Coupling->SetAngularSwing1Limit(EAngularConstraintMotion::ACM_Free, 0.f);    // yaw: turning
+	Coupling->SetAngularSwing2Limit(EAngularConstraintMotion::ACM_Limited, 35.f); // pitch: bumps and slopes
+	Coupling->SetAngularTwistLimit(EAngularConstraintMotion::ACM_Limited, 30.f);  // roll
+	Coupling->SetDisableCollision(true);
+
+	GrainMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("GrainMesh"));
+	GrainMesh->SetupAttachment(Chassis);
+	GrainMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GrainMesh->SetCanEverAffectNavigation(false);
+}
+
+void ALIGrainTrailer::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ALIGrainTrailer, HitchedTractor);
+	DOREPLIFETIME(ALIGrainTrailer, GrainKg);
+}
+
+void ALIGrainTrailer::BeginPlay()
+{
+	Super::BeginPlay();
+	UpdateGrain();
+}
+
+void ALIGrainTrailer::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (HasAuthority())
+	{
+		Unhitch();
+	}
+	Super::EndPlay(EndPlayReason);
+}
+
+void ALIGrainTrailer::Tick(float DeltaSeconds)
+{
+	// The tractor was removed (world reset): stand on the brakes again.
+	if (HasAuthority() && HitchedTractor && !IsValid(HitchedTractor))
+	{
+		Unhitch();
+	}
+	// The tractor was teleported (R puts it back on its wheels) or the coupling tore apart: let go.
+	if (HasAuthority() && HitchedTractor)
+	{
+		const FVector TowWorld = HitchedTractor->GetActorTransform().TransformPosition(HitchedTractor->GetTowPoint());
+		if (FVector::DistSquared(TowWorld, GetActorTransform().TransformPosition(DrawbarTip)) > FMath::Square(300.f))
+		{
+			Unhitch();
+		}
+	}
+	Super::Tick(DeltaSeconds);
+}
+
+ALITractor* ALIGrainTrailer::FindTractorInReach() const
+{
+	const FVector Tip = GetActorTransform().TransformPosition(DrawbarTip);
+	ALITractor* Best = nullptr;
+	double BestDistSq = FMath::Square(HitchReach);
+	for (TActorIterator<ALITractor> It(GetWorld()); It; ++It)
+	{
+		if (It->GetTrailer() && It->GetTrailer() != this)
+		{
+			continue; // already towing another one
+		}
+		const double DistSq = FVector::DistSquared(It->GetActorTransform().TransformPosition(It->GetTowPoint()), Tip);
+		if (DistSq < BestDistSq)
+		{
+			BestDistSq = DistSq;
+			Best = *It;
+		}
+	}
+	return Best;
+}
+
+bool ALIGrainTrailer::HitchTo(ALITractor* Tractor)
+{
+	if (!HasAuthority() || !Tractor || HitchedTractor || !Tractor->GetChassis() || (Tractor->GetTrailer() && Tractor->GetTrailer() != this))
+	{
+		return false;
+	}
+
+	// Line the trailer up straight behind the tractor, drawbar on the coupling.
+	const FTransform TractorTransform = Tractor->GetActorTransform();
+	const FRotator Rotation(0.f, TractorTransform.Rotator().Yaw, 0.f);
+	const FVector TowWorld = TractorTransform.TransformPosition(Tractor->GetTowPoint());
+	const FVector Location = TowWorld - Rotation.RotateVector(DrawbarTip);
+	SetActorLocationAndRotation(Location, Rotation, false, nullptr, ETeleportType::TeleportPhysics);
+	Chassis->SetPhysicsLinearVelocity(Tractor->GetChassis()->GetPhysicsLinearVelocity());
+	Chassis->SetPhysicsAngularVelocityInDegrees(FVector::ZeroVector);
+
+	Coupling->SetWorldLocationAndRotation(TowWorld, Rotation);
+	Coupling->SetConstrainedComponents(Tractor->GetChassis(), NAME_None, Chassis, NAME_None);
+
+	HitchedTractor = Tractor;
+	Tractor->SetTrailer(this);
+	ForceNetUpdate();
+	UE_LOG(LogLostIsland, Log, TEXT("%s hitched to %s."), *GetName(), *Tractor->GetName());
+	return true;
+}
+
+void ALIGrainTrailer::Unhitch()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+	Coupling->BreakConstraint();
+	if (HitchedTractor && IsValid(HitchedTractor) && HitchedTractor->GetTrailer() == this)
+	{
+		HitchedTractor->SetTrailer(nullptr);
+	}
+	HitchedTractor = nullptr;
+	ForceNetUpdate();
+}
+
+int32 ALIGrainTrailer::AddGrain(int32 Kg)
+{
+	if (!HasAuthority() || Kg <= 0)
+	{
+		return 0;
+	}
+	const int32 Fitted = FMath::Min(Kg, CapacityKg - GrainKg);
+	if (Fitted > 0)
+	{
+		GrainKg += Fitted;
+		UpdateGrain();
+	}
+	return Fitted;
+}
+
+int32 ALIGrainTrailer::EmptyGrain()
+{
+	if (!HasAuthority())
+	{
+		return 0;
+	}
+	const int32 Amount = GrainKg;
+	GrainKg = 0;
+	UpdateGrain();
+	return Amount;
+}
+
+void ALIGrainTrailer::UpdateGrain()
+{
+	// Heavier when full (the suspension stiffness follows Mass too).
+	Mass = EmptyMass + GrainKg;
+	if (Chassis->IsSimulatingPhysics() || HasActorBegunPlay())
+	{
+		Chassis->SetMassOverrideInKg(NAME_None, Mass, true);
+	}
+
+	const int32 Step = FMath::CeilToInt(20.f * GrainKg / FMath::Max(1, CapacityKg)); // 5% steps
+	if (Step == BuiltFillStep)
+	{
+		return;
+	}
+	BuiltFillStep = Step;
+	GrainMesh->ClearAllMeshSections();
+	if (Step <= 0)
+	{
+		return;
+	}
+	// Bin inside: x -205..205, y -97..97, floor at z 60 (box top 55 + floor plate), walls up to 160.
+	const float Fill = Step / 20.f;
+	const float Height = 100.f * Fill;
+	FLILowPolyMesh Mesh;
+	const FLinearColor Grain(0.86f, 0.70f, 0.32f);
+	const FLinearColor GrainLight(0.95f, 0.82f, 0.45f);
+	AddPart(Mesh, FVector(0.f, 0.f, 60.f + Height * 0.5f), FVector(203.f, 95.f, Height * 0.5f), Grain);
+	FRandomStream Random(77);
+	Mesh.AddBlob(FTransform(FVector(0.f, 0.f, 60.f + Height)), FVector(170.f, 80.f, 12.f + 18.f * Fill), 0.12f, Random, GrainLight, &GrainLight, 0.7f, 0);
+	Mesh.ApplyTo(GrainMesh);
+}
+
+bool ALIGrainTrailer::CanInteract_Implementation(APawn* InstigatorPawn) const
+{
+	return InstigatorPawn != nullptr; // never driven: E hitches or unhitches
+}
+
+FText ALIGrainTrailer::GetInteractionPrompt_Implementation(APawn* InstigatorPawn) const
+{
+	const FText Load = FText::Format(LOCTEXT("TrailerLoad", "{0} / {1} kg"), FText::AsNumber(GrainKg), FText::AsNumber(CapacityKg));
+	if (HitchedTractor)
+	{
+		return FText::Format(LOCTEXT("UnhitchPrompt", "Unhitch grain trailer ({0})"), Load);
+	}
+	if (FindTractorInReach())
+	{
+		return FText::Format(LOCTEXT("HitchPrompt", "Hitch grain trailer to the tractor ({0})"), Load);
+	}
+	return FText::Format(LOCTEXT("TrailerIdle", "Grain trailer ({0}): back the tractor up to the drawbar to hitch it"), Load);
+}
+
+void ALIGrainTrailer::Interact_Implementation(APawn* InstigatorPawn)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+	ALIPlayerController* PC = InstigatorPawn ? Cast<ALIPlayerController>(InstigatorPawn->GetController()) : nullptr;
+	if (HitchedTractor)
+	{
+		Unhitch();
+		if (PC)
+		{
+			PC->ClientShowMessage(LOCTEXT("Unhitched", "Trailer unhitched."));
+		}
+		return;
+	}
+	ALITractor* Tractor = FindTractorInReach();
+	if (Tractor && HitchTo(Tractor))
+	{
+		if (PC)
+		{
+			PC->ClientShowMessage(LOCTEXT("Hitched", "Trailer hitched. The harvester now fills it."));
+		}
+	}
+	else if (PC)
+	{
+		PC->ClientShowMessage(LOCTEXT("NoTractorNear", "Back the tractor up until its coupling is at the trailer's drawbar."));
+	}
+}
+
+void ALIGrainTrailer::BuildBody(FLILowPolyMesh& Mesh) const
+{
+	const FLinearColor Paint(0.14f, 0.45f, 0.50f); // teal like the tractor
+	const FLinearColor Cream(0.92f, 0.86f, 0.70f);
+	const FLinearColor Iron(0.20f, 0.20f, 0.21f);
+	const FLinearColor TailLamp(0.85f, 0.05f, 0.04f);
+
+	AddPart(Mesh, FVector(0.f, 0.f, -20.f), FVector(200.f, 50.f, 14.f), Iron);       // frame
+	AddPart(Mesh, FVector(0.f, 0.f, 50.f), FVector(215.f, 105.f, 8.f), Iron);        // bin floor, top at 58
+	for (const float Y : { -1.f, 1.f })
+	{
+		AddPart(Mesh, FVector(0.f, Y * 101.f, 110.f), FVector(215.f, 4.f, 52.f), Paint); // side walls, up to 162
+		AddPart(Mesh, FVector(0.f, Y * 103.f, 162.f), FVector(217.f, 6.f, 4.f), Cream);  // top rail
+		AddPart(Mesh, FVector(-20.f, Y * 118.f, 40.f), FVector(60.f, 18.f, 4.f), Iron);  // mudguards
+		AddPart(Mesh, FVector(-219.f, Y * 80.f, 20.f), FVector(3.f, 12.f, 8.f), TailLamp);
+	}
+	AddPart(Mesh, FVector(211.f, 0.f, 110.f), FVector(4.f, 97.f, 52.f), Paint);      // front wall
+	AddPart(Mesh, FVector(-211.f, 0.f, 110.f), FVector(4.f, 97.f, 52.f), Cream);     // tailgate
+	AddPart(Mesh, FVector(-20.f, 0.f, -30.f), FVector(10.f, 112.f, 7.f), Iron);      // axle
+
+	// Drawbar from the frame to the coupling eye, and the jockey wheel's leg.
+	const FVector From(200.f, 0.f, -20.f);
+	const FVector To = DrawbarTip;
+	const FVector Mid = (From + To) * 0.5f;
+	const float Length = FVector::Dist(From, To);
+	const FRotator Pitch = (To - From).Rotation();
+	Mesh.AddBox(FTransform(Pitch, Mid), FVector(Length * 0.5f, 7.f, 7.f), Iron);
+	Mesh.AddBox(FTransform(To), FVector(10.f, 10.f, 5.f), Iron);                     // eye
+	AddPart(Mesh, FVector(250.f, 0.f, -40.f), FVector(4.f, 4.f, 22.f), Iron);        // jockey leg
 }
 
 #undef LOCTEXT_NAMESPACE

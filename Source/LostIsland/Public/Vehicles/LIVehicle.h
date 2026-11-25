@@ -39,6 +39,10 @@ struct LOSTISLAND_API FLIVehicleWheel
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wheel")
 	bool bDriven = true;
 
+	/** Multiplies the tyre's grip (a trailer's small jockey wheel barely holds sideways). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wheel", meta = (ClampMin = "0.0"))
+	float GripScale = 1.f;
+
 	// ---- Runtime (not edited) ----
 	float Compression = 0.f;   // 0 = fully extended, 1 = fully compressed
 	float SpinAngle = 0.f;     // degrees, cosmetic
@@ -132,6 +136,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Vehicle")
 	bool IsToolActive() const { return bToolActive; }
 
+	/** The physics body (the root). */
+	UBoxComponent* GetChassis() const { return Chassis; }
+
 	/** Lying on its side or roof (the HUD suggests R). */
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Vehicle")
 	bool IsTippedOver() const;
@@ -143,6 +150,9 @@ protected:
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	/** Whether the brakes hold the vehicle (by default: nobody is driving). A towed trailer rolls freely. */
+	virtual bool IsParked() const { return GetDriver() == nullptr; }
 
 	/** Model of the body (chassis space, origin at the centre of the collision box). Wheels are built separately. */
 	virtual void BuildBody(FLILowPolyMesh& Mesh) const;

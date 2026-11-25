@@ -99,7 +99,7 @@ struct FLIBuildStage
  * A staked-out plot that becomes a building as loads are tipped onto it: foundation (gravel), walls (lumber or
  * bricks), roof (lumber). Back the dump truck up to the plot and tip the bed (Q) to deliver. The model grows with
  * every load. A finished barn lets the farm store its grain and sell it for more (GrainPriceBonus).
- * The sign by the plot (F) tells what the site needs next.
+ * The sign by the plot (E) tells what the site needs next.
  */
 UCLASS()
 class LOSTISLAND_API ALIConstructionSite : public AActor, public ILIInteractable
