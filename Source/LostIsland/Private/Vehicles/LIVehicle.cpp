@@ -6,6 +6,7 @@
 #include "Core/LIGameMode.h"
 #include "Core/LIGameState.h"
 #include "Core/LIPlayerController.h"
+#include "UI/LIGameSettings.h"
 #include "LostIsland.h"
 #include "Visuals/LILowPolyMesh.h"
 
@@ -473,8 +474,10 @@ void ALIVehicle::OnHandbrake(const FInputActionValue& Value)
 void ALIVehicle::OnLook(const FInputActionValue& Value)
 {
 	const FVector2D Look = Value.Get<FVector2D>();
-	LookYawOffset = FMath::Clamp(LookYawOffset + static_cast<float>(Look.X) * 1.5f, -170.f, 170.f);
-	LookPitchOffset = FMath::Clamp(LookPitchOffset + static_cast<float>(Look.Y) * 1.5f, -35.f, 30.f);
+	const FLIGameSettings& Settings = FLIGameSettings::Get();
+	const float Sensitivity = 1.5f * Settings.MouseSensitivity;
+	LookYawOffset = FMath::Clamp(LookYawOffset + static_cast<float>(Look.X) * Sensitivity, -170.f, 170.f);
+	LookPitchOffset = FMath::Clamp(LookPitchOffset + static_cast<float>(Look.Y) * Sensitivity * (Settings.bInvertY ? -1.f : 1.f), -35.f, 30.f);
 	LastLookTime = GetWorld()->GetTimeSeconds();
 }
 
@@ -1028,7 +1031,7 @@ void ALIVehicle::UpdateCamera(float DeltaSeconds)
 
 	// A wider view at speed sells the motion.
 	const float SpeedAlpha = FMath::Clamp(FMath::Abs(GetSpeedKmh()) / 90.f, 0.f, 1.f);
-	Camera->SetFieldOfView(FMath::FInterpTo(Camera->FieldOfView, FMath::Lerp(88.f, 102.f, SpeedAlpha), DeltaSeconds, 3.f));
+	Camera->SetFieldOfView(FMath::FInterpTo(Camera->FieldOfView, FMath::Lerp(88.f, 102.f, SpeedAlpha) + (FLIGameSettings::Get().FieldOfView - 90.f), DeltaSeconds, 3.f));
 }
 
 // ---------------------------------------------------------------------------

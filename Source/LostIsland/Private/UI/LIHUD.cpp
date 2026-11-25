@@ -13,6 +13,9 @@
 #include "Core/LIPlayerController.h"
 #include "Core/LIGameState.h"
 #include "Vehicles/LIVehicle.h"
+#include "UI/LIGameSettings.h"
+#include "UI/LISettingsMenu.h"
+#include "Misc/App.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
@@ -22,11 +25,57 @@
 void ALIHUD::DrawHUD()
 {
 	Super::DrawHUD();
-
 	if (!Canvas)
 	{
 		return;
 	}
+
+	DrawGameHUD();
+	DrawFpsCounter();
+
+	// The menu goes on top of everything else.
+	if (const ALIPlayerController* PC = Cast<ALIPlayerController>(GetOwningPlayerController()); PC && PC->IsSettingsMenuOpen())
+	{
+		PC->GetSettingsMenu()->Draw(this, Canvas);
+	}
+}
+
+void ALIHUD::NotifyHitBoxClick(FName BoxName)
+{
+	Super::NotifyHitBoxClick(BoxName);
+	if (const ALIPlayerController* PC = Cast<ALIPlayerController>(GetOwningPlayerController()); PC && PC->IsSettingsMenuOpen())
+	{
+		PC->GetSettingsMenu()->OnHitBoxClick(BoxName);
+	}
+}
+
+void ALIHUD::NotifyHitBoxBeginCursorOver(FName BoxName)
+{
+	Super::NotifyHitBoxBeginCursorOver(BoxName);
+	if (const ALIPlayerController* PC = Cast<ALIPlayerController>(GetOwningPlayerController()); PC && PC->IsSettingsMenuOpen())
+	{
+		PC->GetSettingsMenu()->OnHitBoxHover(BoxName);
+	}
+}
+
+void ALIHUD::DrawFpsCounter()
+{
+	// Real frame time (keeps counting while the game is paused).
+	SmoothedFrameSeconds = FMath::Lerp(SmoothedFrameSeconds, static_cast<float>(FMath::Max(FApp::GetDeltaTime(), 0.0001)), 0.05f);
+	if (!FLIGameSettings::Get().bShowFps)
+	{
+		return;
+	}
+	const FString Fps = FString::Printf(TEXT("%d FPS  (%.1f ms)"), FMath::RoundToInt(1.f / SmoothedFrameSeconds), SmoothedFrameSeconds * 1000.f);
+	UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
+	float W = 0.f, H = 0.f;
+	GetTextSize(Fps, W, H, Font, 1.f);
+	DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.4f), Canvas->ClipX - W - 28.f, 12.f, W + 16.f, H + 8.f);
+	DrawText(Fps, FLinearColor(0.6f, 1.f, 0.6f), Canvas->ClipX - W - 20.f, 16.f, Font, 1.f);
+}
+
+void ALIHUD::DrawGameHUD()
+{
 
 	const float CenterX = Canvas->ClipX * 0.5f;
 	const float CenterY = Canvas->ClipY * 0.5f;

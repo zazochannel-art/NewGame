@@ -1,6 +1,7 @@
 // Copyright LOST ISLAND Team. All Rights Reserved.
 
 #include "Character/LICharacter.h"
+#include "UI/LIGameSettings.h"
 
 #include "Interaction/LIInteractionComponent.h"
 #include "Survival/LISurvivalComponent.h"
@@ -439,8 +440,9 @@ void ALICharacter::Look(const FInputActionValue& Value)
 		return;
 	}
 
-	AddControllerYawInput(Input.X);
-	AddControllerPitchInput(Input.Y);
+	const FLIGameSettings& Settings = FLIGameSettings::Get();
+	AddControllerYawInput(Input.X * Settings.MouseSensitivity);
+	AddControllerPitchInput(Input.Y * Settings.MouseSensitivity * (Settings.bInvertY ? -1.f : 1.f));
 }
 
 void ALICharacter::Zoom(const FInputActionValue& Value)
@@ -802,6 +804,16 @@ void ALICharacter::ApplyMovementSpeed()
 void ALICharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	// Field of view from the settings menu (local camera only).
+	if (IsLocallyControlled() && FollowCamera)
+	{
+		const float WantedFov = FLIGameSettings::Get().FieldOfView;
+		if (!FMath::IsNearlyEqual(FollowCamera->FieldOfView, WantedFov, 0.01f))
+		{
+			FollowCamera->SetFieldOfView(WantedFov);
+		}
+	}
 
 	// Server and owning client run the same depth test; simulated proxies get the movement mode replicated.
 	if (HasAuthority() || IsLocallyControlled())

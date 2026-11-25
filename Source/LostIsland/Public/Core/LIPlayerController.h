@@ -6,6 +6,8 @@
 #include "GameFramework/PlayerController.h"
 #include "LIPlayerController.generated.h"
 
+class ULISettingsMenu;
+
 /**
  * ALIPlayerController
  *
@@ -40,6 +42,16 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "LostIsland|UI")
 	bool IsInventoryOpen() const { return bInventoryOpen; }
+
+	/** The in-game menu with the settings (Esc / P / gamepad View). Local controllers only. */
+	ULISettingsMenu* GetSettingsMenu() const { return SettingsMenu; }
+
+	UFUNCTION(BlueprintPure, Category = "LostIsland|UI")
+	bool IsSettingsMenuOpen() const;
+
+	/** Open or close the menu: mouse cursor, input focus and (standalone only) pause. */
+	UFUNCTION(BlueprintCallable, Category = "LostIsland|UI")
+	void SetSettingsMenuOpen(bool bOpen);
 
 	/** Server -> owning client: short HUD message ("Game saved"). */
 	UFUNCTION(Client, Unreliable)
@@ -157,6 +169,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void SetupInputComponent() override;
 
 private:
 	UFUNCTION(Server, Reliable)
@@ -213,4 +226,19 @@ private:
 
 	FText HudMessage;
 	double HudMessageExpireTime = 0.0;
+
+	// ---- Settings menu (local) ----
+	void ToggleSettingsMenu();
+	void MenuUp();
+	void MenuDown();
+	void MenuLeft();
+	void MenuRight();
+	void MenuActivate();
+
+	UPROPERTY(Transient)
+	TObjectPtr<ULISettingsMenu> SettingsMenu;
+
+	/** Pushed on top of the input stack while the menu is open; blocks the pawn's input. */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputComponent> MenuInput;
 };

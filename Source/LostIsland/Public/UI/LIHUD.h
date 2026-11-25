@@ -21,8 +21,15 @@ class LOSTISLAND_API ALIHUD : public AHUD
 
 public:
 	virtual void DrawHUD() override;
+	virtual void NotifyHitBoxClick(FName BoxName) override;
+	virtual void NotifyHitBoxBeginCursorOver(FName BoxName) override;
 
 protected:
+	/** Everything but the menu and the FPS counter (may stop early, e.g. during the ending). */
+	void DrawGameHUD();
+	void DrawFpsCounter();
+	float SmoothedFrameSeconds = 1.f / 60.f;
+
 	void DrawInteractionPrompt(const class ALICharacter* Character, float CenterX, float CenterY);
 	void DrawVehicleHUD(const class ALIVehicle* Vehicle);
 	void DrawSurvivalBars(const class ALICharacter* Character);
