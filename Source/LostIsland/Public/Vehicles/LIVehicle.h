@@ -136,6 +136,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Vehicle")
 	bool IsToolActive() const { return bToolActive; }
 
+	/** Save: vehicle specific state (implement, cargo, grain). */
+	virtual void GetSaveState(uint8& OutMode, int32& OutAmount, bool& bOutHitched) const {}
+
+	/** Server, after spawning from a save. */
+	virtual void ApplySaveState(uint8 Mode, int32 Amount) {}
+
 	/** The physics body (the root). */
 	UBoxComponent* GetChassis() const { return Chassis; }
 

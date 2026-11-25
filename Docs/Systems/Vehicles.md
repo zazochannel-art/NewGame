@@ -67,3 +67,20 @@ Saving: a player at the wheel is saved as the seated character. Vehicles are not
 ## Next
 
 - Building: buy materials, haul them with the truck, build a barn or a house.
+
+## Vehicle dealer
+
+Four bays on the west side of the farmyard, each with a blue price board. Look at a board and press E to buy that vehicle; it is delivered onto the bay, facing the yard. The bay has to be clear, and the farm can have at most 12 vehicles.
+
+| Vehicle | Coins |
+|---|---|
+| Pickup | 300 |
+| Tractor | 700 |
+| Dump truck | 1000 |
+| Grain trailer | 250 |
+
+## Saving
+
+In the valley, every vehicle is saved with its position, the tractor's implement, the dump truck's load and the trailer's grain. A trailer that was hitched is hitched again to the nearest tractor on load. A player saved at the wheel comes back standing next to the vehicle. Saves from before this change start with the default vehicles.
+
+PIE: buy a tractor (coins go down, it appears on the bay); buy again with the bay occupied (refused); drive vehicles around, load the dump truck, fill the trailer, F5, F9: everything is where it was.

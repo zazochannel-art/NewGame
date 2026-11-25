@@ -42,8 +42,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Island")
 	bool IsValleyWorld() const { return bValleyWorld; }
 
-	/** Server: (re)place the starting vehicles in the farmyard (valley only). Existing ones are removed. */
-	void SpawnStartingVehicles();
+	/**
+	 * Server: (re)place the vehicles in the farmyard (valley only). Existing ones are removed. With bFromSave and a
+	 * save that stored vehicles, they come back where they were parked; otherwise the starting set is placed.
+	 */
+	void SpawnStartingVehicles(bool bFromSave = false);
+
+	/** Valley only: the vehicle dealer's pads on the west side of the yard. Clears old ones. */
+	void SpawnDealers();
 
 	/** Server: (re)create the fields and the grain silo (valley only). Existing ones are removed. */
 	void SpawnFarm();

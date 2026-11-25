@@ -3,6 +3,7 @@
 #include "Save/LISaveSubsystem.h"
 #include "Vehicles/LIVehicle.h"
 #include "Farm/LIFarmField.h"
+#include "Vehicles/LIVehicle.h"
 #include "Construction/LIConstruction.h"
 
 #include "Save/LISaveGame.h"
@@ -143,6 +144,12 @@ void ULISaveSubsystem::CapturePlayer(const ALICharacter* Character, FLIPlayerSav
 {
 	OutData.Location = Character->GetActorLocation();
 	OutData.Rotation = Character->GetController() ? Character->GetController()->GetControlRotation() : Character->GetActorRotation();
+	if (const AActor* Vehicle = Character->GetSeatedVehicle())
+	{
+		// Saved at the wheel: come back standing beside the (saved) vehicle, not inside it.
+		OutData.Location = Vehicle->GetActorLocation() - Vehicle->GetActorRightVector() * 420.f + FVector(0.f, 0.f, 120.f);
+		OutData.Rotation = FRotator(0.f, Vehicle->GetActorRotation().Yaw, 0.f);
+	}
 
 	if (const ULISurvivalComponent* Survival = Character->GetSurvivalComponent())
 	{
@@ -189,6 +196,17 @@ bool ULISaveSubsystem::SaveCurrentGame()
 		Field.FieldIndex = It->GetFieldIndex();
 		Field.Cells = It->GetCellStates();
 		Field.Growth = It->GetCellGrowth();
+	}
+	if (GameMode->IsValleyWorld())
+	{
+		Save->bVehiclesSaved = true;
+		for (TActorIterator<ALIVehicle> It(World); It; ++It)
+		{
+			FLIVehicleSaveData& Vehicle = Save->Vehicles.AddDefaulted_GetRef();
+			Vehicle.VehicleClass = It->GetClass();
+			Vehicle.Transform = It->GetActorTransform();
+			It->GetSaveState(Vehicle.Mode, Vehicle.Amount, Vehicle.bHitched);
+		}
 	}
 	for (TActorIterator<ALIConstructionSite> It(World); It; ++It)
 	{

@@ -7,7 +7,7 @@ Windows PC / Steam · Unreal Engine 5 · C++ with Blueprint configuration · sin
 
 **Milestones 1–16: character + interaction, survival (health/hunger/thirst/stamina), resource gathering, inventory, procedural island, save system, food and water, crafting and tools, plane wreck, day/night with campfires., swimming, death and respawn, building, crabs and cooking, metal tools and flasks, and the raft escape (the goal of a run).** The code is written. It **compiles with UE 5.8** (Development Editor, Win64) and is awaiting in-editor testing; see [Docs/DevelopmentPlan.md](Docs/DevelopmentPlan.md).
 
-**New direction (2026-11-25): building and farming with vehicles.** A new game starts in a farm valley with a drivable pickup, tractor and dump truck (E to get in, Q tips the dump bed). Plough, sow and harvest the four fields with the tractor (T switches the implement, Q lowers it), tow the grain trailer to the silo and sell the harvest. See [Docs/Systems/Farming.md](Docs/Systems/Farming.md). Spend the coins on gravel, lumber and bricks at the yard depots, haul them with the dump truck and tip them on the plots to build a barn and a farmhouse: [Docs/Systems/Construction.md](Docs/Systems/Construction.md). The original island is still there with `?World=Island`. See [Docs/Systems/Vehicles.md](Docs/Systems/Vehicles.md).
+**New direction (2026-11-25): building and farming with vehicles.** A new game starts in a farm valley with a drivable pickup, tractor and dump truck (E to get in, Q tips the dump bed). Plough, sow and harvest the four fields with the tractor (T switches the implement, Q lowers it), tow the grain trailer to the silo and sell the harvest. See [Docs/Systems/Farming.md](Docs/Systems/Farming.md). Buy more vehicles at the dealer on the west side of the yard. Spend the coins on gravel, lumber and bricks at the yard depots, haul them with the dump truck and tip them on the plots to build a barn and a farmhouse: [Docs/Systems/Construction.md](Docs/Systems/Construction.md). The original island is still there with `?World=Island`. See [Docs/Systems/Vehicles.md](Docs/Systems/Vehicles.md).
 
 ## Getting started (Windows)
 
@@ -56,7 +56,7 @@ Source/LostIsland/
   Public|Private/World/       ALIIslandGenerator (procedural island / farm valley)
   Public|Private/Farm/        ALIFarmField (patches, growth), ALIGrainSilo (sells grain)
   Public|Private/Construction/ ALIMaterialDepot, ALIConstructionSite (barn, farmhouse)
-  Public|Private/Vehicles/    ALIVehicle (raycast-wheel physics), ALIPickupTruck, ALITractor, ALIDumpTruck
+  Public|Private/Vehicles/    ALIVehicle (raycast-wheel physics), ALIPickupTruck, ALITractor, ALIDumpTruck, ALIGrainTrailer, ALIVehicleDealer
   Public|Private/Save/        ULISaveGame, ULISaveSubsystem
   Public|Private/UI/          ALIHUD (prototype canvas HUD: bars + prompt)
 Docs/                         Development plan and per-system documentation
