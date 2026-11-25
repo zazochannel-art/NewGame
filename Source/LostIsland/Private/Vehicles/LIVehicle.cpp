@@ -293,6 +293,7 @@ void ALIVehicle::EnsureDefaultInput()
 	ExitAction      = MakeAction(TEXT("IA_VehicleExit"),      EInputActionValueType::Boolean);
 	ResetAction     = MakeAction(TEXT("IA_VehicleReset"),     EInputActionValueType::Boolean);
 	ToolAction      = MakeAction(TEXT("IA_VehicleTool"),      EInputActionValueType::Boolean);
+	CycleToolAction = MakeAction(TEXT("IA_VehicleCycleTool"), EInputActionValueType::Boolean);
 
 	MappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Vehicle_Runtime"), RF_Transient);
 	MappingContext->MapKey(ThrottleAction, EKeys::W);
@@ -325,6 +326,8 @@ void ALIVehicle::EnsureDefaultInput()
 	MappingContext->MapKey(ResetAction, EKeys::Gamepad_FaceButton_Top);
 	MappingContext->MapKey(ToolAction, EKeys::Q);
 	MappingContext->MapKey(ToolAction, EKeys::Gamepad_RightShoulder);
+	MappingContext->MapKey(CycleToolAction, EKeys::T);
+	MappingContext->MapKey(CycleToolAction, EKeys::Gamepad_LeftShoulder);
 }
 
 void ALIVehicle::NotifyControllerChanged()
@@ -387,6 +390,7 @@ void ALIVehicle::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 	EIC->BindAction(ExitAction, ETriggerEvent::Started, this, &ALIVehicle::OnExitPressed);
 	EIC->BindAction(ResetAction, ETriggerEvent::Started, this, &ALIVehicle::OnResetPressed);
 	EIC->BindAction(ToolAction, ETriggerEvent::Started, this, &ALIVehicle::OnToolPressed);
+	EIC->BindAction(CycleToolAction, ETriggerEvent::Started, this, &ALIVehicle::OnCycleToolPressed);
 }
 
 void ALIVehicle::OnThrottle(const FInputActionValue& Value)
@@ -463,6 +467,30 @@ void ALIVehicle::OnToolPressed()
 	else
 	{
 		ServerToggleTool();
+	}
+}
+
+void ALIVehicle::OnCycleToolPressed()
+{
+	if (!HasToolModes())
+	{
+		return;
+	}
+	if (HasAuthority())
+	{
+		CycleTool();
+	}
+	else
+	{
+		ServerCycleTool();
+	}
+}
+
+void ALIVehicle::ServerCycleTool_Implementation()
+{
+	if (HasToolModes())
+	{
+		CycleTool();
 	}
 }
 

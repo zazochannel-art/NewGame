@@ -2,9 +2,13 @@
 
 #include "Vehicles/LIFarmVehicles.h"
 
+#include "Core/LIGameState.h"
 #include "Visuals/LILowPolyMesh.h"
 
 #include "Components/BoxComponent.h"
+#include "EngineUtils.h"
+#include "Engine/World.h"
+#include "Net/UnrealNetwork.h"
 #include "ProceduralMeshComponent.h"
 
 #define LOCTEXT_NAMESPACE "LIFarmVehicles"
@@ -55,6 +59,12 @@ ALITractor::ALITractor()
 	CameraHeight = 260.f;
 	ExitOffset = FVector(55.f, -(62.f + 115.f), 0.f);
 	SeatOffset = FVector(-50.f, 0.f, 60.f);
+	RoadMaxSpeedKmh = MaxSpeedKmh;
+
+	ImplementMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("ImplementMesh"));
+	ImplementMesh->SetupAttachment(Chassis);
+	ImplementMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ImplementMesh->SetCanEverAffectNavigation(false);
 
 	// Big driven rear wheels, small steering front wheels; mounts set so both touch the ground together
 	// (wheel bottom = mount - (1 - RestCompression) * SuspensionLength - Radius = -100 for all four).
@@ -123,6 +133,199 @@ void ALITractor::BuildBody(FLILowPolyMesh& Mesh) const
 	// Hitch at the back (tools attach here).
 	AddPart(Mesh, FVector(-172.f, 0.f, -10.f), FVector(10.f, 36.f, 6.f), Iron);
 	AddPart(Mesh, HitchPoint, FVector(14.f, 6.f, 6.f), Cream);
+}
+
+void ALITractor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ALITractor, Implement);
+}
+
+void ALITractor::BeginPlay()
+{
+	Super::BeginPlay();
+	ImplementMesh->SetRelativeLocation(HitchPoint + FVector(0.f, 0.f, 25.f)); // raised
+	BuildImplement();
+}
+
+FText ALITractor::GetToolModeName() const
+{
+	switch (Implement)
+	{
+	case ELIFarmTool::Seeder:    return LOCTEXT("Seeder", "Seeder");
+	case ELIFarmTool::Harvester: return LOCTEXT("Harvester", "Harvester");
+	case ELIFarmTool::Plough:
+	default:                     return LOCTEXT("Plough", "Plough");
+	}
+}
+
+FText ALITractor::GetToolHint() const
+{
+	return FText::Format(bToolActive ? LOCTEXT("Raise", "Raise {0}") : LOCTEXT("Lower", "Lower {0}"), GetToolModeName());
+}
+
+FText ALITractor::GetStatusText() const
+{
+	// The field under the tractor (clients search their own copy of the fields).
+	const FVector Location = GetActorLocation();
+	for (TActorIterator<ALIFarmField> It(GetWorld()); It; ++It)
+	{
+		if (It->ContainsPoint(Location))
+		{
+			return It->GetStatusText();
+		}
+	}
+	return FText::GetEmpty();
+}
+
+void ALITractor::CycleTool()
+{
+	if (bToolActive)
+	{
+		return; // raise it first
+	}
+	Implement = static_cast<ELIFarmTool>((static_cast<uint8>(Implement) + 1) % static_cast<uint8>(ELIFarmTool::Count));
+	BuildImplement();
+	ForceNetUpdate();
+}
+
+void ALITractor::Tick(float DeltaSeconds)
+{
+	// Working speed limit (every machine runs the same suspension, so all of them apply it).
+	MaxSpeedKmh = bToolActive ? WorkingMaxSpeedKmh : RoadMaxSpeedKmh;
+
+	Super::Tick(DeltaSeconds);
+
+	// The implement drops onto the ground or lifts off it.
+	const float TargetDrop = bToolActive ? 1.f : 0.f;
+	if (!FMath::IsNearlyEqual(ImplementDrop, TargetDrop))
+	{
+		ImplementDrop = FMath::FInterpConstantTo(ImplementDrop, TargetDrop, DeltaSeconds, 2.5f);
+		ImplementMesh->SetRelativeLocation(HitchPoint + FVector(0.f, 0.f, FMath::Lerp(25.f, -38.f, ImplementDrop)));
+	}
+
+	if (HasAuthority() && bToolActive && ImplementDrop > 0.9f && GetDriver() && FMath::Abs(GetSpeedKmh()) > 0.8f)
+	{
+		WorkFields();
+	}
+}
+
+void ALITractor::RefreshFields()
+{
+	Fields.Reset();
+	for (TActorIterator<ALIFarmField> It(GetWorld()); It; ++It)
+	{
+		Fields.Add(*It);
+	}
+	LastFieldSearch = GetWorld()->GetTimeSeconds();
+}
+
+ALIFarmField* ALITractor::FindFieldUnder(const FVector& WorldPoint)
+{
+	// Fields are replaced when the world is regenerated: look again every few seconds.
+	if (GetWorld()->GetTimeSeconds() - LastFieldSearch > 3.0)
+	{
+		RefreshFields();
+	}
+	for (const TWeakObjectPtr<ALIFarmField>& Field : Fields)
+	{
+		if (Field.IsValid() && Field->ContainsPoint(WorldPoint))
+		{
+			return Field.Get();
+		}
+	}
+	return nullptr;
+}
+
+void ALITractor::WorkFields()
+{
+	// Sample points across the working width, under the middle of the implement.
+	const FTransform Transform = GetActorTransform();
+	const FVector Center = HitchPoint - FVector(90.f, 0.f, 0.f);
+	int32 Harvested = 0;
+	const int32 Samples = FMath::Max(2, FMath::CeilToInt(ImplementWidth / 50.f));
+	for (int32 Index = 0; Index <= Samples; ++Index)
+	{
+		const float Y = -ImplementWidth * 0.5f + ImplementWidth * Index / Samples;
+		for (const float X : { 0.f, -60.f })
+		{
+			const FVector Point = Transform.TransformPosition(Center + FVector(X, Y, 0.f));
+			if (ALIFarmField* Field = FindFieldUnder(Point))
+			{
+				Harvested += Field->ApplyTool(Point, Implement);
+			}
+		}
+	}
+	if (Harvested > 0)
+	{
+		if (ALIGameState* GameState = GetWorld()->GetGameState<ALIGameState>())
+		{
+			GameState->AddGrain(Harvested);
+		}
+	}
+}
+
+void ALITractor::BuildImplement()
+{
+	// Modelled at the hitch (origin), trailing toward -X, ImplementWidth wide.
+	const FLinearColor Iron(0.20f, 0.20f, 0.21f);
+	const FLinearColor Teal(0.10f, 0.42f, 0.48f);
+	const FLinearColor Cream(0.92f, 0.86f, 0.70f);
+	const FLinearColor Steel(0.62f, 0.62f, 0.60f);
+	const FLinearColor Orange(0.85f, 0.42f, 0.10f);
+	const float HalfWidth = ImplementWidth * 0.5f;
+
+	FLILowPolyMesh Mesh;
+	AddPart(Mesh, FVector(-25.f, 0.f, 0.f), FVector(25.f, 8.f, 8.f), Iron);                 // drawbar
+	AddPart(Mesh, FVector(-55.f, 0.f, 0.f), FVector(8.f, HalfWidth, 8.f), Iron);            // cross beam
+
+	switch (Implement)
+	{
+	case ELIFarmTool::Plough:
+	{
+		// Five angled shares on curved legs.
+		for (int32 Index = 0; Index < 5; ++Index)
+		{
+			const float Y = -HalfWidth + 30.f + Index * (ImplementWidth - 60.f) / 4.f;
+			const float X = -70.f - Index * 18.f;
+			AddPart(Mesh, FVector(X, Y, -18.f), FVector(6.f, 6.f, 22.f), Teal);            // leg
+			Mesh.AddBox(FTransform(FRotator(0.f, 30.f, -20.f), FVector(X - 10.f, Y, -42.f)), FVector(26.f, 4.f, 8.f), Steel); // share
+		}
+		AddPart(Mesh, FVector(-110.f, 0.f, 10.f), FVector(60.f, 10.f, 6.f), Teal);          // frame
+		break;
+	}
+	case ELIFarmTool::Seeder:
+	{
+		// A long hopper over a row of seed discs.
+		AddPart(Mesh, FVector(-110.f, 0.f, 45.f), FVector(45.f, HalfWidth - 10.f, 35.f), Teal);  // hopper
+		AddPart(Mesh, FVector(-110.f, 0.f, 82.f), FVector(47.f, HalfWidth - 6.f, 3.f), Cream);   // lid
+		AddPart(Mesh, FVector(-110.f, 0.f, 4.f), FVector(40.f, HalfWidth, 6.f), Iron);           // frame
+		const FQuat AxleAlongY = FQuat::FindBetweenNormals(FVector::UpVector, FVector::RightVector);
+		for (int32 Index = 0; Index < 8; ++Index)
+		{
+			const float Y = -HalfWidth + 20.f + Index * (ImplementWidth - 40.f) / 7.f;
+			Mesh.AddFrustum(FTransform(AxleAlongY, FVector(-140.f, Y - 2.f, -30.f)), 10, 22.f, 22.f, 4.f, Steel);
+		}
+		break;
+	}
+	case ELIFarmTool::Harvester:
+	default:
+	{
+		// Header with a reel and cutter bar, and a grain bin behind it.
+		const FQuat AxleAlongY = FQuat::FindBetweenNormals(FVector::UpVector, FVector::RightVector);
+		AddPart(Mesh, FVector(-120.f, 0.f, -25.f), FVector(55.f, HalfWidth, 6.f), Orange);        // header floor
+		AddPart(Mesh, FVector(-170.f, 0.f, -8.f), FVector(6.f, HalfWidth, 22.f), Orange);         // back wall
+		AddPart(Mesh, FVector(-120.f, -HalfWidth, -5.f), FVector(55.f, 4.f, 26.f), Orange);       // side walls
+		AddPart(Mesh, FVector(-120.f, HalfWidth, -5.f), FVector(55.f, 4.f, 26.f), Orange);
+		AddPart(Mesh, FVector(-68.f, 0.f, -32.f), FVector(4.f, HalfWidth, 3.f), Steel);           // cutter bar
+		Mesh.AddFrustum(FTransform(AxleAlongY, FVector(-105.f, -HalfWidth + 6.f, 25.f)), 8, 26.f, 26.f, ImplementWidth - 12.f, Cream); // reel
+		AddPart(Mesh, FVector(-215.f, 0.f, 40.f), FVector(40.f, 70.f, 45.f), Teal);               // grain bin
+		break;
+	}
+	}
+
+	ImplementMesh->ClearAllMeshSections();
+	Mesh.ApplyTo(ImplementMesh);
 }
 
 // ---------------------------------------------------------------------------

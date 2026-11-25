@@ -71,6 +71,11 @@ void ALIHUD::DrawHUD()
 		const FString Clock = FString::Printf(TEXT("Day %d   %02d:%02d   %s"), GameState->GetDayNumber(), H, Min,
 			GameState->IsNight() ? TEXT("Night") : TEXT("Day"));
 		DrawText(Clock, PromptColor, 24.f, 20.f, GEngine ? GEngine->GetMediumFont() : nullptr, 1.f);
+		if (GameState->IsFarmEconomyEnabled())
+		{
+			const FString Farm = FString::Printf(TEXT("Coins: %d      Grain: %d kg"), FMath::Max(GameState->GetMoney(), 0), GameState->GetGrainKg());
+			DrawText(Farm, FLinearColor(1.f, 0.85f, 0.35f, 1.f), 24.f, 46.f, GEngine ? GEngine->GetMediumFont() : nullptr, 1.f);
+		}
 	}
 
 	// Cold warning above the survival bars.
@@ -193,6 +198,17 @@ void ALIHUD::DrawVehicleHUD(const ALIVehicle* Vehicle)
 	if (Vehicle->HasTool() && !Vehicle->IsTippedOver())
 	{
 		Help += FString::Printf(TEXT("    [Q] %s"), *Vehicle->GetToolHint().ToString());
+	}
+	if (Vehicle->HasToolModes() && !Vehicle->IsTippedOver())
+	{
+		Help += FString::Printf(TEXT("    [T] Tool: %s"), *Vehicle->GetToolModeName().ToString());
+	}
+	const FString Status = Vehicle->GetStatusText().ToString();
+	if (!Status.IsEmpty())
+	{
+		float StW = 0.f, StH = 0.f;
+		GetTextSize(Status, StW, StH, Font, 1.f);
+		DrawText(Status, StaminaColor, (Canvas->ClipX - StW) * 0.5f, Canvas->ClipY - 72.f, Font, 1.f);
 	}
 	float HW = 0.f, HH = 0.f;
 	GetTextSize(Help, HW, HH, Font, 1.f);
