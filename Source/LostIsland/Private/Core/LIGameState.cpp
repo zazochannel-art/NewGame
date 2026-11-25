@@ -146,7 +146,9 @@ void ALIGameState::SetRain(float Target, float FadeSeconds)
 void ALIGameState::ScheduleWeather()
 {
 	const FVector2D Range = RainTo > 0.f ? RainSeconds : ClearSeconds;
-	const float Delay = FMath::Max(10.f, FMath::FRandRange(FMath::Min(Range.X, Range.Y), FMath::Max(Range.X, Range.Y)));
+	const float Low = static_cast<float>(FMath::Min(Range.X, Range.Y));
+	const float High = static_cast<float>(FMath::Max(Range.X, Range.Y));
+	const float Delay = FMath::Max(10.f, FMath::FRandRange(Low, High));
 	GetWorldTimerManager().SetTimer(WeatherTimerHandle, this, &ALIGameState::OnWeatherTimer, Delay, false);
 }
 

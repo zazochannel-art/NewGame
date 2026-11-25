@@ -143,11 +143,11 @@ protected:
 	float LightingUpdateInterval = 0.1f;
 
 	/** Real seconds of clear sky between showers (random in this range). */
-	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Weather", meta = (Units = "s"))
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Weather")
 	FVector2D ClearSeconds = FVector2D(360.f, 840.f);
 
 	/** Real seconds a shower lasts (random in this range). */
-	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Weather", meta = (Units = "s"))
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Weather")
 	FVector2D RainSeconds = FVector2D(120.f, 300.f);
 
 	/** How long the sky takes to cloud over or clear up. */
