@@ -2,6 +2,7 @@
 
 #include "Save/LISaveSubsystem.h"
 #include "Vehicles/LIVehicle.h"
+#include "Farm/LIFarmField.h"
 
 #include "Save/LISaveGame.h"
 #include "Character/LICharacter.h"
@@ -175,6 +176,18 @@ bool ULISaveSubsystem::SaveCurrentGame()
 	{
 		Save->Day = GameState->GetDayNumber();
 		Save->Hours = GameState->GetTimeOfDayHours();
+		if (GameState->IsFarmEconomyEnabled())
+		{
+			Save->Money = GameState->GetMoney();
+			Save->GrainKg = GameState->GetGrainKg();
+		}
+	}
+	for (TActorIterator<ALIFarmField> It(World); It; ++It)
+	{
+		FLIFieldSaveData& Field = Save->Fields.AddDefaulted_GetRef();
+		Field.FieldIndex = It->GetFieldIndex();
+		Field.Cells = It->GetCellStates();
+		Field.Growth = It->GetCellGrowth();
 	}
 	for (TActorIterator<ALICampfire> It(World); It; ++It)
 	{
@@ -347,6 +360,18 @@ void ULISaveSubsystem::ApplyWorldState()
 	if (ALIGameState* GameState = World->GetGameState<ALIGameState>())
 	{
 		GameState->SetTime(PendingSave->Day, PendingSave->Hours);
+		if (PendingSave->Money >= 0)
+		{
+			GameState->SetFarmState(PendingSave->Money, PendingSave->GrainKg);
+		}
+	}
+	for (TActorIterator<ALIFarmField> It(World); It; ++It)
+	{
+		const int32 Index = It->GetFieldIndex();
+		if (const FLIFieldSaveData* Data = PendingSave->Fields.FindByPredicate([Index](const FLIFieldSaveData& D) { return D.FieldIndex == Index; }))
+		{
+			It->RestoreState(Data->Cells, Data->Growth);
+		}
 	}
 
 	for (const FLIStructureSaveData& Structure : PendingSave->Structures)

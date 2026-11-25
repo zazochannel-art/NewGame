@@ -119,6 +119,15 @@ public:
 	/** HUD hint for Q, e.g. "Raise bed". Empty without a tool. */
 	virtual FText GetToolHint() const { return FText::GetEmpty(); }
 
+	/** Whether T switches between several tools (the tractor's implements). */
+	virtual bool HasToolModes() const { return false; }
+
+	/** Name of the current tool for the HUD ("Plough"). */
+	virtual FText GetToolModeName() const { return FText::GetEmpty(); }
+
+	/** One line of status for the HUD (e.g. the field under the tractor). Empty = none. */
+	virtual FText GetStatusText() const { return FText::GetEmpty(); }
+
 	/** The Q toggle (bed raised, plough lowered...). Replicated. */
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Vehicle")
 	bool IsToolActive() const { return bToolActive; }
@@ -176,6 +185,9 @@ protected:
 
 	/** Server: Q was pressed. Toggles bToolActive by default; subclasses may refuse (e.g. while moving fast). */
 	virtual void ToggleTool();
+
+	/** Server: T was pressed. */
+	virtual void CycleTool() {}
 
 	UPROPERTY(Replicated)
 	bool bToolActive = false;
@@ -253,6 +265,10 @@ private:
 	void OnExitPressed();
 	void OnResetPressed();
 	void OnToolPressed();
+	void OnCycleToolPressed();
+
+	UFUNCTION(Server, Reliable)
+	void ServerCycleTool();
 
 	UFUNCTION(Server, Reliable)
 	void ServerToggleTool();
@@ -277,6 +293,7 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UInputAction> ExitAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> ResetAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> ToolAction;
+	UPROPERTY(Transient) TObjectPtr<UInputAction> CycleToolAction;
 
 	/** Local controller the mapping context was added to (removed again when control is lost). */
 	TWeakObjectPtr<class APlayerController> InputOwner;

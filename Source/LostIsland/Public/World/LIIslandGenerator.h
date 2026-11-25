@@ -128,6 +128,15 @@ public:
 	/** Valley only: 0..1, how much a point is in the flat farmyard. */
 	float GetYardWeight(const FVector2D& LocalXY) const;
 
+	/** Valley only: 0..1, how much a point is inside a field (flattened, kept clear of trees and grass). */
+	float GetFieldWeight(const FVector2D& LocalXY) const;
+
+	/** Valley only: the fields, as actor-local rectangles (on the terrain grid). */
+	TArray<FBox2D> GetFieldRects() const;
+
+	/** Valley only: world-space centre (on the ground) of a field rectangle. */
+	FVector GetFieldCenterWorld(const FBox2D& Rect) const;
+
 	/** Valley only: world transforms where vehicles are parked at the start (in the farmyard). */
 	TArray<FTransform> GetVehicleSpawnTransforms(int32 Count) const;
 
@@ -233,7 +242,15 @@ protected:
 
 	/** Ring road radius as a fraction of the island radius. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Valley", meta = (ClampMin = "0.1", ClampMax = "0.8"))
-	float RingRoadRadius = 0.44f;
+	float RingRoadRadius = 0.52f;
+
+	/** Size of each of the four fields around the yard (a whole number of 2 m cells). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Valley", meta = (Units = "cm"))
+	float FieldSize = 2000.f;
+
+	/** Distance from the valley centre to each field's centre, along X and along Y. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Valley", meta = (Units = "cm"))
+	float FieldOffset = 4000.f;
 
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Valley") FLinearColor RoadColor = FLinearColor(0.47f, 0.35f, 0.22f);
 	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Valley") FLinearColor YardColor = FLinearColor(0.56f, 0.50f, 0.40f);

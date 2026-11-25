@@ -22,6 +22,9 @@ void ALIGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	DOREPLIFETIME(ALIGameState, AnchorTotalHours);
 	DOREPLIFETIME(ALIGameState, bEscaped);
 	DOREPLIFETIME(ALIGameState, EscapeDay);
+	DOREPLIFETIME(ALIGameState, Money);
+	DOREPLIFETIME(ALIGameState, GrainKg);
+	DOREPLIFETIME(ALIGameState, bFarmEconomy);
 }
 
 void ALIGameState::BeginPlay()
@@ -31,6 +34,10 @@ void ALIGameState::BeginPlay()
 	if (HasAuthority() && AnchorServerSeconds == 0.0 && AnchorTotalHours == 0.0)
 	{
 		SetTime(1, StartHours); // a loaded save may call SetTime again afterwards
+	}
+	if (HasAuthority() && Money < 0)
+	{
+		Money = StartingMoney; // a loaded save may call SetFarmState afterwards
 	}
 
 	GetWorldTimerManager().SetTimer(LightingTimerHandle, this, &ALIGameState::UpdateLighting, LightingUpdateInterval, true, 0.f);
@@ -114,4 +121,51 @@ void ALIGameState::SetEscaped()
 			SaveSubsystem->NewGameAndRestart();
 		}
 	}), EscapeEndDelay, false);
+}
+
+// ---------------------------------------------------------------------------
+// Farm economy
+// ---------------------------------------------------------------------------
+
+void ALIGameState::AddGrain(int32 Kg)
+{
+	if (HasAuthority() && Kg > 0)
+	{
+		GrainKg += Kg;
+	}
+}
+
+int32 ALIGameState::SellGrain()
+{
+	if (!HasAuthority() || GrainKg <= 0)
+	{
+		return 0;
+	}
+	const int32 Earned = GetGrainValue(GrainKg);
+	Money = FMath::Max(Money, 0) + Earned;
+	UE_LOG(LogLostIsland, Log, TEXT("Sold %d kg of grain for %d coins (now %d)."), GrainKg, Earned, Money);
+	GrainKg = 0;
+	ForceNetUpdate();
+	return Earned;
+}
+
+bool ALIGameState::SpendMoney(int32 Amount)
+{
+	if (!HasAuthority() || Amount < 0 || Money < Amount)
+	{
+		return false;
+	}
+	Money -= Amount;
+	ForceNetUpdate();
+	return true;
+}
+
+void ALIGameState::SetFarmState(int32 InMoney, int32 InGrainKg)
+{
+	if (HasAuthority())
+	{
+		Money = FMath::Max(InMoney, 0);
+		GrainKg = FMath::Max(InGrainKg, 0);
+		ForceNetUpdate();
+	}
 }

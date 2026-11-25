@@ -30,7 +30,7 @@ A drivable pawn built entirely in code, so it needs no skeletal mesh, physics as
 
 ### ALITractor
 
-3800 kg, 32 km/h, big driven rear wheels and small steering front wheels (tight 42 degree lock, extra grip). Open cab under a sun roof, original teal and cream livery. A hitch at the back (`GetHitchPoint`) is where the plough and seeder will attach in the farming step.
+3800 kg, 32 km/h, big driven rear wheels and small steering front wheels (tight 42 degree lock, extra grip). Open cab under a sun roof, original teal and cream livery. Plough, seeder and harvester on its hitch: see [Farming.md](Farming.md).
 
 ### ALIDumpTruck
 
@@ -66,5 +66,4 @@ Saving: a player at the wheel is saved as the seated character. Vehicles are not
 
 ## Next
 
-- Fields: plough with the tractor, sow, crops grow, harvest and sell.
 - Building: buy materials, haul them with the truck, build a barn or a house.

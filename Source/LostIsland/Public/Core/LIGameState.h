@@ -61,6 +61,40 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Goal")
 	int32 GetEscapeDay() const { return EscapeDay; }
 
+	// ---- Farm economy (valley) ----
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Farm")
+	int32 GetMoney() const { return Money; }
+
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Farm")
+	int32 GetGrainKg() const { return GrainKg; }
+
+	/** Whether the HUD shows coins and grain (on in the farm valley). */
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Farm")
+	bool IsFarmEconomyEnabled() const { return bFarmEconomy; }
+
+	void SetFarmEconomyEnabled(bool bEnabled) { bFarmEconomy = bEnabled; }
+
+	/** Server: harvested grain goes into the farm's store. */
+	void AddGrain(int32 Kg);
+
+	/** Server: coins for Kg of grain at the current price. */
+	int32 GetGrainValue(int32 Kg) const { return FMath::FloorToInt(Kg * GrainPricePerKg); }
+
+	/** Server: sell everything in store. Returns the coins earned. */
+	int32 SellGrain();
+
+	/** Server: spend coins. False (and nothing spent) if there are not enough. */
+	bool SpendMoney(int32 Amount);
+
+	/** Server: restore from a save. */
+	void SetFarmState(int32 InMoney, int32 InGrainKg);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Farm", meta = (ClampMin = "0.0"))
+	float GrainPricePerKg = 0.5f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Farm", meta = (ClampMin = "0"))
+	int32 StartingMoney = 500;
+
 	/** Seconds the ending stays on screen before a new island starts. */
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Goal", meta = (ClampMin = "1.0", Units = "s"))
 	float EscapeEndDelay = 15.f;
@@ -109,4 +143,13 @@ private:
 
 	UPROPERTY(Replicated)
 	int32 EscapeDay = 0;
+
+	UPROPERTY(Replicated)
+	int32 Money = -1; // set to StartingMoney in BeginPlay
+
+	UPROPERTY(Replicated)
+	int32 GrainKg = 0;
+
+	UPROPERTY(Replicated)
+	bool bFarmEconomy = false;
 };

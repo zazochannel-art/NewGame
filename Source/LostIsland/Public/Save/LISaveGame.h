@@ -102,6 +102,22 @@ struct LOSTISLAND_API FLIResourceNodeSaveData
  * Bump CurrentVersion and handle older SaveVersion values in ULISaveSubsystem when
  * the format changes.
  */
+/** One farm field: a state byte and growth per cell (see ALIFarmField). */
+USTRUCT(BlueprintType)
+struct FLIFieldSaveData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(SaveGame)
+	int32 FieldIndex = 0;
+
+	UPROPERTY(SaveGame)
+	TArray<uint8> Cells;
+
+	UPROPERTY(SaveGame)
+	TArray<float> Growth;
+};
+
 UCLASS()
 class LOSTISLAND_API ULISaveGame : public USaveGame
 {
@@ -139,6 +155,16 @@ public:
 
 	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
 	TArray<FLIResourceNodeSaveData> ResourceNodes;
+
+	// ---- Farm (valley); Money -1 = not stored ----
+	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
+	int32 Money = -1;
+
+	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Save")
+	int32 GrainKg = 0;
+
+	UPROPERTY(SaveGame)
+	TArray<FLIFieldSaveData> Fields;
 
 	const FLIPlayerSaveData* FindPlayer(const FString& Key) const
 	{

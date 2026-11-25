@@ -369,7 +369,58 @@ float ALIIslandGenerator::GetValleyHeightAt(const FVector2D& LocalXY) const
 	Land = FMath::Lerp(Land, Floor, GetRoadWeight(LocalXY) * (1.f - Rim));
 	Land = FMath::Lerp(Land, GetValleyFloorAt(FVector2D::ZeroVector), GetYardWeight(LocalXY));
 
+	// Each field is one flat level (its centre's floor height), so the soil patches lie exactly on it.
+	for (const FBox2D& Rect : GetFieldRects())
+	{
+		const float Dx = static_cast<float>(FMath::Max3(Rect.Min.X - LocalXY.X, 0.0, LocalXY.X - Rect.Max.X));
+		const float Dy = static_cast<float>(FMath::Max3(Rect.Min.Y - LocalXY.Y, 0.0, LocalXY.Y - Rect.Max.Y));
+		const float W = 1.f - FMath::SmoothStep(0.f, 600.f, FMath::Max(Dx, Dy));
+		if (W > 0.f)
+		{
+			Land = FMath::Lerp(Land, GetValleyFloorAt(Rect.GetCenter()), W);
+		}
+	}
+
 	return FMath::Lerp(SeabedHeight, Land, LandMask);
+}
+
+TArray<FBox2D> ALIIslandGenerator::GetFieldRects() const
+{
+	TArray<FBox2D> Rects;
+	if (!bValley)
+	{
+		return Rects;
+	}
+	const float Half = FieldSize * 0.5f;
+	for (const FVector2D Sign : { FVector2D(1.f, 1.f), FVector2D(-1.f, 1.f), FVector2D(-1.f, -1.f), FVector2D(1.f, -1.f) })
+	{
+		const FVector2D Center = Sign * FieldOffset;
+		Rects.Add(FBox2D(Center - FVector2D(Half, Half), Center + FVector2D(Half, Half)));
+	}
+	return Rects;
+}
+
+float ALIIslandGenerator::GetFieldWeight(const FVector2D& LocalXY) const
+{
+	if (!bValley)
+	{
+		return 0.f;
+	}
+	float Weight = 0.f;
+	for (const FBox2D& Rect : GetFieldRects())
+	{
+		// Distance outside the rectangle (0 inside), then a soft 6 m edge.
+		const float Dx = static_cast<float>(FMath::Max3(Rect.Min.X - LocalXY.X, 0.0, LocalXY.X - Rect.Max.X));
+		const float Dy = static_cast<float>(FMath::Max3(Rect.Min.Y - LocalXY.Y, 0.0, LocalXY.Y - Rect.Max.Y));
+		Weight = FMath::Max(Weight, 1.f - FMath::SmoothStep(0.f, 600.f, FMath::Max(Dx, Dy)));
+	}
+	return Weight;
+}
+
+FVector ALIIslandGenerator::GetFieldCenterWorld(const FBox2D& Rect) const
+{
+	const FVector2D Center = Rect.GetCenter();
+	return GetActorTransform().TransformPosition(FVector(Center.X, Center.Y, GetValleyFloorAt(Center)));
 }
 
 TArray<FTransform> ALIIslandGenerator::GetVehicleSpawnTransforms(int32 Count) const
@@ -923,6 +974,8 @@ void ALIIslandGenerator::BuildSpawnPoints()
 			}
 			// Keep the roads and the farmyard (plus a margin) clear for driving.
 			if (bValley && (FMath::Max(FMath::Abs(XY.X), FMath::Abs(XY.Y)) < YardHalfSize + 1700.f || GetRoadWeight(XY) > 0.f
+				|| GetFieldWeight(XY + FVector2D(500.f, 500.f)) > 0.f || GetFieldWeight(XY - FVector2D(500.f, 500.f)) > 0.f
+				|| GetFieldWeight(XY + FVector2D(500.f, -500.f)) > 0.f || GetFieldWeight(XY - FVector2D(500.f, -500.f)) > 0.f
 				|| GetRoadWeight(XY + FVector2D(400.f, 0.f)) > 0.f || GetRoadWeight(XY - FVector2D(400.f, 0.f)) > 0.f
 				|| GetRoadWeight(XY + FVector2D(0.f, 400.f)) > 0.f || GetRoadWeight(XY - FVector2D(0.f, 400.f)) > 0.f))
 			{
@@ -1204,7 +1257,7 @@ void ALIIslandGenerator::BuildDecorations(const TArray<float>& Heights)
 					continue; // keep the waterline clean
 				}
 				const FVector Ground(XY.X, XY.Y, Height);
-				if (bValley && (GetRoadWeight(XY) > 0.35f || GetYardWeight(XY) > 0.5f))
+				if (bValley && (GetRoadWeight(XY) > 0.35f || GetYardWeight(XY) > 0.5f || GetFieldWeight(XY) > 0.05f))
 				{
 					continue; // bare earth on the roads and in the yard
 				}
