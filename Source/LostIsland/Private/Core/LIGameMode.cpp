@@ -22,6 +22,7 @@
 #include "UI/LIHUD.h"
 #include "Vehicles/LIVehicle.h"
 #include "Vehicles/LIFarmVehicles.h"
+#include "Vehicles/LIVehicleDealer.h"
 #include "Farm/LIFarmField.h"
 #include "Construction/LIConstruction.h"
 
@@ -96,7 +97,8 @@ void ALIGameMode::StartPlay()
 		SpawnPrototypeTestActors();
 	}
 
-	SpawnStartingVehicles();
+	SpawnDealers();
+	SpawnStartingVehicles(/*bFromSave*/ true);
 
 	if (AutosaveInterval > 0.f)
 	{
@@ -211,6 +213,7 @@ void ALIGameMode::RegenerateIsland(int32 NewSeed)
 	Island->GenerateIsland(NewSeed != 0 ? NewSeed : FMath::RandRange(1, MAX_int32 - 1));
 	SpawnFarm();
 	SpawnConstruction();
+	SpawnDealers();
 	SpawnStartingVehicles();
 
 	// PlayerStart has a static root and cannot be moved at runtime: replace it.
@@ -235,7 +238,7 @@ void ALIGameMode::RegenerateIsland(int32 NewSeed)
 	}
 }
 
-void ALIGameMode::SpawnStartingVehicles()
+void ALIGameMode::SpawnStartingVehicles(bool bFromSave)
 {
 	UWorld* World = GetWorld();
 	for (TActorIterator<ALIVehicle> It(World); It; ++It)
@@ -245,6 +248,54 @@ void ALIGameMode::SpawnStartingVehicles()
 	}
 	if (!Island || !Island->IsValley())
 	{
+		return;
+	}
+
+	const ULISaveSubsystem* SaveSubsystem = bFromSave ? ULISaveSubsystem::Get(this) : nullptr;
+	const ULISaveGame* Save = SaveSubsystem ? SaveSubsystem->GetPendingSave() : nullptr;
+	if (Save && Save->bVehiclesSaved)
+	{
+		TArray<ALIGrainTrailer*> HitchedTrailers;
+		for (const FLIVehicleSaveData& Data : Save->Vehicles)
+		{
+			UClass* Class = Data.VehicleClass.LoadSynchronous();
+			if (!Class || !Class->IsChildOf(ALIVehicle::StaticClass()))
+			{
+				continue;
+			}
+			FTransform Transform = Data.Transform;
+			Transform.AddToTranslation(FVector(0.f, 0.f, 30.f)); // settle back onto the wheels
+			FActorSpawnParameters Params;
+			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+			if (ALIVehicle* Vehicle = World->SpawnActor<ALIVehicle>(Class, Transform, Params))
+			{
+				Vehicle->ApplySaveState(Data.Mode, Data.Amount);
+				if (Data.bHitched)
+				{
+					if (ALIGrainTrailer* Trailer = Cast<ALIGrainTrailer>(Vehicle))
+					{
+						HitchedTrailers.Add(Trailer);
+					}
+				}
+			}
+		}
+		for (ALIGrainTrailer* Trailer : HitchedTrailers)
+		{
+			// The nearest free tractor (HitchTo lines the trailer up behind it again).
+			ALITractor* Best = nullptr;
+			double BestDistSq = FMath::Square(2000.0);
+			for (TActorIterator<ALITractor> It(World); It; ++It)
+			{
+				const double DistSq = FVector::DistSquared(It->GetActorLocation(), Trailer->GetActorLocation());
+				if (!It->GetTrailer() && DistSq < BestDistSq)
+				{
+					BestDistSq = DistSq;
+					Best = *It;
+				}
+			}
+			Trailer->HitchTo(Best);
+		}
+		UE_LOG(LogLostIsland, Log, TEXT("Restored %d vehicles from the save."), Save->Vehicles.Num());
 		return;
 	}
 
@@ -308,6 +359,40 @@ void ALIGameMode::SpawnFarm()
 	// The grain buyer in the north-west corner of the yard.
 	const FVector SiloLocation = Island->GetActorTransform().TransformPosition(FVector(-1500.f, 1500.f, 0.f));
 	SpawnOnGround(ALIGrainSilo::StaticClass(), SiloLocation, FRotator::ZeroRotator, 520.f);
+}
+
+void ALIGameMode::SpawnDealers()
+{
+	UWorld* World = GetWorld();
+	for (TActorIterator<ALIVehicleDealer> It(World); It; ++It)
+	{
+		It->Destroy();
+	}
+	if (!Island || !Island->IsValley())
+	{
+		return;
+	}
+
+	// West side of the yard: boards on the yard side (x -1230), bays behind them toward the edge (x ~ -1700).
+	struct FOffer { TSubclassOf<ALIVehicle> Class; int32 Price; float Y; };
+	const FOffer Offers[] =
+	{
+		{ ALIPickupTruck::StaticClass(),  300,  900.f },
+		{ ALITractor::StaticClass(),      700,  450.f },
+		{ ALIDumpTruck::StaticClass(),    1000, 0.f },
+		{ ALIGrainTrailer::StaticClass(), 250,  -450.f },
+	};
+	const FTransform IslandTransform = Island->GetActorTransform();
+	const FRotator Facing(0.f, IslandTransform.Rotator().Yaw, 0.f); // bays face +X, into the yard
+	for (const FOffer& Offer : Offers)
+	{
+		const FVector Location = IslandTransform.TransformPosition(FVector(-1230.f, Offer.Y, 0.f));
+		if (ALIVehicleDealer* Dealer = Cast<ALIVehicleDealer>(SpawnOnGround(ALIVehicleDealer::StaticClass(), Location, Facing, 120.f, /*bDeferred*/ true)))
+		{
+			Dealer->Setup(Offer.Class, Offer.Price);
+			Dealer->FinishSpawning(Dealer->GetActorTransform());
+		}
+	}
 }
 
 void ALIGameMode::SpawnConstruction()

@@ -155,6 +155,15 @@ void ALITractor::SetTrailer(ALIGrainTrailer* InTrailer)
 	}
 }
 
+void ALITractor::ApplySaveState(uint8 Mode, int32 Amount)
+{
+	if (HasAuthority() && Mode < uint8(ELIFarmTool::Count))
+	{
+		Implement = static_cast<ELIFarmTool>(Mode);
+		BuildImplement();
+	}
+}
+
 void ALITractor::TellDriver(const FText& Message)
 {
 	const double Now = GetWorld()->GetTimeSeconds();
@@ -432,6 +441,14 @@ void ALIDumpTruck::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ALIDumpTruck, Cargo);
+}
+
+void ALIDumpTruck::ApplySaveState(uint8 Mode, int32 Amount)
+{
+	if (Mode <= uint8(ELIBuildMaterial::Bricks))
+	{
+		LoadCargo(static_cast<ELIBuildMaterial>(Mode));
+	}
 }
 
 bool ALIDumpTruck::CanLoadCargo() const
@@ -828,6 +845,15 @@ void ALIGrainTrailer::Unhitch()
 	}
 	HitchedTractor = nullptr;
 	ForceNetUpdate();
+}
+
+void ALIGrainTrailer::ApplySaveState(uint8 Mode, int32 Amount)
+{
+	if (HasAuthority())
+	{
+		GrainKg = FMath::Clamp(Amount, 0, CapacityKg);
+		UpdateGrain();
+	}
 }
 
 int32 ALIGrainTrailer::AddGrain(int32 Kg)

@@ -43,6 +43,9 @@ public:
 	/** Server: called by the trailer when it is hitched (or unhitched, with null). */
 	void SetTrailer(ALIGrainTrailer* InTrailer);
 
+	virtual void GetSaveState(uint8& OutMode, int32& OutAmount, bool& bOutHitched) const override { OutMode = uint8(Implement); }
+	virtual void ApplySaveState(uint8 Mode, int32 Amount) override;
+
 	virtual bool HasTool() const override { return true; }
 	virtual FText GetToolHint() const override;
 	virtual bool HasToolModes() const override { return true; }
@@ -134,6 +137,9 @@ public:
 
 	virtual FText GetStatusText() const override;
 
+	virtual void GetSaveState(uint8& OutMode, int32& OutAmount, bool& bOutHitched) const override { OutMode = uint8(Cargo); }
+	virtual void ApplySaveState(uint8 Mode, int32 Amount) override;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
@@ -223,6 +229,13 @@ public:
 
 	/** The closest tractor whose coupling is within reach of the drawbar, or null. */
 	ALITractor* FindTractorInReach() const;
+
+	virtual void GetSaveState(uint8& OutMode, int32& OutAmount, bool& bOutHitched) const override
+	{
+		OutAmount = GrainKg;
+		bOutHitched = HitchedTractor != nullptr;
+	}
+	virtual void ApplySaveState(uint8 Mode, int32 Amount) override;
 
 protected:
 	virtual void BeginPlay() override;

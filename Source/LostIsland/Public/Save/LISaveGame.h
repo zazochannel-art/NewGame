@@ -118,6 +118,31 @@ struct FLIFieldSaveData
 	TArray<float> Growth;
 };
 
+/** One vehicle in the valley (where it is parked and what it carries). */
+USTRUCT(BlueprintType)
+struct FLIVehicleSaveData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(SaveGame)
+	TSoftClassPtr<AActor> VehicleClass;
+
+	UPROPERTY(SaveGame)
+	FTransform Transform;
+
+	/** Vehicle specific: the tractor's implement, the dump truck's cargo. */
+	UPROPERTY(SaveGame)
+	uint8 Mode = 0;
+
+	/** Vehicle specific: grain in the trailer. */
+	UPROPERTY(SaveGame)
+	int32 Amount = 0;
+
+	/** A trailer that was hitched (re-hitched to the nearest tractor on load). */
+	UPROPERTY(SaveGame)
+	bool bHitched = false;
+};
+
 /** One construction site: loads delivered so far (see ALIConstructionSite). */
 USTRUCT(BlueprintType)
 struct FLISiteSaveData
@@ -181,6 +206,13 @@ public:
 
 	UPROPERTY(SaveGame)
 	TArray<FLISiteSaveData> Sites;
+
+	/** False in saves from before vehicles were saved: those start with the default vehicles. */
+	UPROPERTY(SaveGame)
+	bool bVehiclesSaved = false;
+
+	UPROPERTY(SaveGame)
+	TArray<FLIVehicleSaveData> Vehicles;
 
 	const FLIPlayerSaveData* FindPlayer(const FString& Key) const
 	{
