@@ -24,6 +24,7 @@ void ALIGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	DOREPLIFETIME(ALIGameState, EscapeDay);
 	DOREPLIFETIME(ALIGameState, Money);
 	DOREPLIFETIME(ALIGameState, GrainKg);
+	DOREPLIFETIME(ALIGameState, GrainPriceMultiplier);
 	DOREPLIFETIME(ALIGameState, bFarmEconomy);
 }
 

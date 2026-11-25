@@ -73,7 +73,11 @@ void ALIHUD::DrawHUD()
 		DrawText(Clock, PromptColor, 24.f, 20.f, GEngine ? GEngine->GetMediumFont() : nullptr, 1.f);
 		if (GameState->IsFarmEconomyEnabled())
 		{
-			const FString Farm = FString::Printf(TEXT("Coins: %d      Grain: %d kg"), FMath::Max(GameState->GetMoney(), 0), GameState->GetGrainKg());
+			FString Farm = FString::Printf(TEXT("Coins: %d      Grain: %d kg"), FMath::Max(GameState->GetMoney(), 0), GameState->GetGrainKg());
+			if (GameState->GetGrainPriceMultiplier() > 1.001f)
+			{
+				Farm += FString::Printf(TEXT("  (barn: +%d%% price)"), FMath::RoundToInt((GameState->GetGrainPriceMultiplier() - 1.f) * 100.f));
+			}
 			DrawText(Farm, FLinearColor(1.f, 0.85f, 0.35f, 1.f), 24.f, 46.f, GEngine ? GEngine->GetMediumFont() : nullptr, 1.f);
 		}
 	}

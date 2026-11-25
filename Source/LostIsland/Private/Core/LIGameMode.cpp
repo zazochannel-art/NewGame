@@ -23,6 +23,7 @@
 #include "Vehicles/LIVehicle.h"
 #include "Vehicles/LIFarmVehicles.h"
 #include "Farm/LIFarmField.h"
+#include "Construction/LIConstruction.h"
 
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
@@ -80,6 +81,7 @@ void ALIGameMode::StartPlay()
 	// Local players can be spawned before StartPlay, so ChoosePlayerStart may already have built the island.
 	EnsureIslandGenerated();
 	SpawnFarm(); // before the save is applied: it restores the fields
+	SpawnConstruction(); // likewise for building progress
 
 	Super::StartPlay();
 
@@ -208,6 +210,7 @@ void ALIGameMode::RegenerateIsland(int32 NewSeed)
 
 	Island->GenerateIsland(NewSeed != 0 ? NewSeed : FMath::RandRange(1, MAX_int32 - 1));
 	SpawnFarm();
+	SpawnConstruction();
 	SpawnStartingVehicles();
 
 	// PlayerStart has a static root and cannot be moved at runtime: replace it.
@@ -293,6 +296,65 @@ void ALIGameMode::SpawnFarm()
 	// The grain buyer in the north-west corner of the yard.
 	const FVector SiloLocation = Island->GetActorTransform().TransformPosition(FVector(-1500.f, 1500.f, 0.f));
 	SpawnOnGround(ALIGrainSilo::StaticClass(), SiloLocation, FRotator::ZeroRotator, 520.f);
+}
+
+void ALIGameMode::SpawnConstruction()
+{
+	UWorld* World = GetWorld();
+	for (TActorIterator<ALIMaterialDepot> It(World); It; ++It)
+	{
+		It->Destroy();
+	}
+	for (TActorIterator<ALIConstructionSite> It(World); It; ++It)
+	{
+		It->Destroy();
+	}
+	if (ALIGameState* LIGameState = GetGameState<ALIGameState>())
+	{
+		LIGameState->SetGrainPriceMultiplier(1.f); // a restored, finished barn sets it again
+	}
+	if (!Island || !Island->IsValley())
+	{
+		return;
+	}
+
+	// Yard layout (island space; the yard is the flat square of +-YardHalfSize around the centre, the main road
+	// crosses it along Y ~ 0): depots line the east edge, the plots sit in the south half.
+	const FTransform IslandTransform = Island->GetActorTransform();
+	struct FDepotSpot { ELIBuildMaterial Material; FVector Local; };
+	const FDepotSpot Depots[] =
+	{
+		{ ELIBuildMaterial::Gravel, FVector(1650.f, 1750.f, 0.f) },
+		{ ELIBuildMaterial::Lumber, FVector(1650.f, 750.f, 0.f) },
+		{ ELIBuildMaterial::Bricks, FVector(1650.f, -850.f, 0.f) },
+	};
+	for (const FDepotSpot& Spot : Depots)
+	{
+		const FRotator Yaw(0.f, IslandTransform.Rotator().Yaw + 180.f, 0.f); // sign and loading side face the yard (-X)
+		if (ALIMaterialDepot* Depot = Cast<ALIMaterialDepot>(SpawnOnGround(ALIMaterialDepot::StaticClass(),
+			IslandTransform.TransformPosition(Spot.Local), Yaw, 120.f, /*bDeferred*/ true)))
+		{
+			Depot->Setup(Spot.Material);
+			Depot->FinishSpawning(Depot->GetActorTransform());
+		}
+	}
+
+	struct FSiteSpot { ELIBuildingType Type; FVector Local; float Yaw; };
+	const FSiteSpot Sites[] =
+	{
+		{ ELIBuildingType::Barn,  FVector(-1250.f, -1250.f, 0.f), 0.f },  // doors toward the yard centre (+X)
+		{ ELIBuildingType::House, FVector(450.f, -1500.f, 0.f),   90.f }, // door toward the road (+Y)
+	};
+	for (int32 Index = 0; Index < int32(UE_ARRAY_COUNT(Sites)); ++Index)
+	{
+		const FRotator Rotation(0.f, IslandTransform.Rotator().Yaw + Sites[Index].Yaw, 0.f);
+		if (ALIConstructionSite* Site = Cast<ALIConstructionSite>(SpawnOnGround(ALIConstructionSite::StaticClass(),
+			IslandTransform.TransformPosition(Sites[Index].Local), Rotation, 0.f, /*bDeferred*/ true)))
+		{
+			Site->Setup(Sites[Index].Type, Index);
+			Site->FinishSpawning(Site->GetActorTransform());
+		}
+	}
 }
 
 AActor* ALIGameMode::SpawnOnGround(TSubclassOf<AActor> Class, const FVector& Location, const FRotator& Rotation, float GroundOffset, bool bDeferred)

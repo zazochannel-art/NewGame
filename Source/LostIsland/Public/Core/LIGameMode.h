@@ -48,6 +48,9 @@ public:
 	/** Server: (re)create the fields and the grain silo (valley only). Existing ones are removed. */
 	void SpawnFarm();
 
+	/** Valley only: material depots and the staked-out building plots (barn, farmhouse). Clears old ones. */
+	void SpawnConstruction();
+
 	/** Server: rebuild the island with a new seed (0 = random) and move all players to the new beach spawn. */
 	UFUNCTION(BlueprintCallable, Category = "LostIsland|Island")
 	void RegenerateIsland(int32 NewSeed);
