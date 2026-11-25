@@ -648,6 +648,10 @@ void ALIVehicle::SimulatePhysics(float DeltaSeconds)
 
 	const int32 NumWheels = Wheels.Num();
 	const float Gravity = FMath::Abs(World->GetGravityZ());
+
+	// Wet ground in the rain: less grip for every tyre.
+	const ALIGameState* WeatherState = World->GetGameState<ALIGameState>();
+	const float WetGrip = WeatherState ? 1.f - WeatherState->RainGripLoss * WeatherState->GetRainAmount() : 1.f;
 	const float WheelMass = Mass / NumWheels;
 	const float Stiffness = WheelMass * Gravity / FMath::Max(1.f, RestCompression * SuspensionLength); // per cm
 	const float Damping = DampingRatio * 2.f * FMath::Sqrt(Stiffness * WheelMass);
@@ -749,7 +753,7 @@ void ALIVehicle::SimulatePhysics(float DeltaSeconds)
 
 		const bool bRear = !Wheel.bSteers;
 		const float Grip = TyreGrip * ((bRear && bHandbrake) ? HandbrakeRearGrip : 1.f);
-		const float MaxFriction = Grip * Wheel.GripScale * SpringForce;
+		const float MaxFriction = Grip * Wheel.GripScale * WetGrip * SpringForce;
 
 		// Sideways: cancel most of the slide this step, as far as the grip allows.
 		const float LateralForce = -LateralSpeed * WheelMass / Dt * 0.6f;
@@ -840,8 +844,9 @@ void ALIVehicle::UpdateLights(float DeltaSeconds)
 		LightCheckTimer = 1.f;
 		const ALIGameState* GameState = GetWorld()->GetGameState<ALIGameState>();
 		const float Hours = GameState ? GameState->GetTimeOfDayHours() : 12.f;
-		// On from dusk to a little after dawn, only while someone drives or a trailer is towed.
-		bLightsOn = (Hours > 19.5f || Hours < 6.5f) && !IsParked();
+		const bool bHeavyRain = GameState && GameState->GetRainAmount() > 0.5f;
+		// On from dusk to a little after dawn (and in heavy rain), only while someone drives or a trailer is towed.
+		bLightsOn = (Hours > 19.5f || Hours < 6.5f || bHeavyRain) && !IsParked();
 		Headlight->SetVisibility(bLightsOn);
 	}
 
@@ -861,7 +866,10 @@ void ALIVehicle::UpdateEffects(float DeltaSeconds)
 	const float Speed = FMath::Abs(GetSpeedKmh());
 	if (Speed > 6.f && DustPuffs->GetStaticMesh())
 	{
-		const float Amount = FMath::Clamp((Speed - 6.f) / 40.f, 0.f, 1.f);
+		// Wet ground hardly dusts.
+		const ALIGameState* GameState = GetWorld()->GetGameState<ALIGameState>();
+		const float Dry = GameState ? 1.f - 0.85f * GameState->GetRainAmount() : 1.f;
+		const float Amount = FMath::Clamp((Speed - 6.f) / 40.f, 0.f, 1.f) * Dry;
 		DustAccumulator += DustRate * Amount * DeltaSeconds;
 		const FVector Velocity = GetVelocity();
 		while (DustAccumulator >= 1.f && Puffs.Num() < 64)

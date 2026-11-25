@@ -3,6 +3,7 @@
 #include "Core/LIGameState.h"
 
 #include "World/LIIslandGenerator.h"
+#include "World/LIRainEffect.h"
 #include "LostIsland.h"
 #include "Save/LISaveSubsystem.h"
 #include "EngineUtils.h"
@@ -26,6 +27,10 @@ void ALIGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	DOREPLIFETIME(ALIGameState, GrainKg);
 	DOREPLIFETIME(ALIGameState, GrainPriceMultiplier);
 	DOREPLIFETIME(ALIGameState, bFarmEconomy);
+	DOREPLIFETIME(ALIGameState, RainFrom);
+	DOREPLIFETIME(ALIGameState, RainTo);
+	DOREPLIFETIME(ALIGameState, RainChangeServerSeconds);
+	DOREPLIFETIME(ALIGameState, RainFadeActive);
 }
 
 void ALIGameState::BeginPlay()
@@ -42,11 +47,21 @@ void ALIGameState::BeginPlay()
 	}
 
 	GetWorldTimerManager().SetTimer(LightingTimerHandle, this, &ALIGameState::UpdateLighting, LightingUpdateInterval, true, 0.f);
+	if (HasAuthority())
+	{
+		ScheduleWeather();
+	}
 }
 
 void ALIGameState::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	GetWorldTimerManager().ClearTimer(LightingTimerHandle);
+	GetWorldTimerManager().ClearTimer(WeatherTimerHandle);
+	if (RainEffect)
+	{
+		RainEffect->Destroy();
+		RainEffect = nullptr;
+	}
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -99,8 +114,70 @@ void ALIGameState::UpdateLighting()
 	if (Island.IsValid())
 	{
 		// Sunrise = end of night, sunset = start of night: darkness and cold always match.
-		Island->ApplyTimeOfDay(GetTimeOfDayHours(), NightEndHours, NightStartHours);
+		Island->ApplyTimeOfDay(GetTimeOfDayHours(), NightEndHours, NightStartHours, GetRainAmount());
 	}
+	EnsureRainEffect();
+}
+
+float ALIGameState::GetRainAmount() const
+{
+	if (RainFrom <= 0.f && RainTo <= 0.f)
+	{
+		return 0.f;
+	}
+	const double Now = GetServerWorldTimeSeconds();
+	const float Alpha = FMath::Clamp(static_cast<float>((Now - RainChangeServerSeconds) / FMath::Max(1.f, RainFadeActive)), 0.f, 1.f);
+	return FMath::Lerp(RainFrom, RainTo, FMath::SmoothStep(0.f, 1.f, Alpha));
+}
+
+void ALIGameState::SetRain(float Target, float FadeSeconds)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+	RainFrom = GetRainAmount();
+	RainTo = FMath::Clamp(Target, 0.f, 1.f);
+	RainFadeActive = FadeSeconds > 0.f ? FadeSeconds : RainFadeSeconds;
+	RainChangeServerSeconds = GetServerWorldTimeSeconds();
+	ScheduleWeather();
+}
+
+void ALIGameState::ScheduleWeather()
+{
+	const FVector2D Range = RainTo > 0.f ? RainSeconds : ClearSeconds;
+	const float Delay = FMath::Max(10.f, FMath::FRandRange(FMath::Min(Range.X, Range.Y), FMath::Max(Range.X, Range.Y)));
+	GetWorldTimerManager().SetTimer(WeatherTimerHandle, this, &ALIGameState::OnWeatherTimer, Delay, false);
+}
+
+void ALIGameState::OnWeatherTimer()
+{
+	// Showers only in the farm valley; the island keeps its clear sky.
+	if (!bFarmEconomy)
+	{
+		if (RainTo > 0.f)
+		{
+			SetRain(0.f);
+		}
+		else
+		{
+			ScheduleWeather();
+		}
+		return;
+	}
+	SetRain(RainTo > 0.f ? 0.f : FMath::FRandRange(0.55f, 1.f));
+}
+
+void ALIGameState::EnsureRainEffect()
+{
+	if (RainEffect || GetNetMode() == NM_DedicatedServer || GetRainAmount() <= 0.f)
+	{
+		return;
+	}
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	Params.ObjectFlags |= RF_Transient;
+	RainEffect = GetWorld()->SpawnActor<ALIRainEffect>(ALIRainEffect::StaticClass(), FTransform::Identity, Params);
 }
 
 void ALIGameState::SetEscaped()

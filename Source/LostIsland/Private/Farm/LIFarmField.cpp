@@ -217,7 +217,10 @@ int32 ALIFarmField::ApplyTool(const FVector& WorldPoint, ELIFarmTool Tool)
 
 void ALIFarmField::UpdateGrowth()
 {
-	const float Step = 1.f / FMath::Max(1.f, GrowthSeconds);
+	// Rain waters the crops: they grow faster during a shower.
+	const ALIGameState* GameState = GetWorld() ? GetWorld()->GetGameState<ALIGameState>() : nullptr;
+	const float RainBoost = GameState ? 1.f + GameState->RainGrowthBonus * GameState->GetRainAmount() : 1.f;
+	const float Step = RainBoost / FMath::Max(1.f, GrowthSeconds);
 	for (int32 Index = 0; Index < Cells.Num(); ++Index)
 	{
 		if (!IsCrop(static_cast<ELIFieldCell>(Cells[Index])))

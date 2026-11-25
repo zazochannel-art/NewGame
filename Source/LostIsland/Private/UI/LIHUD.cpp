@@ -70,7 +70,10 @@ void ALIHUD::DrawHUD()
 		const int32 Min = FMath::FloorToInt((Hours - H) * 60.f);
 		const FString Clock = FString::Printf(TEXT("Day %d   %02d:%02d   %s"), GameState->GetDayNumber(), H, Min,
 			GameState->IsNight() ? TEXT("Night") : TEXT("Day"));
-		DrawText(Clock, PromptColor, 24.f, 20.f, GEngine ? GEngine->GetMediumFont() : nullptr, 1.f);
+		const float Rain = GameState->GetRainAmount();
+		const FString Weather = Rain > 0.6f ? TEXT("   Heavy rain (crops grow faster, roads slippery)")
+			: Rain > 0.15f ? TEXT("   Rain (crops grow faster)") : TEXT("");
+		DrawText(Clock + Weather, PromptColor, 24.f, 20.f, GEngine ? GEngine->GetMediumFont() : nullptr, 1.f);
 		if (GameState->IsFarmEconomyEnabled())
 		{
 			FString Farm = FString::Printf(TEXT("Coins: %d      Grain: %d kg"), FMath::Max(GameState->GetMoney(), 0), GameState->GetGrainKg());

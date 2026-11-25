@@ -23,6 +23,7 @@
  *     LIGoToSea                      (deep water off the start beach, to test swimming)
  *     LIPlace                        (same as G)
  *     LISetTime <Hours>              (e.g. 21 for night)
+ *     LIRain <0..1>                  (0 = clear sky, 1 = downpour)
  *     LIScreenshotTour [Quit]        (day, beach, forest, wreck, sunset: screenshot + FPS each; 1 = quit after)
  *
  * Save commands (all builds):  LISave, LILoad, LINewGame   (also F5 / F9 on the character)
@@ -133,6 +134,10 @@ public:
 	UFUNCTION(Exec)
 	void LISetTime(float Hours);
 
+	/** Start (or stop, with 0) a rain shower: 0..1. */
+	UFUNCTION(Exec)
+	void LIRain(float Amount);
+
 	UFUNCTION(Exec)
 	void LISetStat(const FString& StatName, float Value);
 
@@ -180,6 +185,9 @@ private:
 
 	UFUNCTION(Server, Reliable)
 	void ServerDebugSetTime(float Hours);
+
+	UFUNCTION(Server, Reliable)
+	void ServerDebugRain(float Amount);
 
 	UFUNCTION(Server, Reliable)
 	void ServerSaveGame();

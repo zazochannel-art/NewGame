@@ -332,6 +332,7 @@ void ALIPlayerController::LIRegenerateIsland(int32 Seed) { ServerDebugRegenerate
 void ALIPlayerController::LIGoToCrashSite() { ServerDebugGoToCrashSite(); }
 void ALIPlayerController::LIGoToSea() { ServerDebugGoToSea(); }
 void ALIPlayerController::LISetTime(float Hours) { ServerDebugSetTime(Hours); }
+void ALIPlayerController::LIRain(float Amount) { ServerDebugRain(Amount); }
 
 // --- Debug commands (server) ---
 
@@ -435,6 +436,16 @@ void ALIPlayerController::ServerDebugSetTime_Implementation(float Hours)
 	if (ALIGameState* GameState = GetWorld()->GetGameState<ALIGameState>())
 	{
 		GameState->SetTime(GameState->GetDayNumber(), FMath::Fmod(FMath::Max(0.f, Hours), 24.f));
+	}
+#endif
+}
+
+void ALIPlayerController::ServerDebugRain_Implementation(float Amount)
+{
+#if !UE_BUILD_SHIPPING
+	if (ALIGameState* GameState = GetWorld()->GetGameState<ALIGameState>())
+	{
+		GameState->SetRain(Amount, 8.f);
 	}
 #endif
 }
