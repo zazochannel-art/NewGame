@@ -39,6 +39,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Island")
 	ALIIslandGenerator* GetIsland() const { return Island; }
 
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Island")
+	bool IsValleyWorld() const { return bValleyWorld; }
+
+	/** Server: (re)place the starting vehicles in the farmyard (valley only). Existing ones are removed. */
+	void SpawnStartingVehicles();
+
 	/** Server: rebuild the island with a new seed (0 = random) and move all players to the new beach spawn. */
 	UFUNCTION(BlueprintCallable, Category = "LostIsland|Island")
 	void RegenerateIsland(int32 NewSeed);
@@ -56,6 +62,17 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Island", meta = (EditCondition = "bGenerateIsland"))
 	TSubclassOf<ALIIslandGenerator> IslandGeneratorClass;
+
+	/**
+	 * Which world a new game builds: the farm valley (default) or the original survival island. The "?World=Island"
+	 * or "?World=Valley" URL option overrides it. Each world keeps its own save slot.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Island", meta = (EditCondition = "bGenerateIsland"))
+	bool bValleyWorld = true;
+
+	/** Vehicles parked in the farmyard at the start of a valley game. */
+	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Vehicles")
+	TArray<TSubclassOf<class ALIVehicle>> StartingVehicles;
 
 	/** Fixed world seed. 0 = random each new game. Overridden by the "?Seed=123" URL option. */
 	UPROPERTY(EditDefaultsOnly, Category = "LostIsland|Island", meta = (EditCondition = "bGenerateIsland"))

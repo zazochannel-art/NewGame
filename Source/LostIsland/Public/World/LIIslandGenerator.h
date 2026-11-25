@@ -112,6 +112,25 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Island")
 	int32 GetSeed() const { return Seed; }
 
+	/**
+	 * Server, before GenerateIsland: build the farm valley instead of the island. The valley is a wide, gently
+	 * rolling floor ringed by mountains (the sea is only beyond them), with a flat farmyard in the middle and a
+	 * dirt road: a loop around the valley plus a straight road through the yard. No wreck, crabs or boars.
+	 */
+	void SetValleyMode(bool bInValley) { bValley = bInValley; }
+
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Island")
+	bool IsValley() const { return bValley; }
+
+	/** Valley only: 0..1, how much a point is on the road (1 = on it, fading out at the verges). */
+	float GetRoadWeight(const FVector2D& LocalXY) const;
+
+	/** Valley only: 0..1, how much a point is in the flat farmyard. */
+	float GetYardWeight(const FVector2D& LocalXY) const;
+
+	/** Valley only: world transforms where vehicles are parked at the start (in the farmyard). */
+	TArray<FTransform> GetVehicleSpawnTransforms(int32 Count) const;
+
 	/** Terrain height (actor-local cm) at an actor-local XY position. Matches the mesh vertices exactly at grid points. */
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Island")
 	float GetHeightAt(const FVector2D& LocalXY) const;
@@ -191,6 +210,33 @@ protected:
 	/** Cosmetic ground cover (no collision): one instanced component per decoration kind (see ELIDecoration in the .cpp). */
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TArray<TObjectPtr<UHierarchicalInstancedStaticMeshComponent>> DecorationComponents;
+
+	// ---------------- Valley ----------------
+	/** Height of the valley floor (well above the beach height, so the floor reads as grass, not sand). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Valley", meta = (Units = "cm"))
+	float ValleyFloorHeight = 650.f;
+
+	/** Long, gentle rises and dips across the floor (+-), small enough to drive and plough. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Valley", meta = (Units = "cm"))
+	float ValleyRollingHeight = 220.f;
+
+	/** Where the mountains start, as a fraction of the radius. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Valley", meta = (ClampMin = "0.2", ClampMax = "0.9"))
+	float ValleyRimStart = 0.62f;
+
+	/** Half size of the square farmyard. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Valley", meta = (Units = "cm"))
+	float YardHalfSize = 2200.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Valley", meta = (Units = "cm"))
+	float RoadHalfWidth = 320.f;
+
+	/** Ring road radius as a fraction of the island radius. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LostIsland|Island|Valley", meta = (ClampMin = "0.1", ClampMax = "0.8"))
+	float RingRoadRadius = 0.44f;
+
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Valley") FLinearColor RoadColor = FLinearColor(0.47f, 0.35f, 0.22f);
+	UPROPERTY(EditAnywhere, Category = "LostIsland|Island|Valley") FLinearColor YardColor = FLinearColor(0.56f, 0.50f, 0.40f);
 
 	// ---------------- Shape ----------------
 	/** Cells per side. 192 x 192 cells of 2 m = the same 384 m island as before, with finer detail (~74k triangles). */
@@ -453,6 +499,15 @@ private:
 
 	UPROPERTY(ReplicatedUsing = OnRep_Seed)
 	int32 Seed = 0;
+
+	/** Replicates with the seed (same bunch), so clients build the same world type. */
+	UPROPERTY(Replicated)
+	bool bValley = false;
+
+	float GetValleyHeightAt(const FVector2D& LocalXY) const;
+	/** Valley floor without detail noise: what roads and the yard are flattened to. */
+	float GetValleyFloorAt(const FVector2D& LocalXY) const;
+	float GetRingRoadRadiusAt(float Angle) const;
 
 	/** Seed the current terrain was built for (prevents duplicate rebuilds). */
 	int32 BuiltSeed = 0;

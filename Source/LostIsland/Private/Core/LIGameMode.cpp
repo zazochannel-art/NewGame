@@ -20,6 +20,7 @@
 #include "Save/LISaveSubsystem.h"
 #include "LostIsland.h"
 #include "UI/LIHUD.h"
+#include "Vehicles/LIVehicle.h"
 
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
@@ -39,11 +40,24 @@ ALIGameMode::ALIGameMode()
 	PrototypeTestActorClass = ALIInteractableActor::StaticClass();
 	PrototypeResourceClasses = { ALITreeNode::StaticClass(), ALIRockNode::StaticClass(), ALIFiberBushNode::StaticClass() };
 	IslandGeneratorClass = ALIIslandGenerator::StaticClass();
+	StartingVehicles = { ALIPickupTruck::StaticClass() };
 }
 
 void ALIGameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
 {
 	Super::InitGame(MapName, Options, ErrorMessage);
+
+	// World type first: it picks the save slot that PrepareForNewMap reads. The option stays on the URL after an
+	// in-game Load / New Game restart, which is what we want (the same world type again).
+	const FString WorldOption = UGameplayStatics::ParseOption(Options, TEXT("World"));
+	if (WorldOption.Equals(TEXT("Island"), ESearchCase::IgnoreCase))
+	{
+		bValleyWorld = false;
+	}
+	else if (WorldOption.Equals(TEXT("Valley"), ESearchCase::IgnoreCase))
+	{
+		bValleyWorld = true;
+	}
 
 	// Decide now (before the island and the first pawn exist) whether this session continues a save.
 	// After an in-game Load / New Game restart the original URL options are still on the travel URL;
@@ -51,6 +65,7 @@ void ALIGameMode::InitGame(const FString& MapName, const FString& Options, FStri
 	bool bHonourUrlOptions = true;
 	if (ULISaveSubsystem* SaveSubsystem = ULISaveSubsystem::Get(this))
 	{
+		SaveSubsystem->SlotName = bValleyWorld ? TEXT("Valley_Slot0") : TEXT("LostIsland_Slot0");
 		bHonourUrlOptions = SaveSubsystem->PrepareForNewMap(Options);
 	}
 
@@ -75,6 +90,8 @@ void ALIGameMode::StartPlay()
 	{
 		SpawnPrototypeTestActors();
 	}
+
+	SpawnStartingVehicles();
 
 	if (AutosaveInterval > 0.f)
 	{
@@ -150,6 +167,7 @@ void ALIGameMode::EnsureIslandGenerated()
 		return;
 	}
 
+	Island->SetValleyMode(bValleyWorld);
 	Island->GenerateIsland(ChooseIslandSeed());
 
 	IslandPlayerStart = World->SpawnActor<APlayerStart>(APlayerStart::StaticClass(), Island->FindPlayerSpawnTransform(), Params);
@@ -186,6 +204,7 @@ void ALIGameMode::RegenerateIsland(int32 NewSeed)
 	}
 
 	Island->GenerateIsland(NewSeed != 0 ? NewSeed : FMath::RandRange(1, MAX_int32 - 1));
+	SpawnStartingVehicles();
 
 	// PlayerStart has a static root and cannot be moved at runtime: replace it.
 	const FTransform Spawn = Island->FindPlayerSpawnTransform();
@@ -205,6 +224,29 @@ void ALIGameMode::RegenerateIsland(int32 NewSeed)
 		{
 			const FVector Offset = Spawn.GetRotation().GetRightVector() * (Index++ * 150.f);
 			Pawn->TeleportTo(Spawn.GetLocation() + Offset, Spawn.Rotator());
+		}
+	}
+}
+
+void ALIGameMode::SpawnStartingVehicles()
+{
+	UWorld* World = GetWorld();
+	for (TActorIterator<ALIVehicle> It(World); It; ++It)
+	{
+		It->ExitVehicle(); // the driver gets their character back first
+		It->Destroy();
+	}
+	if (!Island || !Island->IsValley())
+	{
+		return;
+	}
+
+	const TArray<FTransform> Spots = Island->GetVehicleSpawnTransforms(StartingVehicles.Num());
+	for (int32 Index = 0; Index < StartingVehicles.Num() && Index < Spots.Num(); ++Index)
+	{
+		if (StartingVehicles[Index])
+		{
+			SpawnOnGround(StartingVehicles[Index], Spots[Index].GetLocation(), Spots[Index].Rotator(), 90.f);
 		}
 	}
 }

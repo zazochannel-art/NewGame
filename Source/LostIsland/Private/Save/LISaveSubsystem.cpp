@@ -1,6 +1,7 @@
 // Copyright LOST ISLAND Team. All Rights Reserved.
 
 #include "Save/LISaveSubsystem.h"
+#include "Vehicles/LIVehicle.h"
 
 #include "Save/LISaveGame.h"
 #include "Character/LICharacter.h"
@@ -248,7 +249,8 @@ bool ULISaveSubsystem::SaveCurrentGame()
 	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
 	{
 		const APlayerController* PC = It->Get();
-		const ALICharacter* Character = PC ? Cast<ALICharacter>(PC->GetPawn()) : nullptr;
+		// A player at the wheel is saved as the character in the seat.
+		const ALICharacter* Character = PC ? ALIVehicle::GetCharacterFromPawn(PC->GetPawn()) : nullptr;
 		if (!Character || Character->IsDead())
 		{
 			continue; // dead players keep their previous saved state
