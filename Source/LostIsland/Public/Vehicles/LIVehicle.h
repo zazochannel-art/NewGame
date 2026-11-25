@@ -112,6 +112,17 @@ public:
 	/** Server: back on the wheels, facing the same way, a little above the ground. */
 	void ResetUpright();
 
+	/** Whether this vehicle has a working part on Q (dump bed, later the plough). */
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Vehicle")
+	virtual bool HasTool() const { return false; }
+
+	/** HUD hint for Q, e.g. "Raise bed". Empty without a tool. */
+	virtual FText GetToolHint() const { return FText::GetEmpty(); }
+
+	/** The Q toggle (bed raised, plough lowered...). Replicated. */
+	UFUNCTION(BlueprintPure, Category = "LostIsland|Vehicle")
+	bool IsToolActive() const { return bToolActive; }
+
 	/** Lying on its side or roof (the HUD suggests R). */
 	UFUNCTION(BlueprintPure, Category = "LostIsland|Vehicle")
 	bool IsTippedOver() const;
@@ -162,6 +173,12 @@ protected:
 	FVector BoxExtent = FVector(240.f, 95.f, 45.f);
 
 	void SetChassisExtent(const FVector& InExtent);
+
+	/** Server: Q was pressed. Toggles bToolActive by default; subclasses may refuse (e.g. while moving fast). */
+	virtual void ToggleTool();
+
+	UPROPERTY(Replicated)
+	bool bToolActive = false;
 
 	/** Where the character gets out, in chassis space (driver's side first, then the other side). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle")
@@ -235,6 +252,10 @@ private:
 	void OnZoom(const FInputActionValue& Value);
 	void OnExitPressed();
 	void OnResetPressed();
+	void OnToolPressed();
+
+	UFUNCTION(Server, Reliable)
+	void ServerToggleTool();
 	void SendInputIfChanged();
 
 	UFUNCTION(Server, Unreliable)
@@ -255,6 +276,7 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UInputAction> ZoomAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> ExitAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> ResetAction;
+	UPROPERTY(Transient) TObjectPtr<UInputAction> ToolAction;
 
 	/** Local controller the mapping context was added to (removed again when control is lost). */
 	TWeakObjectPtr<class APlayerController> InputOwner;

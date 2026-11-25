@@ -187,9 +187,13 @@ void ALIHUD::DrawVehicleHUD(const ALIVehicle* Vehicle)
 	DrawText(Name, PromptColor, Right - 180.f, Bottom - 24.f, Font, 1.f);
 
 	// Controls, bottom centre.
-	const FString Help = Vehicle->IsTippedOver()
+	FString Help = Vehicle->IsTippedOver()
 		? LOCTEXT("TippedOver", "[R] Put back on the wheels    [E] Get out").ToString()
 		: LOCTEXT("DriveHelp", "[W/S] Drive / brake    [A/D] Steer    [Space] Handbrake    [E] Get out").ToString();
+	if (Vehicle->HasTool() && !Vehicle->IsTippedOver())
+	{
+		Help += FString::Printf(TEXT("    [Q] %s"), *Vehicle->GetToolHint().ToString());
+	}
 	float HW = 0.f, HH = 0.f;
 	GetTextSize(Help, HW, HH, Font, 1.f);
 	DrawText(Help, Vehicle->IsTippedOver() ? StaminaColor : PromptColor, (Canvas->ClipX - HW) * 0.5f, Canvas->ClipY - 48.f, Font, 1.f);

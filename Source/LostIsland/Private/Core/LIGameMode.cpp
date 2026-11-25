@@ -21,6 +21,7 @@
 #include "LostIsland.h"
 #include "UI/LIHUD.h"
 #include "Vehicles/LIVehicle.h"
+#include "Vehicles/LIFarmVehicles.h"
 
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
@@ -40,7 +41,7 @@ ALIGameMode::ALIGameMode()
 	PrototypeTestActorClass = ALIInteractableActor::StaticClass();
 	PrototypeResourceClasses = { ALITreeNode::StaticClass(), ALIRockNode::StaticClass(), ALIFiberBushNode::StaticClass() };
 	IslandGeneratorClass = ALIIslandGenerator::StaticClass();
-	StartingVehicles = { ALIPickupTruck::StaticClass() };
+	StartingVehicles = { ALIPickupTruck::StaticClass(), ALITractor::StaticClass(), ALIDumpTruck::StaticClass() };
 }
 
 void ALIGameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
@@ -246,7 +247,7 @@ void ALIGameMode::SpawnStartingVehicles()
 	{
 		if (StartingVehicles[Index])
 		{
-			SpawnOnGround(StartingVehicles[Index], Spots[Index].GetLocation(), Spots[Index].Rotator(), 90.f);
+			SpawnOnGround(StartingVehicles[Index], Spots[Index].GetLocation(), Spots[Index].Rotator(), 130.f); // drops onto its wheels
 		}
 	}
 }

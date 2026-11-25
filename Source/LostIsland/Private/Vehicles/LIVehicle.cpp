@@ -83,6 +83,7 @@ void ALIVehicle::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifeti
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ALIVehicle, Driver);
+	DOREPLIFETIME(ALIVehicle, bToolActive);
 	DOREPLIFETIME_CONDITION(ALIVehicle, ThrottleInput, COND_SkipOwner);
 	DOREPLIFETIME_CONDITION(ALIVehicle, SteerInput, COND_SkipOwner);
 	DOREPLIFETIME_CONDITION(ALIVehicle, bHandbrake, COND_SkipOwner);
@@ -291,6 +292,7 @@ void ALIVehicle::EnsureDefaultInput()
 	ZoomAction      = MakeAction(TEXT("IA_VehicleZoom"),      EInputActionValueType::Axis1D);
 	ExitAction      = MakeAction(TEXT("IA_VehicleExit"),      EInputActionValueType::Boolean);
 	ResetAction     = MakeAction(TEXT("IA_VehicleReset"),     EInputActionValueType::Boolean);
+	ToolAction      = MakeAction(TEXT("IA_VehicleTool"),      EInputActionValueType::Boolean);
 
 	MappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Vehicle_Runtime"), RF_Transient);
 	MappingContext->MapKey(ThrottleAction, EKeys::W);
@@ -321,6 +323,8 @@ void ALIVehicle::EnsureDefaultInput()
 	MappingContext->MapKey(ExitAction, EKeys::Gamepad_FaceButton_Left);
 	MappingContext->MapKey(ResetAction, EKeys::R);
 	MappingContext->MapKey(ResetAction, EKeys::Gamepad_FaceButton_Top);
+	MappingContext->MapKey(ToolAction, EKeys::Q);
+	MappingContext->MapKey(ToolAction, EKeys::Gamepad_RightShoulder);
 }
 
 void ALIVehicle::NotifyControllerChanged()
@@ -382,6 +386,7 @@ void ALIVehicle::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 	EIC->BindAction(ZoomAction, ETriggerEvent::Triggered, this, &ALIVehicle::OnZoom);
 	EIC->BindAction(ExitAction, ETriggerEvent::Started, this, &ALIVehicle::OnExitPressed);
 	EIC->BindAction(ResetAction, ETriggerEvent::Started, this, &ALIVehicle::OnResetPressed);
+	EIC->BindAction(ToolAction, ETriggerEvent::Started, this, &ALIVehicle::OnToolPressed);
 }
 
 void ALIVehicle::OnThrottle(const FInputActionValue& Value)
@@ -443,6 +448,36 @@ void ALIVehicle::OnResetPressed()
 	{
 		ServerReset();
 	}
+}
+
+void ALIVehicle::OnToolPressed()
+{
+	if (!HasTool())
+	{
+		return;
+	}
+	if (HasAuthority())
+	{
+		ToggleTool();
+	}
+	else
+	{
+		ServerToggleTool();
+	}
+}
+
+void ALIVehicle::ServerToggleTool_Implementation()
+{
+	if (HasTool())
+	{
+		ToggleTool();
+	}
+}
+
+void ALIVehicle::ToggleTool()
+{
+	bToolActive = !bToolActive;
+	ForceNetUpdate();
 }
 
 void ALIVehicle::SendInputIfChanged()
