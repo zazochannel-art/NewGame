@@ -14,6 +14,9 @@ class UInputAction;
 class UInputMappingContext;
 class UProceduralMeshComponent;
 class USpringArmComponent;
+class USpotLightComponent;
+class UPointLightComponent;
+class UInstancedStaticMeshComponent;
 struct FInputActionValue;
 struct FLILowPolyMesh;
 
@@ -179,6 +182,18 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UCameraComponent> Camera;
 
+	/** Headlight beam, on at night. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<USpotLightComponent> Headlight;
+
+	/** Red glow at the back: dim at night, bright while braking. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UPointLightComponent> TailLight;
+
+	/** Dust kicked up by the tyres (world-space instances, cosmetic, every machine). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UInstancedStaticMeshComponent> DustPuffs;
+
 	// ---- Setup ----
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle")
 	FText DisplayName;
@@ -262,6 +277,30 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle|Drive", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float HandbrakeRearGrip = 0.35f;
 
+	/** Anti-roll bar per axle, as a fraction of the spring rate: keeps the body flat in corners. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle|Suspension", meta = (ClampMin = "0.0", ClampMax = "2.0"))
+	float AntiRoll = 0.7f;
+
+	/** Drag area (Cd x frontal area, m^2): air resistance that grows with the square of the speed. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle|Drive", meta = (ClampMin = "0.0"))
+	float DragArea = 0.9f;
+
+	/** While airborne, how strongly the vehicle levels itself (a little help to land on the wheels). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle|Drive", meta = (ClampMin = "0.0"))
+	float AirControl = 0.6f;
+
+	// ---- Lights and effects ----
+	/** Headlight position in chassis space. Zero = front centre of the box. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle|Effects")
+	FVector HeadlightOffset = FVector::ZeroVector;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle|Effects")
+	FLinearColor DustColor = FLinearColor(0.62f, 0.52f, 0.38f);
+
+	/** Puffs per second per driven wheel at full dust (speed and surface scale it). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle|Effects", meta = (ClampMin = "0.0"))
+	float DustRate = 14.f;
+
 	// ---- Camera ----
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LostIsland|Vehicle|Camera", meta = (Units = "cm"))
 	float CameraDistance = 900.f;
@@ -337,6 +376,22 @@ private:
 	float LookPitchOffset = 0.f;
 	double LastLookTime = 0.0;
 	float CameraZoom = 1.f;
+
+	// ---- Effects (local) ----
+	struct FDustPuff
+	{
+		FVector Location = FVector::ZeroVector;
+		FVector Velocity = FVector::ZeroVector;
+		float Age = 0.f;
+		float Life = 1.f;
+		float Size = 1.f;
+	};
+	TArray<FDustPuff> Puffs;
+	float DustAccumulator = 0.f;
+	float LightCheckTimer = 0.f;
+	bool bLightsOn = false;
+	void UpdateEffects(float DeltaSeconds);
+	void UpdateLights(float DeltaSeconds);
 
 	// ---- Simulation ----
 	void SimulatePhysics(float DeltaSeconds);

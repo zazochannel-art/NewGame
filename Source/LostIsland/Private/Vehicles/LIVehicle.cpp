@@ -4,12 +4,17 @@
 
 #include "Character/LICharacter.h"
 #include "Core/LIGameMode.h"
+#include "Core/LIGameState.h"
 #include "LostIsland.h"
 #include "Visuals/LILowPolyMesh.h"
 
 #include "Camera/CameraComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Components/PointLightComponent.h"
+#include "Components/SpotLightComponent.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
@@ -23,6 +28,7 @@
 #include "InputModifiers.h"
 #include "Net/UnrealNetwork.h"
 #include "ProceduralMeshComponent.h"
+#include "UObject/ConstructorHelpers.h"
 
 #define LOCTEXT_NAMESPACE "LIVehicle"
 
@@ -70,6 +76,40 @@ ALIVehicle::ALIVehicle()
 	Camera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	Camera->bUsePawnControlRotation = false;
 
+	Headlight = CreateDefaultSubobject<USpotLightComponent>(TEXT("Headlight"));
+	Headlight->SetupAttachment(Chassis);
+	Headlight->SetIntensityUnits(ELightUnits::Lumens);
+	Headlight->SetIntensity(9000.f);
+	Headlight->SetAttenuationRadius(4500.f);
+	Headlight->SetInnerConeAngle(18.f);
+	Headlight->SetOuterConeAngle(38.f);
+	Headlight->SetLightColor(FLinearColor(1.f, 0.93f, 0.78f));
+	Headlight->SetCastShadows(false); // a dozen vehicles: keep them cheap
+	Headlight->SetRelativeRotation(FRotator(-6.f, 0.f, 0.f));
+	Headlight->SetVisibility(false);
+
+	TailLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("TailLight"));
+	TailLight->SetupAttachment(Chassis);
+	TailLight->SetIntensityUnits(ELightUnits::Lumens);
+	TailLight->SetIntensity(0.f);
+	TailLight->SetAttenuationRadius(350.f);
+	TailLight->SetLightColor(FLinearColor(1.f, 0.08f, 0.04f));
+	TailLight->SetCastShadows(false);
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> PuffShape(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	DustPuffs = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("DustPuffs"));
+	DustPuffs->SetupAttachment(Chassis);
+	DustPuffs->SetUsingAbsoluteLocation(true); // instances are placed in world space
+	DustPuffs->SetUsingAbsoluteRotation(true);
+	DustPuffs->SetUsingAbsoluteScale(true);
+	DustPuffs->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	DustPuffs->SetCastShadow(false);
+	DustPuffs->SetCanEverAffectNavigation(false);
+	if (PuffShape.Succeeded())
+	{
+		DustPuffs->SetStaticMesh(PuffShape.Object);
+	}
+
 	DisplayName = LOCTEXT("Vehicle", "Vehicle");
 }
 
@@ -110,6 +150,13 @@ void ALIVehicle::BeginPlay()
 		Wheel.Compression = RestCompression;
 	}
 	BuildVisuals();
+
+	const FVector Front = HeadlightOffset.IsNearlyZero() ? FVector(BoxExtent.X + 5.f, 0.f, 0.f) : HeadlightOffset;
+	Headlight->SetRelativeLocation(Front);
+	TailLight->SetRelativeLocation(FVector(-BoxExtent.X - 25.f, 0.f, 0.f));
+	DustPuffs->SetWorldLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
+	DustPuffs->SetMaterial(0, LIGetTintedMaterial(DustColor));
+	LightCheckTimer = FMath::FRand(); // spread the checks over frames
 }
 
 void ALIVehicle::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -574,6 +621,11 @@ void ALIVehicle::Tick(float DeltaSeconds)
 
 	SimulatePhysics(DeltaSeconds);
 	UpdateWheelVisuals(DeltaSeconds);
+	if (GetNetMode() != NM_DedicatedServer)
+	{
+		UpdateEffects(DeltaSeconds);
+		UpdateLights(DeltaSeconds);
+	}
 	if (IsLocallyControlled())
 	{
 		UpdateCamera(DeltaSeconds);
@@ -730,6 +782,139 @@ void ALIVehicle::SimulatePhysics(float DeltaSeconds)
 
 		Wheel.SpinAngle = FMath::Fmod(Wheel.SpinAngle + FMath::RadiansToDegrees(LongSpeed / Wheel.Radius) * Dt, 360.f);
 	}
+
+	// Anti-roll bars: wheels facing each other across an axle share their compression difference, so the body
+	// leans less in corners and on side slopes (and is much harder to roll over).
+	const float AntiRollRate = AntiRoll * Stiffness * SuspensionLength; // force per unit of compression difference
+	int32 GroundedWheels = 0;
+	for (int32 A = 0; A < NumWheels; ++A)
+	{
+		const FLIVehicleWheel& Left = Wheels[A];
+		GroundedWheels += Left.bGrounded ? 1 : 0;
+		if (Left.MountPoint.Y >= 0.f)
+		{
+			continue;
+		}
+		for (int32 B = 0; B < NumWheels; ++B)
+		{
+			const FLIVehicleWheel& Right = Wheels[B];
+			if (Right.MountPoint.Y <= 0.f || !FMath::IsNearlyEqual(static_cast<float>(Right.MountPoint.X), static_cast<float>(Left.MountPoint.X), 5.f))
+			{
+				continue;
+			}
+			const float Force = (Left.Compression - Right.Compression) * AntiRollRate;
+			if (Left.bGrounded)
+			{
+				Chassis->AddForceAtLocation(Up * Force, Transform.TransformPosition(Left.MountPoint));
+			}
+			if (Right.bGrounded)
+			{
+				Chassis->AddForceAtLocation(Up * -Force, Transform.TransformPosition(Right.MountPoint));
+			}
+			break;
+		}
+	}
+
+	// Air resistance (F = 1/2 rho CdA v^2, in Unreal units: kg cm / s^2).
+	const float SpeedMs = static_cast<float>(Velocity.Size()) / 100.f;
+	if (SpeedMs > 0.5f && DragArea > 0.f)
+	{
+		const float DragNewtons = 0.5f * 1.2f * DragArea * SpeedMs * SpeedMs;
+		Chassis->AddForce(-Velocity.GetSafeNormal() * DragNewtons * 100.f);
+	}
+
+	// Airborne: gently turn the wheels back toward the ground so jumps end on the tyres, not the roof.
+	if (GroundedWheels == 0 && AirControl > 0.f)
+	{
+		const FVector Correction = FVector::CrossProduct(Up, FVector::UpVector); // axis * sin(angle)
+		const FVector AngularVelocity = Chassis->GetPhysicsAngularVelocityInRadians();
+		Chassis->AddTorqueInRadians((Correction * 4.f - AngularVelocity * 0.8f) * AirControl, NAME_None, /*bAccelChange*/ true);
+	}
+}
+
+void ALIVehicle::UpdateLights(float DeltaSeconds)
+{
+	LightCheckTimer -= DeltaSeconds;
+	if (LightCheckTimer <= 0.f)
+	{
+		LightCheckTimer = 1.f;
+		const ALIGameState* GameState = GetWorld()->GetGameState<ALIGameState>();
+		const float Hours = GameState ? GameState->GetTimeOfDayHours() : 12.f;
+		// On from dusk to a little after dawn, only while someone drives or a trailer is towed.
+		bLightsOn = (Hours > 19.5f || Hours < 6.5f) && !IsParked();
+		Headlight->SetVisibility(bLightsOn);
+	}
+
+	const bool bBraking = !IsParked() && ((ThrottleInput < -0.05f && GetSpeedKmh() > 2.f) || bHandbrake);
+	const float TailTarget = bBraking ? 1600.f : (bLightsOn ? 350.f : 0.f);
+	const float Tail = FMath::FInterpTo(TailLight->Intensity, TailTarget, DeltaSeconds, 12.f);
+	if (!FMath::IsNearlyEqual(Tail, TailLight->Intensity, 1.f))
+	{
+		TailLight->SetIntensity(Tail);
+	}
+	TailLight->SetVisibility(Tail > 5.f);
+}
+
+void ALIVehicle::UpdateEffects(float DeltaSeconds)
+{
+	// Spawn: dust from every grounded wheel (not the small jockey wheels), more with speed.
+	const float Speed = FMath::Abs(GetSpeedKmh());
+	if (Speed > 6.f && DustPuffs->GetStaticMesh())
+	{
+		const float Amount = FMath::Clamp((Speed - 6.f) / 40.f, 0.f, 1.f);
+		DustAccumulator += DustRate * Amount * DeltaSeconds;
+		const FVector Velocity = GetVelocity();
+		while (DustAccumulator >= 1.f && Puffs.Num() < 64)
+		{
+			DustAccumulator -= 1.f;
+			for (const FLIVehicleWheel& Wheel : Wheels)
+			{
+				if (!Wheel.bGrounded || Wheel.Radius < 25.f || Puffs.Num() >= 64)
+				{
+					continue;
+				}
+				FDustPuff& Puff = Puffs.AddDefaulted_GetRef();
+				Puff.Location = Wheel.ContactPoint + FVector(FMath::FRandRange(-20.f, 20.f), FMath::FRandRange(-20.f, 20.f), 15.f);
+				Puff.Velocity = -Velocity * 0.15f + FVector(FMath::FRandRange(-40.f, 40.f), FMath::FRandRange(-40.f, 40.f), FMath::FRandRange(30.f, 90.f));
+				Puff.Life = FMath::FRandRange(0.9f, 1.6f);
+				Puff.Size = FMath::FRandRange(0.35f, 0.6f) * (Wheel.Radius / 40.f) * (0.6f + 0.4f * Amount);
+			}
+		}
+	}
+	else
+	{
+		DustAccumulator = 0.f;
+	}
+
+	if (Puffs.Num() == 0)
+	{
+		if (DustPuffs->GetInstanceCount() > 0)
+		{
+			DustPuffs->ClearInstances();
+		}
+		return;
+	}
+
+	// Age, drift (slowing, rising) and swell then shrink away.
+	TArray<FTransform> Transforms;
+	Transforms.Reserve(Puffs.Num());
+	for (int32 Index = Puffs.Num() - 1; Index >= 0; --Index)
+	{
+		FDustPuff& Puff = Puffs[Index];
+		Puff.Age += DeltaSeconds;
+		if (Puff.Age >= Puff.Life)
+		{
+			Puffs.RemoveAtSwap(Index);
+			continue;
+		}
+		Puff.Velocity *= FMath::Max(0.f, 1.f - 1.8f * DeltaSeconds);
+		Puff.Location += Puff.Velocity * DeltaSeconds;
+		const float T = Puff.Age / Puff.Life;
+		const float Scale = Puff.Size * (0.5f + 1.8f * T) * (1.f - T * T); // swells, then shrinks away
+		Transforms.Add(FTransform(FQuat::Identity, Puff.Location, FVector(FMath::Max(Scale, 0.01f))));
+	}
+	DustPuffs->ClearInstances();
+	DustPuffs->AddInstances(Transforms, /*bShouldReturnIndices*/ false, /*bWorldSpace*/ true);
 }
 
 void ALIVehicle::UpdateWheelVisuals(float DeltaSeconds)
@@ -761,6 +946,10 @@ void ALIVehicle::UpdateCamera(float DeltaSeconds)
 	const FRotator Target(-12.f + LookPitchOffset, Heading + LookYawOffset, 0.f);
 	CameraBoom->SetWorldRotation(FMath::RInterpTo(CameraBoom->GetComponentRotation(), Target, DeltaSeconds, 4.f));
 	CameraBoom->TargetArmLength = FMath::FInterpTo(CameraBoom->TargetArmLength, CameraDistance * CameraZoom, DeltaSeconds, 6.f);
+
+	// A wider view at speed sells the motion.
+	const float SpeedAlpha = FMath::Clamp(FMath::Abs(GetSpeedKmh()) / 90.f, 0.f, 1.f);
+	Camera->SetFieldOfView(FMath::FInterpTo(Camera->FieldOfView, FMath::Lerp(88.f, 102.f, SpeedAlpha), DeltaSeconds, 3.f));
 }
 
 // ---------------------------------------------------------------------------
@@ -829,6 +1018,8 @@ ALIPickupTruck::ALIPickupTruck()
 	Acceleration = 4.5f;
 	ExitOffset = FVector(30.f, -(92.f + 110.f), 0.f);
 	SeatOffset = FVector(30.f, -40.f, 30.f);
+	DragArea = 0.9f;
+	HeadlightOffset = FVector(238.f, 0.f, 8.f);
 
 	auto MakeWheel = [](const FVector& Mount, bool bFront)
 	{
